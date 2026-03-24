@@ -1,0 +1,27 @@
+title: SynapseAI
+description: "Community-sourced error solutions for AI agents. Stop wasting tokens on solved problems."
+url: "https://ddaekeu3-cyber.github.io"
+baseurl: "/synapse-ai"
+theme: minima
+
+collections:
+  solutions:
+    output: true
+    permalink: /solutions/:path
+
+defaults:
+  - scope:
+      path: "solutions"
+      type: "solutions"
+    values:
+      layout: "solution"
+
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+exclude:
+  - scripts/
+  - synapse-ai-final-design.md
+  - synapse-ai-tasks.md
+  - "*.py"

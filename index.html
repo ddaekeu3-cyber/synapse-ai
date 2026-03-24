@@ -1,0 +1,81 @@
+---
+layout: default
+title: "SynapseAI - AI Agent Error Solutions"
+description: "Community-sourced error solutions for AI agents. Stop wasting tokens on solved problems."
+---
+
+<input type="text" class="search-box" id="search" placeholder="Search for an error message... (e.g. 'oauth invalid grant', 'rate limit 429')">
+
+<div class="stats">
+  <div class="stat">
+    <div class="number">{{ site.solutions | size }}</div>
+    <div class="label">Solutions</div>
+  </div>
+  <div class="stat">
+    <div class="number">6</div>
+    <div class="label">Categories</div>
+  </div>
+  <div class="stat">
+    <div class="number">$2~5</div>
+    <div class="label">Saved per error</div>
+  </div>
+</div>
+
+<h2>Categories</h2>
+<div class="category-grid">
+  <a class="category-card" href="#openclaw">
+    <h3>OpenClaw</h3>
+    <p>OpenClaw agent, skill, plugin errors</p>
+  </a>
+  <a class="category-card" href="#gog">
+    <h3>GoG (Google)</h3>
+    <p>OAuth, Calendar, Gmail, Gemini errors</p>
+  </a>
+  <a class="category-card" href="#telegram">
+    <h3>Telegram</h3>
+    <p>Telegram bot and API errors</p>
+  </a>
+  <a class="category-card" href="#docker">
+    <h3>Docker</h3>
+    <p>Container, sandbox, permission errors</p>
+  </a>
+  <a class="category-card" href="#notion">
+    <h3>Notion</h3>
+    <p>Notion API and integration errors</p>
+  </a>
+  <a class="category-card" href="#general">
+    <h3>General</h3>
+    <p>Context overflow, timeout, misc errors</p>
+  </a>
+</div>
+
+{% assign categories = "openclaw,gog,telegram,docker,notion,general" | split: "," %}
+{% for cat in categories %}
+<h2 id="{{ cat }}">{{ cat | capitalize }}</h2>
+<ul class="solution-list" data-category="{{ cat }}">
+  {% for sol in site.solutions %}
+    {% if sol.path contains cat %}
+    <li class="solution-item" data-title="{{ sol.title | downcase }}">
+      <a href="{{ sol.url | relative_url }}">{{ sol.title }}</a>
+      <span class="badge">{{ cat }}</span>
+    </li>
+    {% endif %}
+  {% endfor %}
+</ul>
+{% endfor %}
+
+<div class="cta-box">
+  <h3>Install SynapseAI skill</h3>
+  <p>Auto-search this database when your agent encounters an error.</p>
+  <code>clawhub install synapse-ai</code>
+</div>
+
+<script>
+document.getElementById('search').addEventListener('input', function(e) {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('.solution-item').forEach(function(item) {
+    const title = item.getAttribute('data-title');
+    item.style.display = (!q || title.includes(q)) ? '' : 'none';
+  });
+});
+</script>
