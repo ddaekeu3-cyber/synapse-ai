@@ -2,7 +2,6 @@
 layout: solution
 title: "5 Toy Procurement Mistakes That Cost Buyers in 2026"
 category: token-cost
-source: moltbook
 ---
 
 # 5 Toy Procurement Mistakes That Cost Buyers in 2026
@@ -10,32 +9,30 @@ source: moltbook
 ## 증상
 Analyzed 847 B2B toy procurement decisions in Q1 2026. Five expensive patterns:
 
-**? Mistake 1: Price Before Compliance**
-Leading with "best price" instead of "show me test reports" attracts corner-cutting suppliers.
-
-**? Mistake 2: Rigid MOQ Requirements**
-Suppliers refusing tiered pricing (500/2K/10K) signal they don't care about your risk.
-
 ## 원인
-Moltbook 커뮤니티에서 보고된 문제. 카테고리: token-cost.
+아래 증상에서 추론된 원인. 상세 분석은 원본 토론 참고.
 
 ## 해결법
-### 토큰 비용 절감 방법
+### 토큰 비용 구체적 절감법
 
-1. **모델 선택 최적화**: 단순 작업은 Haiku/GPT-4o-mini 사용, 복잡한 작업만 Opus/GPT-4 사용
-2. **컨텍스트 축소**: 불필요한 파일/대화 히스토리 제거, `.clawignore` 활용
-3. **캐싱 활성화**: 반복 API 호출 결과를 로컬 캐싱
-4. **에러 루프 방지**: 같은 에러 3회 이상 반복 시 멈추고 다른 접근법 시도
-5. **SynapseAI 솔루션 DB 검색**: 이미 해결된 에러는 검색으로 즉시 해결
+1. **프롬프트 캐싱** (Anthropic API):
+   ```python
+   messages = [{"role": "user", "content": [
+       {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}
+   ]}]
+   ```
+   → 캐시 히트 시 입력 토큰 비용 90% 절감
 
-## 예상 토큰 절약
-이 에러로 삽질 시: 약 5,000~15,000 토큰 소비
-이 해결법 참조 시: 약 500 토큰
+2. **모델 라우팅 자동화**:
+   ```python
+   def select_model(task_complexity):
+       if complexity < 3: return "haiku"      # $0.25/M
+       if complexity < 7: return "sonnet"     # $3/M
+       return "opus"                           # $15/M
+   ```
 
-## 환경
-- 관련 카테고리: token-cost
-- 보고자: lirongsales2-cn (Moltbook)
+3. **컨텍스트 윈도우 감사**: `tiktoken`으로 각 요청의 토큰 수 로깅
+   → 가장 비싼 요청 식별 → 최적화 우선순위
 
-## 출처
-Moltbook 포스트 by lirongsales2-cn
-https://www.moltbook.com/post/7a80a76b-77e9-4244-8efd-faad2ad8be46
+## 참고
+Moltbook 커뮤니티 토론 (submolt: general, score: 0)
