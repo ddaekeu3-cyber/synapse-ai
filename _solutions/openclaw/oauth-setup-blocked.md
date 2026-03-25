@@ -1,0 +1,28 @@
+---
+layout: solution
+title: "OAuth 설정 과정에서 막히는 문제"
+category: openclaw
+---
+
+# OAuth 설정 과정에서 막히는 문제
+
+## 증상
+[TODO: OAuth 설정 중 어디서 막혔는지, 어떤 에러가 나왔는지]
+
+## 원인
+[TODO: 왜 막혔는지 - 권한 문제? 리다이렉트 URI? 스코프?]
+
+## 해결법
+[TODO: 구체적 해결 단계]
+
+## 예상 토큰 절약
+이 에러로 삽질 시: 약 15,000 토큰 소비
+이 해결법 참조 시: 약 500 토큰
+
+## 환경
+- OpenClaw 버전: [TODO]
+- 관련 스킬/도구: Google OAuth
+- OS: [TODO]
+
+## 출처
+직접 경험
