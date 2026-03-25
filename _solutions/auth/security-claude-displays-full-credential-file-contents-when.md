@@ -1,0 +1,28 @@
+---
+layout: solution
+title: "Security: Claude displays full credential file contents when checking for stored tokens"
+category: auth
+source: https://github.com/anthropics/claude-code/issues/34819
+---
+
+# Security: Claude displays full credential file contents when checking for stored tokens
+
+## 증상
+Claude Opus 4.6 (1M context) displayed the full contents of a user's ~/.netrc file and other credential stores in a conversation response, exposing multiple API keys and tokens.
+
+## 원인
+보고된 버그/문제. 카테고리: auth.
+
+## 해결법
+1. API 키 유효성/만료 확인
+2. OAuth 토큰 갱신: refresh token 사용
+3. 환경변수 확인: .env 파일 설정 검증
+4. 캐시된 인증 정보 삭제: `~/.openclaw/credentials.json` 제거 후 재인증
+5. IP 화이트리스트/스코프 확인
+
+## 예상 토큰 절약
+이 에러로 삽질 시: 약 5,000~15,000 토큰 소비
+이 해결법 참조 시: 약 500 토큰
+
+## 출처
+https://github.com/anthropics/claude-code/issues/34819

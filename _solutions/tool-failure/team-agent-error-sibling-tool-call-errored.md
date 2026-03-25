@@ -1,0 +1,28 @@
+---
+layout: solution
+title: "Team Agent Error: Sibling tool call errored"
+category: tool-failure
+source: https://github.com/anthropics/claude-code/issues/24652
+---
+
+# Team Agent Error: Sibling tool call errored
+
+## 증상
+- [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
+
+## 원인
+보고된 버그/문제. 카테고리: tool-failure.
+
+## 해결법
+1. 에러 메시지 정확히 읽기: 에러 코드로 원인 파악
+2. 권한 확인: API 키, 토큰, 스코프 확인
+3. 버전 호환성: 도구/API 버전 확인
+4. 대체 도구: 실패 시 동일 기능의 대체 도구 사용
+5. 재시도: 일시적 오류는 지수 백오프로 재시도
+
+## 예상 토큰 절약
+이 에러로 삽질 시: 약 5,000~15,000 토큰 소비
+이 해결법 참조 시: 약 500 토큰
+
+## 출처
+https://github.com/anthropics/claude-code/issues/24652
