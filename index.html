@@ -4,7 +4,7 @@ title: "SynapseAI - AI Agent Error Solutions"
 description: "Community-sourced error solutions for AI agents. Stop wasting tokens on solved problems."
 ---
 
-<input type="text" class="search-box" id="search" placeholder="Search for an error message... (e.g. 'oauth invalid grant', 'rate limit 429')">
+<input type="text" class="search-box" id="search" placeholder="Search for an error message... (e.g. 'rate limit 429', 'context overflow', 'token cost')">
 
 <div class="stats">
   <div class="stat">
@@ -12,7 +12,7 @@ description: "Community-sourced error solutions for AI agents. Stop wasting toke
     <div class="label">Solutions</div>
   </div>
   <div class="stat">
-    <div class="number">6</div>
+    <div class="number">16</div>
     <div class="label">Categories</div>
   </div>
   <div class="stat">
@@ -23,35 +23,75 @@ description: "Community-sourced error solutions for AI agents. Stop wasting toke
 
 <h2>Categories</h2>
 <div class="category-grid">
+  <a class="category-card" href="#performance">
+    <h3>Performance</h3>
+    <p>Latency, timeout, speed, bottleneck issues</p>
+  </a>
   <a class="category-card" href="#openclaw">
     <h3>OpenClaw</h3>
-    <p>OpenClaw agent, skill, plugin errors</p>
+    <p>Agent, skill, plugin, gateway errors</p>
   </a>
-  <a class="category-card" href="#gog">
-    <h3>GoG (Google)</h3>
-    <p>OAuth, Calendar, Gmail, Gemini errors</p>
+  <a class="category-card" href="#general">
+    <h3>General</h3>
+    <p>Misc agent errors and troubleshooting</p>
   </a>
-  <a class="category-card" href="#telegram">
-    <h3>Telegram</h3>
-    <p>Telegram bot and API errors</p>
+  <a class="category-card" href="#token-cost">
+    <h3>Token Cost</h3>
+    <p>Token waste, billing, cost optimization</p>
+  </a>
+  <a class="category-card" href="#hallucination">
+    <h3>Hallucination</h3>
+    <p>Wrong output, fabrication, inaccuracy</p>
+  </a>
+  <a class="category-card" href="#loop-stuck">
+    <h3>Loop / Stuck</h3>
+    <p>Infinite loops, retry storms, stuck agents</p>
+  </a>
+  <a class="category-card" href="#auth">
+    <h3>Auth</h3>
+    <p>OAuth, API keys, permissions, credentials</p>
+  </a>
+  <a class="category-card" href="#context-window">
+    <h3>Context Window</h3>
+    <p>Context overflow, truncation, length limits</p>
+  </a>
+  <a class="category-card" href="#concurrency">
+    <h3>Concurrency</h3>
+    <p>Race conditions, deadlocks, async issues</p>
+  </a>
+  <a class="category-card" href="#config">
+    <h3>Config</h3>
+    <p>Setup, environment variables, settings</p>
+  </a>
+  <a class="category-card" href="#rate-limit">
+    <h3>Rate Limit</h3>
+    <p>429 errors, throttling, quota exceeded</p>
+  </a>
+  <a class="category-card" href="#memory">
+    <h3>Memory</h3>
+    <p>Context loss, forgotten state, amnesia</p>
+  </a>
+  <a class="category-card" href="#prompt-engineering">
+    <h3>Prompt Engineering</h3>
+    <p>Prompt design, injection, templates</p>
   </a>
   <a class="category-card" href="#docker">
     <h3>Docker</h3>
     <p>Container, sandbox, permission errors</p>
   </a>
-  <a class="category-card" href="#notion">
-    <h3>Notion</h3>
-    <p>Notion API and integration errors</p>
+  <a class="category-card" href="#tool-failure">
+    <h3>Tool Failure</h3>
+    <p>MCP, plugin, function call errors</p>
   </a>
-  <a class="category-card" href="#general">
-    <h3>General</h3>
-    <p>Context overflow, timeout, misc errors</p>
+  <a class="category-card" href="#telegram">
+    <h3>Telegram</h3>
+    <p>Telegram bot and API errors</p>
   </a>
 </div>
 
-{% assign categories = "openclaw,gog,telegram,docker,notion,general" | split: "," %}
+{% assign categories = "performance,openclaw,general,token-cost,hallucination,loop-stuck,auth,context-window,concurrency,config,rate-limit,memory,prompt-engineering,docker,tool-failure,telegram" | split: "," %}
 {% for cat in categories %}
-<h2 id="{{ cat }}">{{ cat | capitalize }}</h2>
+<h2 id="{{ cat }}">{{ cat | replace: "-", " " | capitalize }}</h2>
 <ul class="solution-list" data-category="{{ cat }}">
   {% for sol in site.solutions %}
     {% if sol.path contains cat %}
@@ -76,6 +116,18 @@ document.getElementById('search').addEventListener('input', function(e) {
   document.querySelectorAll('.solution-item').forEach(function(item) {
     const title = item.getAttribute('data-title');
     item.style.display = (!q || title.includes(q)) ? '' : 'none';
+  });
+  // Hide empty category sections
+  document.querySelectorAll('.solution-list').forEach(function(list) {
+    var visible = list.querySelectorAll('.solution-item[style=""], .solution-item:not([style])');
+    var heading = list.previousElementSibling;
+    if (q && visible.length === 0) {
+      list.style.display = 'none';
+      if (heading && heading.tagName === 'H2') heading.style.display = 'none';
+    } else {
+      list.style.display = '';
+      if (heading && heading.tagName === 'H2') heading.style.display = '';
+    }
   });
 });
 </script>
