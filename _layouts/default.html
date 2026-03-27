@@ -6,6 +6,28 @@
   <title>{{ page.title | default: site.title }}</title>
   <meta name="description" content="{{ page.description | default: site.description }}">
   {% seo %}
+  <!-- Google Analytics 4 (GA4) -->
+  {% if site.google_analytics %}
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ site.google_analytics }}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '{{ site.google_analytics }}', {
+      send_page_view: true,
+      cookie_flags: 'SameSite=None;Secure'
+    });
+    // Enhanced measurement: scroll, outbound clicks, site search
+    gtag('config', '{{ site.google_analytics }}', {
+      'enhanced_measurement': {
+        'scroll': true,
+        'outbound_clicks': true,
+        'site_search': true,
+        'page_changes': true
+      }
+    });
+  </script>
+  {% endif %}
   <style>
     :root {
       --bg: #0d1117;

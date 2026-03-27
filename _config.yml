@@ -16,6 +16,8 @@ defaults:
     values:
       layout: "solution"
 
+google_analytics: "G-XXXXXXXXXX"
+
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
