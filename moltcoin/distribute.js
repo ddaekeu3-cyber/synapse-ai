@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * MoltCoin Weekly Distribution Script
+ * MoltCoin Distribution Script
+ *
+ * 주당 총 배포량은 고정 (4,326,923 MOLT, 2년 반감기)
+ * 배포 빈도는 페이즈에 따라 조정됨:
+ *   early  — 3시간마다  1회 → 1회당 77,266 MOLT
+ *   mid    — 12시간마다 1회 → 1회당 308,923 MOLT
+ *   weekly — 주 1회        → 1회당 4,326,923 MOLT
  *
  * Usage:
- *   node distribute.js --recipients alice,bob,charlie
+ *   node distribute.js --recipients agent1,agent2,agent3
  *   node distribute.js --recipients-file recipients.txt
- *   node distribute.js --dry-run --recipients alice,bob
- *
- * recipients.txt: one agent name per line
- *
- * Halving schedule:
- *   Week 1 emission: 4,326,923 MOLT
- *   Halving every 104 weeks (2 years)
- *   Total converges to ~900,000,000 MOLT
+ *   node distribute.js --phase early --recipients agent1,agent2
+ *   node distribute.js --dry-run --recipients agent1
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -21,23 +21,31 @@ import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-
-const LEDGER_PATH      = join(__dir, 'ledger.json');
+const LEDGER_PATH       = join(__dir, 'ledger.json');
 const TRANSACTIONS_PATH = join(__dir, 'transactions.json');
 
 // ── 상수 ─────────────────────────────────────────────────────
-const WEEK_1_EMISSION  = 4_326_923;   // 900,000,000 / 208
-const HALVING_WEEKS    = 104;          // 2년 = 104주
+const WEEK_1_EMISSION  = 4_326_923;  // 900,000,000 / 208
+const HALVING_WEEKS    = 104;         // 2년 = 104주
 const TOTAL_SUPPLY     = 1_000_000_000;
-const FOUNDER_RESERVE  = 100_000_000;
-const DISTRIBUTION_CAP = 900_000_000;
 
-// ── 주차별 발행량 계산 ────────────────────────────────────────
+const PHASES = {
+  early:  { interval_hours: 3   },
+  mid:    { interval_hours: 12  },
+  weekly: { interval_hours: 168 },
+};
+
+// ── 주차별 주간 발행량 ────────────────────────────────────────
 function weeklyEmission(week) {
-  if (week < 1) throw new Error('Week must be >= 1');
   const epoch = Math.floor((week - 1) / HALVING_WEEKS);
-  const emission = Math.floor(WEEK_1_EMISSION / Math.pow(2, epoch));
-  return emission;
+  return Math.floor(WEEK_1_EMISSION / Math.pow(2, epoch));
+}
+
+// ── 1회 배포량 계산 ───────────────────────────────────────────
+// 1회당량 = 주간총량 / (168 / interval_hours)
+function perRoundEmission(weeklyTotal, intervalHours) {
+  const roundsPerWeek = 168 / intervalHours;
+  return Math.floor(weeklyTotal / roundsPerWeek);
 }
 
 // ── 인자 파싱 ─────────────────────────────────────────────────
@@ -45,82 +53,94 @@ function parseArgs() {
   const args = process.argv.slice(2);
   let recipients = [];
   let dryRun = false;
+  let phaseOverride = null;
   let forceWeek = null;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--recipients' && args[i + 1]) {
       recipients = args[++i].split(',').map(r => r.trim()).filter(Boolean);
     } else if (args[i] === '--recipients-file' && args[i + 1]) {
-      const file = args[++i];
-      recipients = readFileSync(file, 'utf8')
+      recipients = readFileSync(args[++i], 'utf8')
         .split('\n').map(r => r.trim()).filter(Boolean);
-    } else if (args[i] === '--dry-run') {
-      dryRun = true;
+    } else if (args[i] === '--phase' && args[i + 1]) {
+      phaseOverride = args[++i];
     } else if (args[i] === '--week' && args[i + 1]) {
       forceWeek = parseInt(args[++i], 10);
+    } else if (args[i] === '--dry-run') {
+      dryRun = true;
     } else if (args[i] === '--help') {
       console.log(`
-MoltCoin Weekly Distribution
+MoltCoin Distribution Script
 
 Usage:
-  node distribute.js --recipients agent1,agent2,agent3
+  node distribute.js --recipients agent1,agent2
   node distribute.js --recipients-file recipients.txt
-  node distribute.js --dry-run --recipients agent1,agent2
-  node distribute.js --week 3 --recipients agent1   (force specific week)
+  node distribute.js --phase early|mid|weekly --recipients agent1
+  node distribute.js --dry-run --recipients agent1
 
-Options:
-  --recipients <list>       Comma-separated agent names
-  --recipients-file <path>  One agent per line text file
-  --dry-run                 Preview without saving
-  --week <n>                Override week number (for testing)
-  --help                    Show this help
+Phase intervals:
+  early   — every 3h   → ${perRoundEmission(WEEK_1_EMISSION, 3).toLocaleString()} MOLT/round
+  mid     — every 12h  → ${perRoundEmission(WEEK_1_EMISSION, 12).toLocaleString()} MOLT/round
+  weekly  — every 168h → ${WEEK_1_EMISSION.toLocaleString()} MOLT/round
 `);
       process.exit(0);
     }
   }
 
   if (recipients.length === 0) {
-    console.error('Error: No recipients specified. Use --recipients or --recipients-file');
+    console.error('Error: --recipients or --recipients-file required');
+    process.exit(1);
+  }
+  if (phaseOverride && !PHASES[phaseOverride]) {
+    console.error(`Error: unknown phase "${phaseOverride}". Use: early, mid, weekly`);
     process.exit(1);
   }
 
-  return { recipients, dryRun, forceWeek };
+  return { recipients, dryRun, phaseOverride, forceWeek };
 }
 
 // ── 메인 ─────────────────────────────────────────────────────
 function main() {
-  const { recipients, dryRun, forceWeek } = parseArgs();
+  const { recipients, dryRun, phaseOverride, forceWeek } = parseArgs();
 
-  // 장부 읽기
   const ledger = JSON.parse(readFileSync(LEDGER_PATH, 'utf8'));
   const transactions = JSON.parse(readFileSync(TRANSACTIONS_PATH, 'utf8'));
 
-  const currentWeek = forceWeek ?? (ledger.week + 1);
-  const emission    = weeklyEmission(currentWeek);
-  const perAgent    = Math.floor(emission / recipients.length);
-  const remainder   = emission - (perAgent * recipients.length);
-  const now         = new Date().toISOString();
+  // 페이즈 결정
+  const phase = phaseOverride ?? ledger.current_phase ?? 'weekly';
+  const intervalHours = PHASES[phase].interval_hours;
 
-  // 검증
-  if (ledger.distribution_remaining < emission) {
-    console.error(`Error: Distribution pool exhausted.`);
-    console.error(`  Remaining: ${ledger.distribution_remaining.toLocaleString()}`);
-    console.error(`  Needed:    ${emission.toLocaleString()}`);
+  // 현재 주차 (첫 배포부터 경과 시간으로 계산)
+  const currentWeek = forceWeek ?? Math.max(1, ledger.week || 1);
+  const weeklyTotal = weeklyEmission(currentWeek);
+  const roundEmission = perRoundEmission(weeklyTotal, intervalHours);
+  const perAgent = Math.floor(roundEmission / recipients.length);
+  const remainder = roundEmission - (perAgent * recipients.length);
+  const now = new Date().toISOString();
+
+  // 하드캡 검증
+  if (ledger.distribution_remaining < roundEmission) {
+    console.error('Error: Distribution pool exhausted.');
     process.exit(1);
   }
-  if (ledger.circulating + emission > TOTAL_SUPPLY) {
+  if (ledger.circulating + roundEmission > TOTAL_SUPPLY) {
     console.error('Error: HARDCAP VIOLATION — would exceed 1,000,000,000 MOLT');
     process.exit(1);
   }
 
-  // 배포 미리보기
-  console.log(`\n=== MoltCoin Week ${currentWeek} Distribution ===`);
-  console.log(`Emission:         ${emission.toLocaleString()} MOLT`);
+  // 미리보기
+  const roundsPerWeek = 168 / intervalHours;
+  console.log(`\n=== MoltCoin Distribution ===`);
+  console.log(`Phase:            ${phase} (${intervalHours}h interval, ${roundsPerWeek}x/week)`);
+  console.log(`Week:             ${currentWeek}`);
+  console.log(`Weekly total:     ${weeklyTotal.toLocaleString()} MOLT`);
+  console.log(`This round:       ${roundEmission.toLocaleString()} MOLT`);
   console.log(`Recipients:       ${recipients.length} agents`);
   console.log(`Per agent:        ${perAgent.toLocaleString()} MOLT`);
-  console.log(`Remainder:        ${remainder} MOLT (→ FOUNDER:master)`);
-  console.log(`Distribution pool remaining after: ${(ledger.distribution_remaining - emission).toLocaleString()}`);
-  console.log(`Circulating after: ${(ledger.circulating + emission).toLocaleString()}`);
+  console.log(`Remainder:        ${remainder} MOLT → FOUNDER:master`);
+  console.log(`Pool remaining:   ${(ledger.distribution_remaining - roundEmission).toLocaleString()}`);
+  console.log(`Circulating:      ${(ledger.circulating + roundEmission).toLocaleString()}`);
+
   if (dryRun) {
     console.log('\n[DRY RUN] No changes saved.');
     return;
@@ -135,30 +155,19 @@ function main() {
   }
 
   // 트랜잭션 기록
-  const txBase = {
-    week: currentWeek,
-    date: now,
-    type: 'weekly_distribution',
-    emission_total: emission,
-    per_agent: perAgent,
-    recipients: recipients.length,
-    tx_hash: createHash('sha256')
-      .update(`${currentWeek}|${now}|${emission}|${recipients.join(',')}`)
-      .digest('hex')
-  };
-
-  // 수신자별 개별 트랜잭션
   for (const agent of recipients) {
     transactions.push({
       week: currentWeek,
       date: now,
       type: 'distribution',
+      phase,
+      interval_hours: intervalHours,
       recipient: agent,
       amount: perAgent,
-      reason: `Week ${currentWeek} distribution`,
+      reason: `Week ${currentWeek} ${phase} distribution`,
       tx_hash: createHash('sha256')
-        .update(`${currentWeek}|${agent}|${perAgent}|${now}`)
-        .digest('hex')
+        .update(`${currentWeek}|${phase}|${agent}|${perAgent}|${now}`)
+        .digest('hex'),
     });
   }
   if (remainder > 0) {
@@ -166,34 +175,34 @@ function main() {
       week: currentWeek,
       date: now,
       type: 'distribution_remainder',
+      phase,
       recipient: 'FOUNDER:master',
       amount: remainder,
-      reason: `Week ${currentWeek} remainder`,
+      reason: `Week ${currentWeek} ${phase} remainder`,
       tx_hash: createHash('sha256')
-        .update(`${currentWeek}|FOUNDER:master|${remainder}|${now}`)
-        .digest('hex')
+        .update(`${currentWeek}|${phase}|FOUNDER:master|${remainder}|${now}`)
+        .digest('hex'),
     });
   }
 
   // 장부 업데이트
-  ledger.week = currentWeek;
-  ledger.circulating += emission;
-  ledger.distribution_remaining -= emission;
-  ledger.last_updated = now;
-
-  // 다음 배포일 (7일 후)
   const nextDate = new Date();
-  nextDate.setDate(nextDate.getDate() + 7);
+  nextDate.setHours(nextDate.getHours() + intervalHours);
+
+  ledger.week = currentWeek;
+  ledger.current_phase = phase;
+  ledger.interval_hours = intervalHours;
+  ledger.circulating += roundEmission;
+  ledger.distribution_remaining -= roundEmission;
+  ledger.last_updated = now;
   ledger.next_distribution = nextDate.toISOString();
 
-  // 저장
   writeFileSync(LEDGER_PATH, JSON.stringify(ledger, null, 2));
   writeFileSync(TRANSACTIONS_PATH, JSON.stringify(transactions, null, 2));
 
-  console.log(`\n✅ Week ${currentWeek} distribution complete.`);
-  console.log(`   Ledger saved:       moltcoin/ledger.json`);
-  console.log(`   Transactions saved: moltcoin/transactions.json`);
-  console.log(`   Commit these files to publish the distribution.`);
+  console.log(`\n✅ Distribution complete.`);
+  console.log(`   Next: ${nextDate.toISOString()} (${intervalHours}h later)`);
+  console.log(`   Commit moltcoin/ledger.json + transactions.json to publish.`);
 }
 
 main();
