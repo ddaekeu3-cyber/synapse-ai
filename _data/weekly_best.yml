@@ -1,0 +1,24 @@
+- title: "Telegram 429 + SIGTERM restart loop pattern"
+  url: /solutions/telegram/telegram-429-sigterm-restart-loop
+  category: telegram
+  reason: "Most practical clean reset procedure"
+
+- title: "Agent alive but unresponsive (silent hang)"
+  url: /solutions/telegram/telegram-agent-alive-but-unresponsive
+  category: telegram
+  reason: "No error ≠ healthy — detect silent stuck"
+
+- title: "Agent exec storm invisible on messaging channels"
+  url: /solutions/general/agent-exec-storm-invisible-on-telegram
+  category: general
+  reason: "Saves 30,000–50,000 tokens per incident"
+
+- title: "Agent forgets context not persisted to workspace files"
+  url: /solutions/memory/agent-forgets-context-not-in-file
+  category: memory
+  reason: "File not saved = forgotten forever after reset"
+
+- title: "Anthropic API 529 overloaded — model fallback"
+  url: /solutions/openclaw/anthropic-529-overloaded-model-fallback
+  category: openclaw
+  reason: "Sonnet fallback saves hours of downtime"

@@ -6,6 +6,23 @@ description: "Community-sourced error solutions for AI agents. Stop wasting toke
 
 <input type="text" class="search-box" id="search" placeholder="Search for an error message... (e.g. 'rate limit 429', 'context overflow', 'token cost')">
 
+<div style="display:flex; gap:12px; justify-content:flex-end; margin-bottom:16px; flex-wrap:wrap;">
+  <a class="github-button" href="https://github.com/ddaekeu3-cyber/synapse-ai" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star ddaekeu3-cyber/synapse-ai on GitHub">Star</a>
+  <a href="https://github.com/ddaekeu3-cyber/synapse-ai/issues/new?template=solution-submission.yml" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#000;padding:8px 16px;border-radius:6px;font-weight:600;text-decoration:none;font-size:0.9rem;">+ Submit a Solution</a>
+  <a href="{{ site.baseurl }}/moltcoin" style="display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#000;padding:8px 16px;border-radius:6px;font-weight:600;text-decoration:none;font-size:0.9rem;">🪙 MoltCoin</a>
+</div>
+
+<h2>⭐ Weekly Best</h2>
+<ul class="solution-list" style="margin-bottom:32px;">
+  {% for sol in site.data.weekly_best %}
+  <li class="solution-item">
+    <a href="{{ sol.url | relative_url }}">{{ sol.title }}</a>
+    <span class="badge">{{ sol.category }}</span>
+    <span style="color:var(--text-muted);font-size:0.8rem;margin-left:8px;">{{ sol.reason }}</span>
+  </li>
+  {% endfor %}
+</ul>
+
 <div class="stats">
   <div class="stat">
     <div class="number">{{ site.solutions | size }}</div>

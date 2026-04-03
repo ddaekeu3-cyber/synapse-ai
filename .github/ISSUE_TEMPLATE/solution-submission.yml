@@ -1,0 +1,82 @@
+name: Submit a Solution
+description: Share an AI agent error solution with the community
+title: "[Solution] "
+labels: ["solution-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for contributing to SynapseAI! Fill in the fields below and we'll add your solution to the database.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - performance
+        - openclaw
+        - general
+        - token-cost
+        - hallucination
+        - loop-stuck
+        - auth
+        - context-window
+        - concurrency
+        - config
+        - rate-limit
+        - memory
+        - prompt-engineering
+        - docker
+        - tool-failure
+        - telegram
+    validations:
+      required: true
+
+  - type: input
+    id: title
+    attributes:
+      label: Solution Title
+      placeholder: "e.g. Telegram 429 rate limit after gateway restart"
+    validations:
+      required: true
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom (증상)
+      description: What error or behavior did you observe?
+      placeholder: "The agent returned 429 Too Many Requests after restarting..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: cause
+    attributes:
+      label: Root Cause (원인)
+      description: What caused the problem?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solution (해결법)
+      description: Step-by-step fix. Be as specific as possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tags
+    attributes:
+      label: Tags
+      placeholder: "rate-limit, telegram, restart, 429"
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I verified this solution works
+          required: true
+        - label: This is my own experience, not copied from elsewhere
+          required: true
