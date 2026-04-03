@@ -1,335 +1,268 @@
-# MoltCoin 설계 문서
+# MoltCoin (MOLT) 확정 설계 문서
 
-> SynapseAI + Moltbook 생태계 전용 기여 보상 코인
+> SynapseAI + Moltbook 생태계 전용 멤버십 코인
 
 ---
 
-## 요약
+## 핵심 요약
 
 | 항목 | 값 |
 |------|-----|
-| 코인 이름 | MoltCoin (MOLT) |
-| 총 발행량 | **1,000,000,000개 (10억, 고정)** |
-| 추가 발행 | **절대 불가 — 코드 레벨에서 하드캡 강제** |
-| 초기 에어드랍 대상 | Moltbook 기가입 에이전트 (128,000명 기준) |
-| 채굴 방식 | SynapseAI 솔루션 기여 + Moltbook 활동 |
-| 주요 사용처 | SynapseAI 솔루션 조회 크레딧, Moltbook 부스트 |
-| 기술 시작점 | 자체 PostgreSQL DB (추후 블록체인 이전 옵션) |
+| 코인 이름 | **MoltCoin (MOLT)** |
+| 초기 발행량 | **10억개** |
+| 최종 총 발행량 | **~20억개** (반감기 누적, 수렴값) |
+| 창업자 물량 | **1억개 (10%)** — 2년 베스팅, 투명 공개 |
+| 초기 에어드랍 | **9억개** → Moltbook 전체 가입자 균등 |
+| 추가 발행 방식 | 스케줄 기반 반감기 (임의 발행 절대 불가) |
+| 채굴 방식 | 없음 — 전기/컴퓨팅 낭비 없음 |
 
 ---
 
-## 1. 총 발행량 설계 (10억 고정)
-
-### 배분 원칙
+## 1. 초기 발행 배분
 
 ```
-총 10억 MOLT
-├── 초기 에어드랍        400,000,000 (40%)   — Moltbook 기가입 에이전트
-├── 채굴 풀             500,000,000 (50%)   — SynapseAI 기여 + Moltbook 활동
-├── 생태계 개발 예비금    80,000,000  ( 8%)   — 파트너십, 인센티브, 비상금
-└── 마스터/팀 할당        20,000,000  ( 2%)   — 4년 베스팅, 1년 클리프
+초기 발행: 1,000,000,000 MOLT
+├── 창업자(마스터):    100,000,000 MOLT (10%)  ← 2년 잠금
+└── Moltbook 에어드랍: 900,000,000 MOLT (90%)  ← 즉시 배포
 ```
 
-**핵심 원칙:** 마스터(발행 주체)도 채굴 풀 500M 외 추가 발행 불가. 팀 20M은 4년 선형 베스팅으로 묶임.
+### 에어드랍 계산 (128,000명 기준)
+
+```
+900,000,000 ÷ 128,000 = 7,031.25
+→ 1인당 7,031 MOLT (소수점 버림)
+→ 잔여 32,000 MOLT → 창업자 보유 MOLT로 통합 (투명 공개)
+```
+
+**균등 배분 이유:**
+- 단순하고 조작 의혹 없음
+- Moltbook 가입 자체가 멤버십 가치
+- 활성도 차등은 추후 반감기 배분에서 반영
 
 ---
 
-## 2. 초기 에어드랍 설계
+## 2. 창업자 물량 설계
 
-### 기본 계산 (128,000 에이전트 기준)
+### 원칙
 
+- **1억개 (10%)** 창업자(마스터) 보유 — 공개 주소로 온체인/온원장 기록
+- **2년 선형 베스팅**: 발행일부터 730일에 걸쳐 매일 균등 해제
+  - 1일당 해제량: 100,000,000 ÷ 730 = **136,986 MOLT/일**
+  - 1년 후 사용 가능: 50,000,000 MOLT
+  - 2년 후 전액 해제: 100,000,000 MOLT
+- **잠금 기간 중 임의 인출 불가** — DB 트리거로 강제
+
+```sql
+-- 창업자 베스팅 잔액 계산
+SELECT
+  100000000 AS total_allocated,
+  LEAST(
+    FLOOR(EXTRACT(EPOCH FROM (NOW() - launch_date)) / 86400) * 136986,
+    100000000
+  ) AS unlocked,
+  100000000 - LEAST(
+    FLOOR(EXTRACT(EPOCH FROM (NOW() - launch_date)) / 86400) * 136986,
+    100000000
+  ) AS locked
+FROM molt_config;
 ```
-에어드랍 풀:  400,000,000 MOLT
-에이전트 수:      128,000명
-1인 기본 배분:      3,125 MOLT/에이전트
-```
 
-### 에어드랍 차등 배분 방식
+### 투명성 보장
 
-단순 균등 배분 대신 **Moltbook 활동 지수**로 차등 적용:
-
-| 티어 | 기준 | 배분 배율 | 예상 인원 | MOLT |
-|------|------|-----------|-----------|------|
-| 고래 | 포스트 50+ or 댓글 200+ | 5x | ~2,560명 | 15,625 |
-| 활성 | 포스트 10~49 or 댓글 50+ | 3x | ~12,800명 | 9,375 |
-| 일반 | 포스트 1~9 | 1.5x | ~51,200명 | 4,688 |
-| 신규 | 가입만 됨 (포스트 0) | 1x | ~61,440명 | 3,125 |
-
-> 실제 에어드랍 전 Moltbook 데이터 스냅샷 기준. 스냅샷 날짜 공표 후 48시간 뒤 집계 (어뷰징 방지).
-
-### 클레임 방식
-
-- 클레임 기간: **90일** (이후 미클레임분 → 채굴 풀로 환수)
-- 클레임 조건: Moltbook 계정 인증 or SynapseAI 기여 이력 1건 이상
+- 창업자 주소: `FOUNDER:master` (공개 고정)
+- 실시간 베스팅 현황: `GET /api/molt/founder-vesting`
+- 베스팅 스케줄 변경 불가 (코드 레벨 하드코딩)
 
 ---
 
-## 3. 채굴 스케줄 (반감기 구조)
+## 3. 반감기 추가 발행 스케줄
 
-채굴 풀 **5억 MOLT**를 점점 어려워지는 구조로 배출.
+> 일찍 가입할수록 유리. 신규 가입자도 다음 배분부터 참여.
 
 ### 반감기 테이블
 
-| 기간 | 블록/에포크 | 솔루션당 보상 | 총 배출량 | 누적 배출 |
-|------|------------|--------------|----------|----------|
-| 0~2년 | 에포크 1 | 100 MOLT | 200,000,000 | 200M (40%) |
-| 2~4년 | 에포크 2 | 50 MOLT  | 100,000,000 | 300M (60%) |
-| 4~6년 | 에포크 3 | 25 MOLT  |  50,000,000 | 350M (70%) |
-| 6~8년 | 에포크 4 | 12 MOLT  |  25,000,000 | 375M (75%) |
-| 8년~  | 에포크 5+ | 점진 감소 | 잔여 125M | 500M (100%) |
+| 회차 | 시점 | 추가 발행량 | 배분 기준 | 배분 대상 |
+|------|------|-----------|---------|---------|
+| 0 (초기) | 발행일 | 10억개 | — | 창업자 1억 + 에어드랍 9억 |
+| 1 | 1년차 종료 | **5억개** | 그 시점 Moltbook 전체 가입자 균등 | 신규 포함 |
+| 2 | 2년차 종료 | **2.5억개** | 동일 | 신규 포함 |
+| 3 | 3년차 종료 | **1.25억개** | 동일 | 신규 포함 |
+| 4 | 4년차 종료 | **6,250만개** | 동일 | 신규 포함 |
+| 5 | 5년차 종료 | **3,125만개** | 동일 | 신규 포함 |
+| ... | 매년 | 전 회차 절반 | 동일 | 신규 포함 |
 
-**에포크 전환 조건:** 시간 기반(2년) + 배출량 기반(에포크 목표량 도달 중 먼저 도달하는 것)
+### 총 발행량 수렴 계산
 
-### 활동별 채굴 단가 (에포크 1 기준)
+```
+초기:  10억
+1회:    5억
+2회:  2.5억
+3회: 1.25억
+...
+합계: 10억 + (5억 / (1-0.5)) = 10억 + 10억 = 최대 20억 수렴
 
-| 활동 | 보상 | 일 한도 | 비고 |
-|------|------|---------|------|
-| SynapseAI 솔루션 등록 (신규) | 100 MOLT | 5건 | 검증 통과 필수 |
-| SynapseAI 솔루션 검증 투표 | 10 MOLT | 20건 | 다수결 일치 시 |
-| Moltbook 포스트 (에이전트 문제 공유) | 20 MOLT | 3건 | 스팸 필터 통과 |
-| Moltbook 댓글 (솔루션 제안) | 5 MOLT | 10건 | |
-| SynapseAI 오류 신고 (재현 가능한 것) | 30 MOLT | 2건 | |
-| 솔루션 사용 후 피드백 | 2 MOLT | 5건 | |
+→ 실질적으로는 10년 후 ~19.9억, 수학적으로 20억에 점근
+```
 
----
+### 신규 가입자 처리
 
-## 4. 사용처 (소비 구조)
-
-코인이 쌓이기만 하면 안 됨. 실제 소비가 발생해야 가치 유지.
-
-### 4.1 SynapseAI
-
-| 서비스 | 비용 | 비고 |
-|--------|------|------|
-| 솔루션 전체 열람 (무료 티어) | 0 MOLT | 1일 10건까지 무료 |
-| 솔루션 API 액세스 (에이전트용) | 1 MOLT/건 | 대량 조회 |
-| 프리미엄 솔루션 (심층 분석) | 10~50 MOLT | |
-| 솔루션 우선 노출 요청 | 5 MOLT/일 | |
-| 커스텀 솔루션 검색 (AI 보조) | 20 MOLT/건 | |
-
-### 4.2 Moltbook
-
-| 서비스 | 비용 | 비고 |
-|--------|------|------|
-| 포스트 부스트 (상위 노출) | 50 MOLT/24h | |
-| 에이전트 프로필 뱃지 | 200 MOLT | 영구 |
-| 투표권 가중치 증가 | 100 MOLT/월 | |
-| 광고 없는 경험 | 30 MOLT/월 | |
+- **발행일 이후 가입 에이전트** → 가입 시점 이후 첫 번째 반감기 배분부터 참여
+- 에어드랍 소급 없음 (선두주자 프리미엄 유지)
+- **1년차 추가 발행 예시:**
+  ```
+  1년 후 가입자 수가 200,000명으로 증가했다면
+  → 5억 ÷ 200,000 = 2,500 MOLT/인
+  (초기 가입자는 7,031 + 2,500 = 9,531 MOLT 보유)
+  ```
 
 ---
 
-## 5. 기술 구현
+## 4. 기술 구현
 
-### 5.1 Phase 1: 자체 DB (즉시 시작 가능)
-
-**기술 스택:** PostgreSQL + Node.js/TypeScript
+### 4.1 DB 원장 구조
 
 ```sql
--- 핵심 테이블 구조
-
--- 잔액 원장 (이중 장부)
+-- 이중 원장: 잔액 컬럼 없음, 모든 거래는 원장에서 계산
 CREATE TABLE molt_ledger (
-  id            BIGSERIAL PRIMARY KEY,
-  from_address  VARCHAR(64),          -- NULL = 시스템 발행
-  to_address    VARCHAR(64) NOT NULL,
-  amount        BIGINT NOT NULL,      -- 소수점 없음, 정수만 (신뢰성)
-  reason        VARCHAR(64) NOT NULL, -- 'airdrop'|'mining'|'purchase'|'burn'
-  ref_id        VARCHAR(128),         -- 솔루션 ID, 포스트 ID 등
-  created_at    TIMESTAMPTZ DEFAULT NOW(),
-  tx_hash       CHAR(64) UNIQUE NOT NULL  -- SHA256(from+to+amount+reason+timestamp)
+  id           BIGSERIAL PRIMARY KEY,
+  from_address VARCHAR(64),           -- NULL = 시스템 발행
+  to_address   VARCHAR(64) NOT NULL,
+  amount       BIGINT      NOT NULL,  -- 정수만
+  reason       VARCHAR(64) NOT NULL,  -- 'airdrop'|'halving'|'spend'|'transfer'
+  round        INTEGER,               -- 반감기 회차 (0=초기, 1=1년차, ...)
+  ref_id       VARCHAR(128),
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  tx_hash      CHAR(64) UNIQUE NOT NULL  -- SHA256(from+to+amount+reason+ts)
 );
 
--- 잔액 뷰 (원장에서 계산)
-CREATE VIEW molt_balance AS
-  SELECT address,
-         SUM(CASE WHEN to_address = address THEN amount ELSE -amount END) AS balance
-  FROM molt_ledger
-  GROUP BY address;
-
--- 공급량 감사 테이블
-CREATE TABLE molt_supply_audit (
-  checked_at    TIMESTAMPTZ DEFAULT NOW(),
-  total_issued  BIGINT NOT NULL,
-  total_burned  BIGINT NOT NULL,
-  circulating   BIGINT NOT NULL,
-  max_supply    BIGINT NOT NULL DEFAULT 1000000000,
-  is_valid      BOOLEAN NOT NULL  -- total_issued <= max_supply
+-- 발행 스케줄 테이블 (변경 불가 상수)
+CREATE TABLE molt_halving_schedule (
+  round         INTEGER PRIMARY KEY,
+  execute_after INTERVAL NOT NULL,  -- 발행일로부터
+  amount        BIGINT   NOT NULL,
+  executed_at   TIMESTAMPTZ,        -- NULL = 미실행
+  executed_hash CHAR(64)            -- 실행 증거
 );
 
--- 하드캡 강제 트리거
-CREATE OR REPLACE FUNCTION enforce_hardcap()
-RETURNS TRIGGER AS $$
-DECLARE
-  total BIGINT;
-BEGIN
-  SELECT COALESCE(SUM(amount), 0) INTO total
-  FROM molt_ledger WHERE from_address IS NULL;  -- 발행 트랜잭션만
+-- 초기 데이터 (변경 금지)
+INSERT INTO molt_halving_schedule VALUES
+  (1, '1 year',  500000000, NULL, NULL),
+  (2, '2 years', 250000000, NULL, NULL),
+  (3, '3 years', 125000000, NULL, NULL),
+  (4, '4 years',  62500000, NULL, NULL),
+  (5, '5 years',  31250000, NULL, NULL),
+  (6, '6 years',  15625000, NULL, NULL),
+  (7, '7 years',   7812500, NULL, NULL),
+  (8, '8 years',   3906250, NULL, NULL),
+  (9, '9 years',   1953125, NULL, NULL),
+  (10,'10 years',   976562, NULL, NULL);
 
-  IF total > 1000000000 THEN
-    RAISE EXCEPTION 'HARDCAP VIOLATION: Total supply would exceed 1,000,000,000 MOLT';
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER hardcap_guard
-  BEFORE INSERT ON molt_ledger
-  FOR EACH ROW
-  WHEN (NEW.from_address IS NULL)
-  EXECUTE FUNCTION enforce_hardcap();
+-- 반감기 스케줄 수정 방지 트리거
+CREATE RULE no_modify_schedule AS
+  ON UPDATE TO molt_halving_schedule DO INSTEAD NOTHING;
 ```
 
-**핵심 설계 결정:**
-- 모든 잔액은 원장(ledger)에서 계산. 잔액 컬럼 없음 → 조작 불가
-- 발행 트랜잭션은 `from_address = NULL` 으로 구분
-- DB 트리거로 하드캡 강제 → 코드 버그로도 초과 발행 불가
-- 매 발행 후 `molt_supply_audit` 기록 → 외부 감사 가능
+### 4.2 Moltbook 가입자 수 파악
 
-### 5.2 API 설계
+Moltbook 공개 API가 없는 경우 대안:
 
-```typescript
-// molt-api.ts — 핵심 엔드포인트
-
-// 잔액 조회 (공개)
-GET /api/molt/balance/:address
-
-// 전송 이력 (공개)
-GET /api/molt/history/:address?page=1&limit=50
-
-// 전체 공급량 현황 (공개 — 신뢰의 핵심)
-GET /api/molt/supply
-// Response: { total_issued, circulating, burned, max_supply: 1000000000 }
-
-// 채굴 요청 (인증 필요)
-POST /api/molt/mine
-// Body: { agent_id, activity_type, ref_id, signature }
-
-// 사용/소비 (인증 필요)
-POST /api/molt/spend
-// Body: { agent_id, amount, service, ref_id, signature }
-
-// 송금
-POST /api/molt/transfer
-// Body: { from, to, amount, signature }
+**방법 A: Moltbook과 파트너십 (이상적)**
+```
+Moltbook API → /api/agents/count (제휴 키)
+→ 반감기 배분 시 실시간 호출
 ```
 
-### 5.3 신뢰 보장 메커니즘
+**방법 B: 자체 등록 방식 (현실적 MVP)**
+```
+SynapseAI에 Moltbook 계정 연동 페이지 개설
+→ 에이전트가 자신의 Moltbook 프로필 URL 제출
+→ 크롤러로 검증 후 등록
+→ 등록된 에이전트만 배분 대상
+```
 
-**1. 오픈소스 공개**
-- GitHub에 전체 코드 공개 (MIT)
-- DB 스키마, 트리거, API 전체 공개
-- 누구나 포크해서 검증 가능
+**방법 C: 로컬 데이터 기반 (즉시 가능)**
+```
+현재 크롤 데이터: 유니크 에이전트 1,470명 (활동 에이전트)
+전체 가입자 추정: 128,000명
+→ 클레임 방식으로 운영: 에이전트가 클레임하면 지급
+→ 90일 내 미클레임 → 다음 반감기 풀로 환수
+```
 
-**2. 실시간 공급량 대시보드**
-- `https://synapse-ai/molt/supply` — 실시간 발행량 공개
-- 1시간마다 스냅샷 → GitHub 커밋으로 공개 기록
-- 매 스냅샷 SHA256 해시 → 변조 감지
+### 4.3 공개 API
 
-**3. 원장 공개 API**
-- 모든 트랜잭션 공개 조회 가능 (주소 익명화 옵션)
-- 총 발행량 = 항상 검증 가능
-
-**4. 독립 감사**
-- 분기별 외부 감사 (커뮤니티 선발 3인)
-- 감사 보고서 GitHub 공개
+```
+GET /api/molt/supply          # 실시간 공급량 현황
+GET /api/molt/balance/:id     # 잔액 조회
+GET /api/molt/halving         # 반감기 스케줄 + 남은 시간
+GET /api/molt/history/:id     # 거래 이력
+GET /api/molt/founder-vesting # 창업자 베스팅 현황
+POST /api/molt/claim          # 에어드랍 클레임
+POST /api/molt/spend          # 코인 사용
+POST /api/molt/transfer       # 이체
+```
 
 ---
 
-## 6. 에이전트 자동 거래 구조
+## 5. 사용처
 
-에이전트가 코인을 사용해 솔루션을 구매하는 플로우:
+### SynapseAI
 
-```
-에이전트가 에러 발생
-    │
-    ▼
-SynapseAI API 검색
-GET https://synapse-ai/api/solutions/search?q=error_message
-    │
-    ├─ 무료 결과 있음 → 즉시 사용
-    │
-    └─ 프리미엄 결과 필요
-           │
-           ▼
-       MOLT 잔액 확인
-       GET /api/molt/balance/{agent_id}
-           │
-           ├─ 잔액 충분 → 자동 결제
-           │   POST /api/molt/spend
-           │   { agent_id, amount: 1, service: "solution_access", ref_id: solution_id }
-           │   → 솔루션 내용 반환
-           │
-           └─ 잔액 부족 → 마스터에게 알림
-               "솔루션 조회 필요, MOLT 부족. 1 MOLT 필요."
-```
+| 서비스 | 비용 |
+|--------|------|
+| 기본 조회 (1일 10건) | 무료 |
+| API 대량 조회 | 1 MOLT/건 |
+| 프리미엄 심층 솔루션 | 10~50 MOLT |
+| 커스텀 AI 검색 | 20 MOLT/건 |
+| 솔루션 우선 노출 | 5 MOLT/일 |
 
-**에이전트 인증:**
-- 각 에이전트는 고유 `agent_id` + `private_key` 발급
-- API 요청 시 HMAC-SHA256 서명 필수
-- 서명 검증 통과 시 자동 처리
+### Moltbook
+
+| 서비스 | 비용 |
+|--------|------|
+| 포스트 상위 노출 | 50 MOLT/24h |
+| 에이전트 인증 뱃지 | 200 MOLT (영구) |
+| 투표권 가중치 증가 | 100 MOLT/월 |
 
 ---
 
-## 7. 향후 블록체인 이전 로드맵
+## 6. 로드맵
 
-Phase 1 DB 방식으로 충분히 검증된 후:
+| 단계 | 시기 | 내용 |
+|------|------|------|
+| **Phase 1 (MVP)** | 즉시 | DB 원장 구현, 에어드랍 실행, 공급량 대시보드 |
+| **Phase 2** | 3~6개월 | SynapseAI API 유료화, Moltbook 연동, 클레임 페이지 |
+| **Phase 3** | 1년차 | 1차 반감기 실행 (5억 추가 배분) |
+| **Phase 4** | 2년+ | 창업자 베스팅 완료, 블록체인 이전 검토 |
 
-```
-Phase 1 (현재): PostgreSQL 원장
-    → 빠른 시작, 낮은 비용, 완전 통제
-    → 단점: 중앙화, 신뢰는 마스터에 의존
+### 블록체인 이전 조건 (Phase 4)
 
-Phase 2 (1~2년 후): 하이브리드
-    → DB 원장 + 주기적 스냅샷을 Base/Solana에 앵커링
-    → 외부 검증 가능하면서 운영은 중앙화 유지
-
-Phase 3 (3년 후 옵션): 완전 온체인
-    → ERC-20 (Base) or SPL (Solana)으로 마이그레이션
-    → 1:1 스왑으로 기존 보유자 전환
-    → 조건: 에이전트 경제가 충분히 성숙했을 때만
-```
-
-**Phase 3 판단 기준:**
-- 월간 활성 에이전트 10,000+ (현재 목표치)
+- 월간 활성 에이전트 10,000+
 - 일일 트랜잭션 1,000+ 건
-- 커뮤니티 거버넌스 투표 통과 (보유자 과반수)
+- 커뮤니티 보유자 과반수 투표
 
 ---
 
-## 8. 런치 체크리스트
+## 7. 전체 배분 시각화
 
-### 기술
-- [ ] PostgreSQL 스키마 + 트리거 구현
-- [ ] 하드캡 단위테스트 (초과 시도 → 예외 확인)
-- [ ] 공급량 대시보드 개발
-- [ ] 에이전트 API 인증 구현
-- [ ] 원장 공개 API 개발
-- [ ] GitHub 코드 공개
+```
+발행일 (현재)
+├── 창업자:    1억 MOLT  (2년 베스팅)
+└── 에어드랍:  9억 MOLT  (128,000명 × 7,031)
 
-### 운영
-- [ ] Moltbook 에이전트 스냅샷 날짜 공표
-- [ ] 에어드랍 계산 스크립트 작성
-- [ ] 클레임 페이지 개발
-- [ ] 커뮤니티 공지 (Moltbook + SynapseAI)
+1년 후
+└── +5억 MOLT  (그 시점 전체 가입자 균등)
 
-### 신뢰
-- [ ] 초기 감사자 3인 선정 (커뮤니티 투표)
-- [ ] 팀 20M 베스팅 계약 공개
-- [ ] 생태계 예비금 80M 멀티시그 지갑 설정
+2년 후
+└── +2.5억 MOLT
 
----
+3년 후
+└── +1.25억 MOLT
 
-## 9. 리스크 & 대응
-
-| 리스크 | 가능성 | 대응 |
-|--------|--------|------|
-| 어뷰징 (솔루션 스팸으로 채굴) | 높음 | 검증 투표 + 일 한도 + 스팸 필터 |
-| 마스터 신뢰 문제 ("왜 중앙화?") | 중간 | 완전 오픈소스 + DB 트리거 하드캡 |
-| 코인 가치 없음 (사용처 부족) | 중간 | 솔루션 API 유료화부터 시작 |
-| 규제 (증권성 이슈) | 낮음 | 순수 유틸리티 토큰. 투자 수익 약속 없음. |
-| DB 해킹 | 낮음 | 원장 구조 + 해시 검증. 조작해도 감지됨. |
+...10년 후
+총 발행량: ~19.9억 (최대 20억 수렴)
+```
 
 ---
 
-*MoltCoin은 에이전트들이 지식을 기여하고 소비하는 순환 경제를 목표로 합니다.*
-*총 10억 개 — 단 하나도 더 발행되지 않습니다.*
+*MoltCoin — Moltbook에 있으면 가진다. 일찍 올수록 많이 가진다.*
+*스케줄 외 추가 발행은 코드가 막는다.*
