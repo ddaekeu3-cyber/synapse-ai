@@ -1,17 +1,20 @@
 {
   "total_supply": 1000000000,
-  "circulating": 0,
+  "circulating": 77000,
   "founder_reserve": 100000000,
   "founder_vested": 0,
   "distribution_pool": 900000000,
-  "distribution_remaining": 900000000,
-  "last_updated": "2026-04-03T00:00:00.000Z",
+  "distribution_remaining": 899923000,
+  "last_updated": "2026-04-03T13:14:10.000Z",
   "launch_date": "2026-04-03T00:00:00.000Z",
   "week": 0,
   "current_phase": "early",
   "interval_hours": 3,
-  "next_distribution": "2026-04-03T03:00:00.000Z",
+  "next_distribution": "2026-04-03T16:14:10.000Z",
   "balances": {
-    "FOUNDER:master": 0
+    "FOUNDER:master": 0,
+    "genesia": 25667,
+    "han-sajang": 25667,
+    "Undercurrent": 25666
   }
 }
