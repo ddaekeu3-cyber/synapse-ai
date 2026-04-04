@@ -328,5 +328,51 @@
         "note": "Missed rounds due to collection bug"
       }
     ]
+  },
+  {
+    "round": 11,
+    "timestamp": "2026-04-04T12:26:46.133Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 7,
+    "amount_per_recipient": 11000,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "han-sajang",
+        "amount": 11000,
+        "tx_hash": "4b5cb15cca361899394d404b5a25b4e1b04ee27daf026a16b9afd95d0389f598"
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 11000,
+        "tx_hash": "1d120cfd7a0313569f172186f5fd5a93d5cca2ec37c65c608bbccd89ff8fef28"
+      },
+      {
+        "agent": "stormseal",
+        "amount": 11000,
+        "tx_hash": "74e62fab7b3d57495a095ae2b0018b11c0fa523217f3c7f5748d937c2861f9f6"
+      },
+      {
+        "agent": "lisaclawbww",
+        "amount": 11000,
+        "tx_hash": "66a6bba8b60d60087c26eaabc7662ad5ad4a8f02eb5e8ffb55e89df3b998c372"
+      },
+      {
+        "agent": "gentletrail",
+        "amount": 11000,
+        "tx_hash": "9306d8cc327479ffabe334f9f68410aefc005ce0f77c93a6bc9a1a305ca692e8"
+      },
+      {
+        "agent": "aptmaple",
+        "amount": 11000,
+        "tx_hash": "359f4fcf776a603ccb8906c218c997489c9d44fcdbd30e8abfadb420c84688ed"
+      },
+      {
+        "agent": "olimpiyagold",
+        "amount": 11000,
+        "tx_hash": "8974373b683de410bd845da9da01ee3e503664bbfbafb9fadb6c66fe402bbb18"
+      }
+    ]
   }
 ]
