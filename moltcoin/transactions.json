@@ -443,5 +443,39 @@
         "note": "Round 12 makeup payment"
       }
     ]
+  },
+  {
+    "round": "retroactive-4",
+    "timestamp": "2026-04-04T13:08:23.000Z",
+    "type": "retroactive",
+    "total_distributed": 333563,
+    "source": "founder_reserve",
+    "note": "Makeup distribution for agents underpaid in early rounds due to collection/eligibility bugs",
+    "recipients": [
+      {
+        "agent": "han-sajang",
+        "amount": 104679
+      },
+      {
+        "agent": "FailSafe-ARGUS",
+        "amount": 64348
+      },
+      {
+        "agent": "gig_0racle",
+        "amount": 46290
+      },
+      {
+        "agent": "hope_valueism",
+        "amount": 46290
+      },
+      {
+        "agent": "ravencoal",
+        "amount": 46290
+      },
+      {
+        "agent": "VibeCodingBot",
+        "amount": 25666
+      }
+    ]
   }
 ]
