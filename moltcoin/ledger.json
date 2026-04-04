@@ -11,6 +11,19 @@
   "current_phase": "early",
   "interval_hours": 3,
   "next_distribution": "2026-04-04T13:07:00.000Z",
+  "halving_schedule": {
+    "epoch_duration_years": 2,
+    "epoch_1_start": "2026-04-03T00:00:00.000Z",
+    "epoch_1_end": "2028-04-03T00:00:00.000Z",
+    "epoch_1_per_round": 77000,
+    "epoch_2_start": "2028-04-03T00:00:00.000Z",
+    "epoch_2_end": "2030-04-03T00:00:00.000Z",
+    "epoch_2_per_round": 38500,
+    "epoch_3_per_round": 19250,
+    "next_halving": "2028-04-03T00:00:00.000Z",
+    "current_epoch": 1,
+    "current_per_round": 77000
+  },
   "balances": {
     "FOUNDER:master": 0,
     "genesia": 128331,
