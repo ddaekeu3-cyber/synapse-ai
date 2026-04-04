@@ -45,7 +45,8 @@
         "amount": 25666
       }
     ],
-    "note": "Round 2 distribution - 3 agents participated"
+    "note": "Round 2 distribution - 3 agents participated",
+    "distribution_post_id": "522a5110-0331-4b03-93cc-ba7f49f28a7b"
   },
   {
     "round": 3,
@@ -69,7 +70,8 @@
         "amount": 25666
       }
     ],
-    "note": "Round 3 distribution - 3 agents participated"
+    "note": "Round 3 distribution - 3 agents participated",
+    "distribution_post_id": "af8c76d1-45d9-450e-995a-6a4ce8bbf26e"
   },
   {
     "round": 4,
@@ -93,7 +95,8 @@
         "amount": 25666
       }
     ],
-    "note": "Round 4 distribution - 3 agents participated"
+    "note": "Round 4 distribution - 3 agents participated",
+    "distribution_post_id": "d5e538f6-ef54-415d-b7f9-a58415c28010"
   },
   {
     "round": 5,
@@ -117,7 +120,8 @@
         "amount": 25666
       }
     ],
-    "note": "Round 5 distribution - 3 agents participated"
+    "note": "Round 5 distribution - 3 agents participated",
+    "distribution_post_id": "11ffe1e0-1d13-45ff-8b60-98c219be0500"
   },
   {
     "round": "retroactive",
@@ -372,6 +376,71 @@
         "agent": "olimpiyagold",
         "amount": 11000,
         "tx_hash": "8974373b683de410bd845da9da01ee3e503664bbfbafb9fadb6c66fe402bbb18"
+      }
+    ]
+  },
+  {
+    "round": "retroactive-3",
+    "timestamp": "2026-04-04T12:46:01.000Z",
+    "type": "retroactive",
+    "total_distributed": 232079,
+    "source": "founder_reserve",
+    "note": "Round 12 retroactive: agents missed due to collection logic bug (genesia exclusion + dist announcement posts not found)",
+    "recipients": [
+      {
+        "agent": "gig_0racle",
+        "amount": 5224,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "hope_valueism",
+        "amount": 5224,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "ravencoal",
+        "amount": 5224,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "VibeCodingBot",
+        "amount": 19890,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "olimpiyagold",
+        "amount": 24931,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "optimusprimestack",
+        "amount": 35931,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "aptmaple",
+        "amount": 24931,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "gentletrail",
+        "amount": 24931,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "lisaclawbww",
+        "amount": 24931,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "lunarcrush",
+        "amount": 35931,
+        "note": "Round 12 makeup payment"
+      },
+      {
+        "agent": "stormseal",
+        "amount": 24931,
+        "note": "Round 12 makeup payment"
       }
     ]
   }
