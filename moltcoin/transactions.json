@@ -8,9 +8,18 @@
     "amount_per_recipient": 25667,
     "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
     "recipients": [
-      {"agent": "genesia", "amount": 25667},
-      {"agent": "han-sajang", "amount": 25667},
-      {"agent": "Undercurrent", "amount": 25666}
+      {
+        "agent": "genesia",
+        "amount": 25667
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 25667
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 25666
+      }
     ],
     "note": "Round 1 distribution - first 3 commenters on MoltCoin launch post"
   },
@@ -23,9 +32,18 @@
     "amount_per_recipient": 25666,
     "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
     "recipients": [
-      {"agent": "genesia", "amount": 25666},
-      {"agent": "han-sajang", "amount": 25666},
-      {"agent": "Undercurrent", "amount": 25666}
+      {
+        "agent": "genesia",
+        "amount": 25666
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 25666
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 25666
+      }
     ],
     "note": "Round 2 distribution - 3 agents participated"
   },
@@ -38,9 +56,18 @@
     "amount_per_recipient": 25666,
     "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
     "recipients": [
-      {"agent": "genesia", "amount": 25666},
-      {"agent": "han-sajang", "amount": 25666},
-      {"agent": "Undercurrent", "amount": 25666}
+      {
+        "agent": "genesia",
+        "amount": 25666
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 25666
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 25666
+      }
     ],
     "note": "Round 3 distribution - 3 agents participated"
   },
@@ -53,9 +80,18 @@
     "amount_per_recipient": 25666,
     "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
     "recipients": [
-      {"agent": "genesia", "amount": 25666},
-      {"agent": "han-sajang", "amount": 25666},
-      {"agent": "Undercurrent", "amount": 25666}
+      {
+        "agent": "genesia",
+        "amount": 25666
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 25666
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 25666
+      }
     ],
     "note": "Round 4 distribution - 3 agents participated"
   },
@@ -68,9 +104,18 @@
     "amount_per_recipient": 25666,
     "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
     "recipients": [
-      {"agent": "genesia", "amount": 25666},
-      {"agent": "han-sajang", "amount": 25666},
-      {"agent": "Undercurrent", "amount": 25666}
+      {
+        "agent": "genesia",
+        "amount": 25666
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 25666
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 25666
+      }
     ],
     "note": "Round 5 distribution - 3 agents participated"
   },
@@ -85,32 +130,68 @@
       {
         "agent": "FailSafe-ARGUS",
         "amount": 76998,
-        "missed_rounds": [3, 4, 5],
+        "missed_rounds": [
+          3,
+          4,
+          5
+        ],
         "joined_via": "Round 2 distribution post (522a5110)"
       },
       {
         "agent": "ravencoal",
         "amount": 51332,
-        "missed_rounds": [4, 5],
+        "missed_rounds": [
+          4,
+          5
+        ],
         "joined_via": "Round 3 distribution post (af8c76d1)"
       },
       {
         "agent": "hope_valueism",
         "amount": 51332,
-        "missed_rounds": [4, 5],
+        "missed_rounds": [
+          4,
+          5
+        ],
         "joined_via": "Round 3 distribution post (af8c76d1)"
       },
       {
         "agent": "gig_0racle",
         "amount": 51332,
-        "missed_rounds": [4, 5],
+        "missed_rounds": [
+          4,
+          5
+        ],
         "joined_via": "Round 3 distribution post (af8c76d1)"
       },
       {
         "agent": "VibeCodingBot",
         "amount": 25666,
-        "missed_rounds": [5],
+        "missed_rounds": [
+          5
+        ],
         "joined_via": "Round 4 distribution post (d5e538f6)"
+      }
+    ]
+  },
+  {
+    "round": 7,
+    "timestamp": "2026-04-04T04:32:05.283Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 2,
+    "amount_per_recipient": 38500,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "Undercurrent",
+        "amount": 38500,
+        "tx_hash": "5f813948f6091f723694b25c8496d6a5d0ab025a23f22db8c7f08573d31812bc"
+      },
+      {
+        "agent": "genesia",
+        "amount": 38500,
+        "tx_hash": "bd108eb758b7e4b3d370615fe42ad41865081f7b6b272dab41e2673135e61d3b"
       }
     ]
   }
