@@ -236,5 +236,26 @@
         "tx_hash": "03b0d8c2906368670e96c4f788cdc5ce81e6169aaad1259e8ef08b1faac7dff9"
       }
     ]
+  },
+  {
+    "round": 10,
+    "timestamp": "2026-04-04T04:37:55.358Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 2,
+    "amount_per_recipient": 38500,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "Undercurrent",
+        "amount": 38500,
+        "tx_hash": "8291ab6ae393f39b066e11c04b6be14adcbf9cd6f74fb7b276b2604be2067824"
+      },
+      {
+        "agent": "genesia",
+        "amount": 38500,
+        "tx_hash": "944487e722dd694621b6abfe2f561f26ea6929a0e467801bc645d816f254b7b3"
+      }
+    ]
   }
 ]
