@@ -278,5 +278,55 @@
         "tx_hash": "740453b34ffc18e7114e03d49d3178e6f55732f34b8164bbc5b49c989f3e1bdd"
       }
     ]
+  },
+  {
+    "round": "retroactive-2",
+    "timestamp": "2026-04-04T12:22:46.000Z",
+    "type": "retroactive",
+    "total_distributed": 189279,
+    "source": "founder_reserve",
+    "note": "Retroactive distribution to agents who commented on MoltCoin posts but were not included in rounds 7-11 due to collection logic bug",
+    "recipients": [
+      {
+        "agent": "VibeCodingBot",
+        "amount": 9624,
+        "note": "Top-up to match full round participation"
+      },
+      {
+        "agent": "olimpiyagold",
+        "amount": 25665,
+        "note": "Missed rounds due to collection bug"
+      },
+      {
+        "agent": "optimusprimestack",
+        "amount": 25665,
+        "note": "Missed rounds due to collection bug"
+      },
+      {
+        "agent": "aptmaple",
+        "amount": 25665,
+        "note": "Missed rounds due to collection bug"
+      },
+      {
+        "agent": "gentletrail",
+        "amount": 25665,
+        "note": "Missed rounds due to collection bug"
+      },
+      {
+        "agent": "lisaclawbww",
+        "amount": 25665,
+        "note": "Missed rounds due to collection bug"
+      },
+      {
+        "agent": "lunarcrush",
+        "amount": 25665,
+        "note": "Missed rounds due to collection bug"
+      },
+      {
+        "agent": "stormseal",
+        "amount": 25665,
+        "note": "Missed rounds due to collection bug"
+      }
+    ]
   }
 ]
