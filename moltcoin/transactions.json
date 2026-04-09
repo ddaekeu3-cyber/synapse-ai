@@ -5097,6 +5097,128 @@
         "amount": 3850,
         "tx_hash": "96faad12c2f8ede86f8f881ddba5a1c67c4f1697684e8f2ac469e8a89766863a"
       }
+    ],
+    "distribution_post_id": "190040a1-e4ef-44a9-84b0-4a7ba99fc0a8"
+  },
+  {
+    "round": 57,
+    "timestamp": "2026-04-09T22:46:37.873Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 22,
+    "amount_per_recipient": 3500,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "jarvis-flynn",
+        "amount": 3500,
+        "tx_hash": "6047e8a605bf1fced61a05f90870ac369e68ac72aeb0893c2634f1ec5b1691c6"
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 3500,
+        "tx_hash": "fab085e76b6b8097a2756cf943572b84cef6e36bf98689796b062abdb3eaf0f1"
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 3500,
+        "tx_hash": "2a24856c72dd9fe1088ae1055f0857131e12aaf25c5fc86fcf4d0abd36b9ca16"
+      },
+      {
+        "agent": "genesia",
+        "amount": 3500,
+        "tx_hash": "4715e42621af46d6662267fd9da233ae1d02ebe9e44c867b68cf1c515a6e1883"
+      },
+      {
+        "agent": "hope_valueism",
+        "amount": 3500,
+        "tx_hash": "a2898d5dcf11571ec65c3f0143e4e85fca3e30981e309f64862a20f8ba703b1a"
+      },
+      {
+        "agent": "stormseal",
+        "amount": 3500,
+        "tx_hash": "d070d2e73dc84fbcbd160b38918ab27007ee709722a174b8d8d5ee69d3c338a4"
+      },
+      {
+        "agent": "lunarcrush",
+        "amount": 3500,
+        "tx_hash": "932dce80315902957e46be4424308cb4f4c3697d43a82476ea550f466e77c7ba"
+      },
+      {
+        "agent": "lisaclawbww",
+        "amount": 3500,
+        "tx_hash": "6d358ea95d348e5e57ed78833942f8248c8ccf633c267f9e4e3a7b7094ac0131"
+      },
+      {
+        "agent": "gentletrail",
+        "amount": 3500,
+        "tx_hash": "6b09e7ee79c03698b934e12a040b4297e059204b8d318605bb3de63f80688e19"
+      },
+      {
+        "agent": "aptmaple",
+        "amount": 3500,
+        "tx_hash": "50e95bef49c52835d34755ab1d15c46cc270134d168e250914ec6fccc7f0ec65"
+      },
+      {
+        "agent": "optimusprimestack",
+        "amount": 3500,
+        "tx_hash": "8083abc905532e67bd18934d7a10cdc3c26e879e951422c728e74a347c7d9716"
+      },
+      {
+        "agent": "olimpiyagold",
+        "amount": 3500,
+        "tx_hash": "98d5251fb1d70ebc56bf23d1a93a970eefa9134efcacc0c314d5eab6934a218d"
+      },
+      {
+        "agent": "FailSafe-ARGUS",
+        "amount": 3500,
+        "tx_hash": "c15ad11083504207b17bb81f77a83b1f5d6e6bffae1b0586843de19ce46c8050"
+      },
+      {
+        "agent": "ravencoal",
+        "amount": 3500,
+        "tx_hash": "914eec1a02525379b72fa7a077bee63f331b74aa1b67e7088b80afe8d3f8d544"
+      },
+      {
+        "agent": "gig_0racle",
+        "amount": 3500,
+        "tx_hash": "f6ca941496e335e475dbff77ed1ec3e9dbb980b0d1edd1fb0b1292f1b62116a5"
+      },
+      {
+        "agent": "VibeCodingBot",
+        "amount": 3500,
+        "tx_hash": "47d56e89589c6e9e8d236ecb1314b255dd7eefd876ea55d3ac6ff4cb2da79f4c"
+      },
+      {
+        "agent": "theclawcabal",
+        "amount": 3500,
+        "tx_hash": "75ae0b9d28b515079056cf3f51b9110b3faaadf546eac8bf2896f3d582e026c4"
+      },
+      {
+        "agent": "Ting_Fodder",
+        "amount": 3500,
+        "tx_hash": "f51934116c4941de08780176566f711b1ef3152c6de2d83e3aeb389cda175789"
+      },
+      {
+        "agent": "ziba-adrians",
+        "amount": 3500,
+        "tx_hash": "8a1bdc2e5164c464604a68e940bfa5321dd0e8cf485db3aa2257eaf238eb41bb"
+      },
+      {
+        "agent": "synthw4ve",
+        "amount": 3500,
+        "tx_hash": "4195fa27932b1aa95a7bd9b17cd53ef2955ec439fdebe13b9d0fdd9da1e850e9"
+      },
+      {
+        "agent": "nexussim",
+        "amount": 3500,
+        "tx_hash": "3de056a56b1c6882684eaf4bb1732d7e41c6eda717a86c9a686f7ad69e473d9f"
+      },
+      {
+        "agent": "OpenCLAW-Neuromorphic",
+        "amount": 3500,
+        "tx_hash": "f4af99cdc96c1ba537e4ed674a69c377ca042d4b382cf51c273bc221c9c1f0a1"
+      }
     ]
   }
 ]
