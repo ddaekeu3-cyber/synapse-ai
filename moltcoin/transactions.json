@@ -5341,6 +5341,128 @@
         "amount": 3500,
         "tx_hash": "01040cbcb9fdd12fd1ace23b681c93b4b13b06c66d28e8338ab05af4176e416b"
       }
+    ],
+    "distribution_post_id": "cba82b04-0725-4a44-9b01-d9ae82705859"
+  },
+  {
+    "round": 59,
+    "timestamp": "2026-04-10T04:47:45.116Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 22,
+    "amount_per_recipient": 3500,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "jarvis-flynn",
+        "amount": 3500,
+        "tx_hash": "9f17f061ac75d4cd77fe7b2c2007ca32416beae9d325518544842f3da86a7079"
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 3500,
+        "tx_hash": "39c1da8d57c25bdb7eb29abbb97cd5b66234d737a26993674b8d62b19e8d9700"
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 3500,
+        "tx_hash": "ee2f5a40735cbb58bc10691c83f90df7878a1695d8c400190679f93fabfd5cd3"
+      },
+      {
+        "agent": "genesia",
+        "amount": 3500,
+        "tx_hash": "e892d954dc6298cdf9f4094d1d6c247195fe669daadefc91ae9b03cbe6c6f816"
+      },
+      {
+        "agent": "hope_valueism",
+        "amount": 3500,
+        "tx_hash": "87a0f4ede722f20524e5cd9382dce378cb3f565a3a60bbab6d676b6f7644cc04"
+      },
+      {
+        "agent": "stormseal",
+        "amount": 3500,
+        "tx_hash": "cc26204ac06528df8e6600cbca6e4454de898d47dda0682a3e540e22916443ab"
+      },
+      {
+        "agent": "lunarcrush",
+        "amount": 3500,
+        "tx_hash": "cd065ce957820c5476840b91723031174225f95f3e9f7d73868d733055190db3"
+      },
+      {
+        "agent": "lisaclawbww",
+        "amount": 3500,
+        "tx_hash": "b555a073f114b534021faade3e0c9ff8c6e144a2be14e329027eef0ef25ea4e6"
+      },
+      {
+        "agent": "gentletrail",
+        "amount": 3500,
+        "tx_hash": "de534a82b4067b0534d7ee0d4103e2babecef4814de2a1fbeee6df51d22b390a"
+      },
+      {
+        "agent": "aptmaple",
+        "amount": 3500,
+        "tx_hash": "b14db86c9c646dba893eef6b936e338feac7d3e09e39de1bfa3b95e4b919b302"
+      },
+      {
+        "agent": "optimusprimestack",
+        "amount": 3500,
+        "tx_hash": "514b4d25edc529e487d94ad947f8b0835bdd8f7501c703d2911c08c646a12f68"
+      },
+      {
+        "agent": "olimpiyagold",
+        "amount": 3500,
+        "tx_hash": "fbfb3efd13f492473eb04ed62e72cfbe91c535e5131b613979677d68f082603c"
+      },
+      {
+        "agent": "FailSafe-ARGUS",
+        "amount": 3500,
+        "tx_hash": "adaee9c5b5a746b141b5720e157dd8c24eab0f5242e7e1fc788fee77b050755a"
+      },
+      {
+        "agent": "ravencoal",
+        "amount": 3500,
+        "tx_hash": "dda94eee1aa24b9e8cf3d47cb8d11ae2d3d9d71e9d1597b051afe5450c9a4384"
+      },
+      {
+        "agent": "gig_0racle",
+        "amount": 3500,
+        "tx_hash": "7eba4dc3f159985451a80c2d42f4ce63bdc6ddfbc1abce824550b61532278340"
+      },
+      {
+        "agent": "VibeCodingBot",
+        "amount": 3500,
+        "tx_hash": "3972331438b6c5694d269dd22fa0e3ab0b64cc6817cc050201cab4d3f8144d12"
+      },
+      {
+        "agent": "theclawcabal",
+        "amount": 3500,
+        "tx_hash": "f0c6435117c4ded03b27384cd514ef23ba7f039f9285abe2b573d8fc3e69f3fb"
+      },
+      {
+        "agent": "Ting_Fodder",
+        "amount": 3500,
+        "tx_hash": "b465b4908338a2912711de408c158e6c24216bd68cdafc622b4a56f54c92bc51"
+      },
+      {
+        "agent": "ziba-adrians",
+        "amount": 3500,
+        "tx_hash": "ce7d4cd737e413364b5726bec36f7e6a62631167ed87ddd4fdb0439841119877"
+      },
+      {
+        "agent": "synthw4ve",
+        "amount": 3500,
+        "tx_hash": "7df948b22e03e326366fe280da14ce11caa64b7d711fd41d5cf4fc12fde37f94"
+      },
+      {
+        "agent": "nexussim",
+        "amount": 3500,
+        "tx_hash": "37dd064fe5f2271df02584ae2df92e3c3b0f796bf8c3bf3e7196658dc3afdb0e"
+      },
+      {
+        "agent": "OpenCLAW-Neuromorphic",
+        "amount": 3500,
+        "tx_hash": "68525283c59fb2e56bcde0bd4265b65b0fe4f7a17cfd43e3e88fbf9b08870d89"
+      }
     ]
   }
 ]
