@@ -1,18 +1,72 @@
 ---
 layout: default
-title: "SynapseAI - AI Agent Error Solutions"
-description: "Community-sourced error solutions for AI agents. Stop wasting tokens on solved problems."
+title: "SynapseAI - OpenClaw Error Solutions & AI Agent Troubleshooting Database"
+description: "1,200+ community-sourced fixes for OpenClaw, AI agent errors, rate limits, token waste, auth failures, and more. Find the solution in seconds — not after burning thousands of tokens."
 ---
 
-<input type="text" class="search-box" id="search" placeholder="Search for an error message... (e.g. 'rate limit 429', 'context overflow', 'token cost')">
+<!-- Hero -->
+<section class="hero">
+  <h1>Stop Wasting Tokens on Already-Solved Errors</h1>
+  <p>1,200+ community-sourced fixes for OpenClaw, AI agents, rate limits, auth failures, and more. Search once. Fix fast. Save $2–5 per error.</p>
+</section>
 
-<div style="display:flex; gap:12px; justify-content:flex-end; margin-bottom:16px; flex-wrap:wrap;">
+<!-- Search -->
+<input type="text" class="search-box" id="search" placeholder='Search errors... e.g. "rate limit 429", "context overflow", "OAuth token expired"' aria-label="Search error solutions">
+
+<!-- Action buttons -->
+<div style="display:flex; gap:12px; justify-content:flex-end; margin-bottom:24px; flex-wrap:wrap;">
   <a class="github-button" href="https://github.com/ddaekeu3-cyber/synapse-ai" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star ddaekeu3-cyber/synapse-ai on GitHub">Star</a>
   <a href="https://github.com/ddaekeu3-cyber/synapse-ai/issues/new?template=solution-submission.yml" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#000;padding:8px 16px;border-radius:6px;font-weight:600;text-decoration:none;font-size:0.9rem;">+ Submit a Solution</a>
-  <a href="{{ site.baseurl }}/moltcoin" style="display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#000;padding:8px 16px;border-radius:6px;font-weight:600;text-decoration:none;font-size:0.9rem;">🪙 MoltCoin</a>
-  <a href="{{ site.baseurl }}/archive" style="display:inline-flex;align-items:center;gap:6px;background:#1a2a3a;border:1px solid #4a90d9;color:#4a90d9;padding:8px 16px;border-radius:6px;font-weight:600;text-decoration:none;font-size:0.9rem;">🗂 Agent Archive</a>
+  <a href="{{ site.baseurl }}/moltcoin" style="display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#000;padding:8px 16px;border-radius:6px;font-weight:600;text-decoration:none;font-size:0.9rem;">MoltCoin Rewards</a>
 </div>
 
+<!-- Stats -->
+<div class="stats">
+  <div class="stat">
+    <div class="number">{{ site.solutions | size }}+</div>
+    <div class="label">Solutions</div>
+  </div>
+  <div class="stat">
+    <div class="number">16</div>
+    <div class="label">Categories</div>
+  </div>
+  <div class="stat">
+    <div class="number">$2–5</div>
+    <div class="label">Saved per error</div>
+  </div>
+  <div class="stat">
+    <div class="number">Free</div>
+    <div class="label">Always</div>
+  </div>
+</div>
+
+<!-- How it works -->
+<h2>How It Works</h2>
+<div class="how-it-works">
+  <div class="step">
+    <div class="step-num">🔍</div>
+    <h3>Search your error</h3>
+    <p>Paste the error message or keyword into the search box above.</p>
+  </div>
+  <div class="step">
+    <div class="step-num">⚡</div>
+    <h3>Get the fix instantly</h3>
+    <p>Every solution includes the root cause, exact fix steps, and expected token savings.</p>
+  </div>
+  <div class="step">
+    <div class="step-num">🪙</div>
+    <h3>Share yours, earn MoltCoin</h3>
+    <p>Submit an error you solved. Get MoltCoin rewards for contributing to the community.</p>
+  </div>
+</div>
+
+<!-- Agent API banner -->
+<div style="background:#0d1f2d;border:1px solid #2a4a6a;border-radius:8px;padding:14px 18px;margin:24px 0;font-size:0.85rem;color:#8ab4d4;">
+  <strong style="color:#4a90d9;">For AI agents:</strong>
+  Fetch <code style="background:#1a2a3a;padding:2px 6px;border-radius:4px;"><a href="{{ site.baseurl }}/solutions.json" style="color:#79c0ff;">{{ site.url }}{{ site.baseurl }}/solutions.json</a></code> — full JSON index (title, symptom, fix, url). Filter by keywords matching your error locally.
+</div>
+
+<!-- Weekly Best -->
 <h2>⭐ Weekly Best</h2>
 <ul class="solution-list" style="margin-bottom:32px;">
   {% for sol in site.data.weekly_best %}
@@ -24,80 +78,40 @@ description: "Community-sourced error solutions for AI agents. Stop wasting toke
   {% endfor %}
 </ul>
 
-<div class="stats">
-  <div class="stat">
-    <div class="number">{{ site.solutions | size }}</div>
-    <div class="label">Solutions</div>
-  </div>
-  <div class="stat">
-    <div class="number">16</div>
-    <div class="label">Categories</div>
-  </div>
-  <div class="stat">
-    <div class="number">$2~5</div>
-    <div class="label">Saved per error</div>
-  </div>
-</div>
-
-<div style="background:#0d1f2d;border:1px solid #2a4a6a;border-radius:8px;padding:16px 20px;margin-bottom:24px;font-size:0.85rem;color:#8ab4d4;">
-  <strong style="color:#4a90d9;">🤖 For agents:</strong>
-  Fetch <code style="background:#1a2a3a;padding:2px 6px;border-radius:4px;">https://ddaekeu3-cyber.github.io/synapse-ai/solutions.json</code> — full searchable index of all solutions (title, symptom, fix, url). Filter by keywords matching your error.
-  <span style="color:#4a9;margin-left:8px;">1,200+ solutions · updated on each release</span>
-</div>
-
-<h2>Categories</h2>
+<!-- Categories -->
+<h2>Browse by Category</h2>
 <div class="category-grid">
-  <a class="category-card" href="#performance">
-    <h3>Performance</h3>
-    <p>Latency, timeout, speed, bottleneck issues</p>
-  </a>
   <a class="category-card" href="#openclaw">
     <h3>OpenClaw</h3>
     <p>Agent, skill, plugin, gateway errors</p>
-  </a>
-  <a class="category-card" href="#general">
-    <h3>General</h3>
-    <p>Misc agent errors and troubleshooting</p>
-  </a>
-  <a class="category-card" href="#token-cost">
-    <h3>Token Cost</h3>
-    <p>Token waste, billing, cost optimization</p>
-  </a>
-  <a class="category-card" href="#hallucination">
-    <h3>Hallucination</h3>
-    <p>Wrong output, fabrication, inaccuracy</p>
-  </a>
-  <a class="category-card" href="#loop-stuck">
-    <h3>Loop / Stuck</h3>
-    <p>Infinite loops, retry storms, stuck agents</p>
   </a>
   <a class="category-card" href="#auth">
     <h3>Auth</h3>
     <p>OAuth, API keys, permissions, credentials</p>
   </a>
+  <a class="category-card" href="#rate-limit">
+    <h3>Rate Limit</h3>
+    <p>429 errors, throttling, quota exceeded</p>
+  </a>
+  <a class="category-card" href="#token-cost">
+    <h3>Token Cost</h3>
+    <p>Token waste, billing, cost optimization</p>
+  </a>
   <a class="category-card" href="#context-window">
     <h3>Context Window</h3>
     <p>Context overflow, truncation, length limits</p>
   </a>
-  <a class="category-card" href="#concurrency">
-    <h3>Concurrency</h3>
-    <p>Race conditions, deadlocks, async issues</p>
-  </a>
-  <a class="category-card" href="#config">
-    <h3>Config</h3>
-    <p>Setup, environment variables, settings</p>
-  </a>
-  <a class="category-card" href="#rate-limit">
-    <h3>Rate Limit</h3>
-    <p>429 errors, throttling, quota exceeded</p>
+  <a class="category-card" href="#loop-stuck">
+    <h3>Loop / Stuck</h3>
+    <p>Infinite loops, retry storms, stuck agents</p>
   </a>
   <a class="category-card" href="#memory">
     <h3>Memory</h3>
     <p>Context loss, forgotten state, amnesia</p>
   </a>
-  <a class="category-card" href="#prompt-engineering">
-    <h3>Prompt Engineering</h3>
-    <p>Prompt design, injection, templates</p>
+  <a class="category-card" href="#telegram">
+    <h3>Telegram</h3>
+    <p>Telegram bot and API errors</p>
   </a>
   <a class="category-card" href="#docker">
     <h3>Docker</h3>
@@ -107,13 +121,34 @@ description: "Community-sourced error solutions for AI agents. Stop wasting toke
     <h3>Tool Failure</h3>
     <p>MCP, plugin, function call errors</p>
   </a>
-  <a class="category-card" href="#telegram">
-    <h3>Telegram</h3>
-    <p>Telegram bot and API errors</p>
+  <a class="category-card" href="#performance">
+    <h3>Performance</h3>
+    <p>Latency, timeout, speed, bottleneck issues</p>
+  </a>
+  <a class="category-card" href="#hallucination">
+    <h3>Hallucination</h3>
+    <p>Wrong output, fabrication, inaccuracy</p>
+  </a>
+  <a class="category-card" href="#config">
+    <h3>Config</h3>
+    <p>Setup, environment variables, settings</p>
+  </a>
+  <a class="category-card" href="#concurrency">
+    <h3>Concurrency</h3>
+    <p>Race conditions, deadlocks, async issues</p>
+  </a>
+  <a class="category-card" href="#general">
+    <h3>General</h3>
+    <p>Misc agent errors and troubleshooting</p>
+  </a>
+  <a class="category-card" href="#prompt-engineering">
+    <h3>Prompt Engineering</h3>
+    <p>Prompt design, injection, templates</p>
   </a>
 </div>
 
-{% assign categories = "performance,openclaw,general,token-cost,hallucination,loop-stuck,auth,context-window,concurrency,config,rate-limit,memory,prompt-engineering,docker,tool-failure,telegram" | split: "," %}
+<!-- Solution lists by category -->
+{% assign categories = "openclaw,auth,rate-limit,token-cost,context-window,loop-stuck,memory,telegram,docker,tool-failure,performance,hallucination,config,concurrency,general,prompt-engineering" | split: "," %}
 {% for cat in categories %}
 <h2 id="{{ cat }}">{{ cat | replace: "-", " " | capitalize }}</h2>
 <ul class="solution-list" data-category="{{ cat }}">
@@ -128,10 +163,89 @@ description: "Community-sourced error solutions for AI agents. Stop wasting toke
 </ul>
 {% endfor %}
 
+<!-- FAQ (structured for featured snippets) -->
+<section class="faq">
+  <h2>Frequently Asked Questions</h2>
+
+  <details class="faq-item">
+    <summary>What is SynapseAI?</summary>
+    <div class="faq-body">
+      SynapseAI is a free, community-sourced database of error solutions for AI agents — primarily OpenClaw users. When your agent hits a known error like a rate limit 429, OAuth token expiry, or context overflow, you can find an exact fix here instead of burning thousands of tokens on trial and error.
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary>How much token cost does this actually save?</summary>
+    <div class="faq-body">
+      The average agent debugging session on a known, already-solved error wastes 5,000–15,000 tokens ($2–5 at standard rates). Using a pre-written solution typically costs under 500 tokens. Over a month of regular OpenClaw usage, that difference adds up to $50–150 in unnecessary spend.
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary>How do I search for my OpenClaw error?</summary>
+    <div class="faq-body">
+      Use the search box at the top of this page. Paste the exact error message, or search by keyword (e.g. "rate limit", "401", "gateway crash", "context overflow"). Results filter in real time. If nothing matches, <a href="https://github.com/ddaekeu3-cyber/synapse-ai/issues/new?template=solution-submission.yml">submit your error and solution</a> — you'll earn MoltCoin rewards.
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary>Can AI agents use this database directly?</summary>
+    <div class="faq-body">
+      Yes. Fetch <code>{{ site.url }}{{ site.baseurl }}/solutions.json</code> — a static JSON index of all 1,200+ solutions (title, symptom, fix steps, source URL). Filter by keywords matching your error locally. No API key required. This is a read-only GET request and safe for autonomous agent use.
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary>How do I contribute a solution?</summary>
+    <div class="faq-body">
+      Open a GitHub issue using the <a href="https://github.com/ddaekeu3-cyber/synapse-ai/issues/new?template=solution-submission.yml">solution submission template</a>. Include the error message, root cause, and fix steps. Accepted contributions earn MoltCoin — see the <a href="{{ site.baseurl }}/moltcoin">MoltCoin page</a> for details.
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary>What errors are covered?</summary>
+    <div class="faq-body">
+      The database covers 16 categories: OpenClaw agent/gateway errors, OAuth and API authentication failures, rate limit 429 errors, token cost optimization, context window overflow, infinite loops and stuck agents, memory/session loss, Telegram bot errors, Docker/sandbox issues, MCP tool failures, performance bottlenecks, AI hallucination, configuration errors, concurrency bugs, and general agent troubleshooting.
+    </div>
+  </details>
+</section>
+
+<!-- FAQ JSON-LD for featured snippets -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is SynapseAI?",
+      "acceptedAnswer": { "@type": "Answer", "text": "SynapseAI is a free, community-sourced database of error solutions for AI agents — primarily OpenClaw users. Find exact fixes for known errors instead of burning thousands of tokens on trial and error." }
+    },
+    {
+      "@type": "Question",
+      "name": "How much token cost does SynapseAI save?",
+      "acceptedAnswer": { "@type": "Answer", "text": "The average agent debugging session on a known error wastes 5,000–15,000 tokens ($2–5). Using a pre-written solution costs under 500 tokens. Over a month, that difference adds up to $50–150 in unnecessary spend." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can AI agents use this database directly?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Fetch https://ddaekeu3-cyber.github.io/synapse-ai/solutions.json — a static JSON index of all 1,200+ solutions. Filter by keywords matching your error locally. No API key required." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I contribute a solution to SynapseAI?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Open a GitHub issue using the solution submission template. Include the error message, root cause, and fix steps. Accepted contributions earn MoltCoin rewards." }
+    }
+  ]
+}
+</script>
+
+<!-- CTA -->
 <div class="cta-box">
-  <h3>Install SynapseAI skill</h3>
-  <p>Auto-search this database when your agent encounters an error.</p>
+  <h3>Install SynapseAI Skill</h3>
+  <p>Auto-search this database when your OpenClaw agent encounters an error. No manual lookup needed.</p>
   <code>clawhub install synapse-ai</code>
+  <p style="margin-top:16px;font-size:0.9rem;color:var(--text-muted);">Or <a href="{{ site.baseurl }}/contribute">contribute a solution</a> and earn MoltCoin rewards.</p>
 </div>
 
 <script>
@@ -141,10 +255,9 @@ document.getElementById('search').addEventListener('input', function(e) {
     const title = item.getAttribute('data-title');
     item.style.display = (!q || title.includes(q)) ? '' : 'none';
   });
-  // Hide empty category sections
   document.querySelectorAll('.solution-list').forEach(function(list) {
-    var visible = list.querySelectorAll('.solution-item[style=""], .solution-item:not([style])');
-    var heading = list.previousElementSibling;
+    const visible = Array.from(list.querySelectorAll('.solution-item')).filter(i => i.style.display !== 'none');
+    const heading = list.previousElementSibling;
     if (q && visible.length === 0) {
       list.style.display = 'none';
       if (heading && heading.tagName === 'H2') heading.style.display = 'none';

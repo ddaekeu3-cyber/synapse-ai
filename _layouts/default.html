@@ -13,6 +13,34 @@
   <title>{{ page.title | default: site.title }}</title>
   <meta name="description" content="{{ page.description | default: site.description }}">
   {% seo %}
+
+  <!-- JSON-LD: WebSite + SearchAction -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "SynapseAI",
+    "url": "https://ddaekeu3-cyber.github.io/synapse-ai/",
+    "description": "{{ site.description }}",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": { "@type": "EntryPoint", "urlTemplate": "https://ddaekeu3-cyber.github.io/synapse-ai/?q={search_term_string}" },
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+  {% if page.layout == 'solution' %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": {{ page.title | jsonify }},
+    "url": "https://ddaekeu3-cyber.github.io{{ page.url }}",
+    "publisher": { "@type": "Organization", "name": "SynapseAI", "url": "https://ddaekeu3-cyber.github.io/synapse-ai/" }
+  }
+  </script>
+  {% endif %}
+
   <!-- Google Analytics 4 (GA4) -->
   {% if site.google_analytics %}
   <script async src="https://www.googletagmanager.com/gtag/js?id={{ site.google_analytics }}"></script>
@@ -173,6 +201,22 @@
       font-size: 0.85rem;
       color: var(--text-muted);
     }
+    .hero { padding: 32px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+    .hero h1 { font-size: 2rem; font-weight: 700; margin: 0 0 12px; color: var(--text); line-height: 1.3; }
+    .hero p { font-size: 1.05rem; color: var(--text-muted); max-width: 620px; margin-bottom: 0; }
+    .how-it-works { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 24px 0; }
+    .step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .step-num { font-size: 1.4rem; margin-bottom: 8px; }
+    .step h3 { color: var(--text); margin: 0 0 6px; font-size: 1rem; }
+    .step p { color: var(--text-muted); font-size: 0.88rem; margin: 0; }
+    .faq { margin: 40px 0; }
+    .faq-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+    .faq-item summary { padding: 14px 18px; cursor: pointer; font-weight: 600; background: var(--surface); list-style: none; display: flex; justify-content: space-between; align-items: center; }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: '+'; color: var(--accent); font-size: 1.2rem; }
+    .faq-item[open] summary::after { content: '−'; }
+    .faq-item .faq-body { padding: 14px 18px; color: var(--text-muted); line-height: 1.7; border-top: 1px solid var(--border); }
+    .faq-item .faq-body a { color: var(--accent); }
     footer {
       border-top: 1px solid var(--border);
       margin-top: 40px;
@@ -191,7 +235,7 @@
   <div class="container">
     <header>
       <h1><a href="{{ site.baseurl }}/">SynapseAI</a></h1>
-      <p>에이전트의 삽질을 줄여서 토큰을 아껴주는 솔루션 DB</p>
+      <p>AI Agent Error Solutions — Stop wasting tokens on already-solved problems</p>
       <nav>
         <a href="{{ site.baseurl }}/">Home</a>
         <a href="{{ site.baseurl }}/guide/token-saving">Token Saving Guide</a>
