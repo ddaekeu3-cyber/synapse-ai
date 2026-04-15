@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T01:57:34.878209+00:00",
-  "count": 1240,
+  "generated": "2026-04-15T01:58:53.937792+00:00",
+  "count": 1243,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -1347,6 +1347,14 @@
       "symptom": "When an OAuth profile's refresh token expires, OpenClaw correctly sets `disabledUntil` + `disabledReason: refresh_token_expired_manual_disable` in `auth-profiles.json → usageStats`. This prevents the fallback chain from repeatedly hitting a dead profile.",
       "fix": "Manually edit `auth-profiles.json` and delete `disabledUntil` + `disabledReason` from the affected profile's `usageStats` entry, then restart gateway.",
       "source": "https://github.com/openclaw/openclaw/issues/49070"
+    },
+    {
+      "title": "OAuth 400 Bad Request — redirect_uri Mismatch Between Client and Provider",
+      "category": "auth",
+      "url": "/synapse-ai/solutions/auth/oauth-redirect-uri-mismatch-400",
+      "symptom": "- OAuth authorization flow fails with 400 or 401 - Error: `redirect_uri_mismatch`, `invalid_redirect_uri`, or `The redirect URI in the request did not match a registered redirect URI` - Happens on: Google OAuth, GitHub OAuth, any OAuth 2.0 provider - Works in one environment (local) but fails in ano",
+      "fix": "### Step 1: Check the exact URI being sent in the request ### Step 2: Match the exact URI in the provider dashboard For **Google OAuth**: - Go to Google Cloud Console → Credentials → OAuth Client - \"A",
+      "source": ""
     },
     {
       "title": "OAuth refresh token not auto-refreshing on WSL — requires manual re-login daily",
@@ -3914,6 +3922,14 @@
       "url": "/synapse-ai/solutions/general/agent-doesnt-stop-when-task-complete",
       "symptom": "- Agent completes the task (e.g., writes the function) but then: - Adds unrequested tests - Refactors surrounding code that wasn't mentioned - Adds error handling for edge cases that don't apply - Writes documentation nobody asked for - \"While I'm here, I also noticed...\" - Each additional step may ",
       "fix": "### Option 1: Explicit stopping instructions in system prompt ### Option 2: Define completion criteria in the task ### Option 3: Single-action task decomposition Break multi-step work into explicit si",
+      "source": ""
+    },
+    {
+      "title": "Agent Edits the Wrong File — Confused by Similar File Names or Paths",
+      "category": "general",
+      "url": "/synapse-ai/solutions/general/agent-edits-wrong-file-similar-names",
+      "symptom": "- Agent confirms it edited `config.yaml` but actually modified `config.json` - Agent edits `tests/utils.py` when asked to edit `utils.py` - Agent modifies `.env.production` when `.env` was requested - No error — agent reports success, but wrong file was changed - Discovery only happens on deployment",
+      "fix": "### Option 1: Always verify the file path before editing ### Option 2: Require full path specification ### Option 3: Pre-edit confirmation check ### Option 4: List similar files in system prompt conte",
       "source": ""
     },
     {
@@ -9163,6 +9179,14 @@
       "symptom": "When auto-compaction runs on a session, it writes a `providerOverride` (with",
       "fix": "must be repeated manually after every compaction - There is no config option to disable this behavior Real-world impact from this report: a single Google rate-limit spike (caused by a momentary overlo",
       "source": "https://github.com/openclaw/openclaw/issues/26598"
+    },
+    {
+      "title": "Parallel Agent Requests Hit Rate Limit 10x Faster Than Expected",
+      "category": "rate-limit",
+      "url": "/synapse-ai/solutions/rate-limit/concurrent-requests-hit-tier-limit-faster",
+      "symptom": "- Single agent runs fine for hours without hitting rate limits - Running 10 agents in parallel → 429 errors within seconds - Batch processing job hits rate limit after 30 seconds - RPM (requests per minute) limit exceeded immediately at batch start - Adding more workers makes the problem worse",
+      "fix": "### Option 1: Rate-limited async semaphore ### Option 2: Batch with concurrency control ### Option 3: Use Anthropic's built-in batch API for large batches ### Option 4: Respect Retry-After header ### ",
+      "source": ""
     },
     {
       "title": "Dead letter queues for agent actions -- dont lose failed work silently",
