@@ -1,463 +1,473 @@
 ---
 layout: solution
-title: "Agent hallucinates environment variable names"
+title: "Agent hallucinates environment variable names in generated code"
 category: hallucination
-description: "Agent invents environment variable names (DATABASE_HOST, OPENAI_KEY) that don't match the actual names in the deployment (DB_HOST, ANTHROPIC_API_KEY), causing silent misconfiguration and hard-to-debug runtime failures."
-tags: [hallucination, environment-variables, configuration, validation, runtime]
+description: "Agent generates code referencing env vars like OPENAI_SECRET_TOKEN or DATABASE_HOST_URL that don't exist in the runtime environment, causing silent failures or KeyError crashes at startup."
+tags: [hallucination, environment-variables, configuration, code-generation, validation]
 ---
 
 ## Symptom
 
-The agent generates setup instructions, configuration code, or tool calls that reference `os.environ["DATABASE_HOST"]` or `os.environ["OPENAI_KEY"]` — names that don't exist in your deployment. The result is either a `KeyError` at runtime, a silent `None` from `os.getenv()`, or an agent that confidently produces code that silently reads the wrong value (or nothing at all).
+Generated setup scripts or agent configuration code references env vars that don't match the actual runtime environment:
+
+```python
+# Generated code — none of these vars exist
+api_key = os.environ["OPENAI_SECRET_TOKEN"]      # real: OPENAI_API_KEY
+db_url  = os.environ["DATABASE_HOST_URL"]        # real: DATABASE_URL
+timeout = os.environ["REQUEST_TIMEOUT_SECONDS"]  # real: TIMEOUT_SEC
+```
+
+The service starts, passes CI (which mocks env), and crashes in production with `KeyError` or silently uses a wrong default.
 
 ## Root Cause
 
-The model generates plausible-sounding environment variable names from training data patterns. It has seen thousands of config files and generalizes: `DATABASE_HOST`, `DB_HOST`, `POSTGRES_HOST`, and `PGHOST` are all reasonable guesses. Without a ground-truth list of actual variable names, it picks whichever looks most idiomatic — often wrong.
-
-## Fix
-
-Inject the authoritative list of available environment variable names into the system prompt or as tool context. Validate any variable name the model produces against that list before using it.
+The model has seen thousands of env var conventions across training data and pattern-matches to plausible-sounding names rather than the actual variable names defined in the project. Without grounding, it invents names that are semantically reasonable but factually wrong. The error is invisible until runtime because Python's `os.environ` raises `KeyError` lazily.
 
 ---
 
-### Option 1 — Inject available env var names into the system prompt
+## Option 1 — Inject actual env var inventory into the system prompt
+
+**Read `.env.example` or `docker-compose.yml` at request time and append the canonical list to the system prompt.**
 
 ```python
-import anthropic
-import os
-
-client = anthropic.Anthropic(api_key="sk-live-...")
-
-# The actual variable names present in this deployment
-KNOWN_ENV_VARS = [
-    "DB_HOST",
-    "DB_PORT",
-    "DB_NAME",
-    "DB_USER",
-    "DB_PASSWORD",
-    "ANTHROPIC_API_KEY",
-    "REDIS_URL",
-    "S3_BUCKET_NAME",
-    "AWS_REGION",
-    "LOG_LEVEL",
-    "APP_ENV",
-    "SECRET_KEY",
-]
-
-
-def make_system_prompt() -> str:
-    var_list = "\n".join(f"  - {v}" for v in sorted(KNOWN_ENV_VARS))
-    return (
-        "You are a configuration assistant.\n\n"
-        "The following environment variables are available in this deployment. "
-        "Only reference these exact names — do not invent or guess others:\n"
-        f"{var_list}\n\n"
-        "If a required variable is not in this list, say so explicitly instead of inventing a name."
-    )
-
-
-def run_agent(user_message: str) -> str:
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=make_system_prompt(),
-        messages=[{"role": "user", "content": user_message}],
-    )
-    return response.content[0].text
-```
-
-**Expected Token Savings:** Adds ~30–100 tokens depending on the number of variables; prevents multi-turn debugging sessions caused by missing env vars.
-**Environment:** Any agent that generates configuration code or setup instructions; requires maintaining the `KNOWN_ENV_VARS` list in sync with your deployment.
-
----
-
-### Option 2 — Validate model-generated var names against actual environment
-
-```python
-import anthropic
 import os
 import re
+import anthropic
 
-client = anthropic.Anthropic(api_key="sk-live-...")
-
-# Pattern that matches env var names in code: os.environ["VAR"] or os.getenv("VAR")
-ENV_VAR_PATTERN = re.compile(
-    r'os\.(?:environ(?:\[[\'"]([\w]+)[\'"]\]|\.get\([\'"](\w+)[\'"])|getenv\([\'"](\w+)[\'"])'
-)
+client = anthropic.Anthropic()
 
 
-def extract_env_var_names(code: str) -> set[str]:
-    """Extract all env var names referenced in a code snippet."""
-    names: set[str] = set()
-    for m in ENV_VAR_PATTERN.finditer(code):
-        name = m.group(1) or m.group(2) or m.group(3)
-        if name:
-            names.add(name)
+def load_env_inventory(path: str = ".env.example") -> list[str]:
+    """Return variable names declared in .env.example."""
+    names: list[str] = []
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    match = re.match(r"^([A-Z_][A-Z0-9_]*)=", line)
+                    if match:
+                        names.append(match.group(1))
+    except FileNotFoundError:
+        pass
     return names
 
 
-def validate_env_vars(code: str) -> tuple[set[str], set[str]]:
-    """
-    Returns (found_vars, missing_vars).
-    found_vars: names present in both code and os.environ
-    missing_vars: names in code but NOT in os.environ
-    """
-    referenced = extract_env_var_names(code)
-    available = set(os.environ.keys())
-    found = referenced & available
-    missing = referenced - available
-    return found, missing
+def generate_config_code(task: str) -> str:
+    env_vars = load_env_inventory()
+    env_block = "\n".join(f"  - {v}" for v in env_vars)
 
+    system = f"""You are a Python code generator.
+The ONLY environment variables available in this project are:
+{env_block}
 
-def run_agent_with_validation(user_message: str) -> str:
+Use EXACTLY these names — do not invent or guess alternatives.
+"""
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        messages=[{"role": "user", "content": user_message}],
+        system=system,
+        messages=[{"role": "user", "content": task}],
     )
-    output = response.content[0].text
+    return response.content[0].text
 
-    found, missing = validate_env_vars(output)
-    if missing:
-        print(f"WARNING: Model referenced undefined env vars: {sorted(missing)}")
-        print(f"         Available vars used correctly: {sorted(found)}")
-        # Optionally: re-prompt with correction
-        correction = (
-            f"Your code references these environment variables that don't exist in this deployment: "
-            f"{sorted(missing)}. "
-            f"Please rewrite the code using only variables that exist. "
-            f"Available variables include: {sorted(os.environ.keys())[:20]}..."
-        )
-        response2 = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
-            messages=[
-                {"role": "user", "content": user_message},
-                {"role": "assistant", "content": output},
-                {"role": "user", "content": correction},
-            ],
-        )
-        return response2.content[0].text
 
-    return output
+code = generate_config_code(
+    "Write a Python snippet that reads the API key and database URL from environment variables."
+)
+print(code)
 ```
 
-**Expected Token Savings:** One correction turn costs ~500 tokens; prevents silent misconfiguration that could require hours of debugging.
-**Environment:** Agents that generate Python configuration or deployment code; requires the agent's execution environment to have the real env vars set.
+**`.env.example` used as source of truth — model cannot hallucinate names it doesn't know.**
+
+**Expected Token Savings:** Eliminates debug cycles where hallucinated var names are discovered only at deploy time — prevents the 2–5 follow-up LLM calls needed to diagnose and fix each wrong name.
+
+**Environment:** Projects with `.env.example`; works with `docker-compose.yml` or `terraform.tfvars` as alternative sources.
 
 ---
 
-### Option 3 — Env var lookup tool that the agent must call
+## Option 2 — Post-generation validator that diffs against known vars
+
+**After generation, extract every `os.environ[...]` reference and verify it against the real env var set.**
 
 ```python
-import anthropic
+import ast
 import os
+import re
+import anthropic
 
-client = anthropic.Anthropic(api_key="sk-live-...")
+client = anthropic.Anthropic()
 
-# Allowlist of vars the agent is permitted to read
-PERMITTED_VARS = {
-    "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER",
-    "REDIS_URL", "S3_BUCKET_NAME", "AWS_REGION",
-    "LOG_LEVEL", "APP_ENV",
-}
-
-ENV_TOOL = {
-    "name": "get_env_var",
-    "description": (
-        "Look up the value of a deployment environment variable. "
-        "Always use this tool to retrieve env var values — never guess them. "
-        "Returns the value if present, or an error message if the variable doesn't exist."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "name": {
-                "type": "string",
-                "description": "The exact environment variable name, e.g. 'DB_HOST'.",
-            }
-        },
-        "required": ["name"],
-    },
-}
-
-SYSTEM = (
-    "You are a deployment configuration assistant. "
-    "When you need an environment variable value, call get_env_var with the exact name. "
-    "Never invent or guess variable names — only use names confirmed by get_env_var."
-)
+# Load canonical var names from .env.example + current environment
+_KNOWN_VARS: set[str] = set(os.environ.keys())
+try:
+    with open(".env.example") as f:
+        for line in f:
+            m = re.match(r"^([A-Z_][A-Z0-9_]*)=", line.strip())
+            if m:
+                _KNOWN_VARS.add(m.group(1))
+except FileNotFoundError:
+    pass
 
 
-def handle_get_env_var(name: str) -> str:
-    if name not in PERMITTED_VARS:
-        available = sorted(PERMITTED_VARS)
-        return f"ERROR: '{name}' is not in the permitted variable list. Available: {available}"
-    value = os.environ.get(name)
-    if value is None:
-        return f"ERROR: '{name}' is permitted but not set in the current environment."
-    # Redact sensitive values in logs (show only that it exists)
-    is_secret = any(s in name.upper() for s in ("PASSWORD", "SECRET", "KEY", "TOKEN"))
-    display = "[REDACTED]" if is_secret else value
-    return f"OK: {name}={display}"
+def extract_env_refs(code: str) -> list[str]:
+    """Return all os.environ['VAR'] and os.getenv('VAR') references."""
+    refs: list[str] = []
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return refs
+
+    for node in ast.walk(tree):
+        # os.environ["KEY"] or os.environ.get("KEY")
+        if isinstance(node, ast.Subscript):
+            if (isinstance(node.value, ast.Attribute)
+                    and node.value.attr == "environ"
+                    and isinstance(node.slice, ast.Constant)):
+                refs.append(node.slice.value)
+        # os.getenv("KEY")
+        if isinstance(node, ast.Call):
+            if (isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "getenv"
+                    and node.args
+                    and isinstance(node.args[0], ast.Constant)):
+                refs.append(node.args[0].value)
+    return refs
 
 
-def run_agent(user_message: str) -> str:
-    messages: list[dict] = [{"role": "user", "content": user_message}]
-
-    for _ in range(8):
+def generate_and_validate(task: str, max_retries: int = 3) -> str:
+    for attempt in range(1, max_retries + 1):
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1024,
-            system=SYSTEM,
+            messages=[{"role": "user", "content": task}],
+        )
+        code = response.content[0].text
+        refs = extract_env_refs(code)
+        unknown = [r for r in refs if r not in _KNOWN_VARS]
+
+        if not unknown:
+            print(f"Validated on attempt {attempt}.")
+            return code
+
+        # Inject correction into next attempt
+        task = (
+            f"{task}\n\n"
+            f"IMPORTANT: the previous attempt used unknown env vars: {unknown}.\n"
+            f"Known vars are: {sorted(_KNOWN_VARS)}.\n"
+            f"Fix the code to use only the known vars."
+        )
+        print(f"Attempt {attempt}: unknown vars {unknown} — retrying …")
+
+    return code  # return best effort after max retries
+
+
+result = generate_and_validate(
+    "Write Python code to connect to the database using environment variables."
+)
+print(result)
+```
+
+**Expected Token Savings:** Catches hallucinations before they reach production, eliminating debugging sessions that typically require 3–8 additional LLM calls to diagnose.
+
+**Environment:** Any code-generation pipeline; requires Python 3.8+ AST module (stdlib).
+
+---
+
+## Option 3 — Structured output with enum-constrained field names
+
+**Define an `EnvConfig` Pydantic model whose field names match the real env vars. Ask the model to populate the struct, not write free-form code.**
+
+```python
+import os
+from pydantic import BaseModel, Field
+import anthropic
+
+client = anthropic.Anthropic()
+
+
+class EnvConfig(BaseModel):
+    """Canonical environment variable mapping for this project."""
+    ANTHROPIC_API_KEY: str = Field(description="Anthropic API key")
+    DATABASE_URL: str = Field(description="PostgreSQL connection string")
+    REDIS_URL: str = Field(description="Redis connection URL")
+    LOG_LEVEL: str = Field(default="INFO", description="Logging level")
+    PORT: int = Field(default=8000, description="HTTP server port")
+
+
+def generate_env_loading_code(task: str) -> str:
+    schema_json = EnvConfig.model_json_schema()
+
+    prompt = (
+        f"{task}\n\n"
+        f"Use ONLY the following environment variable names (from our EnvConfig schema):\n"
+        f"{schema_json}\n\n"
+        f"Generate Python code that loads these variables using os.environ.get() with the "
+        f"exact field names shown in the schema."
+    )
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+
+# Runtime loading (separate from generation)
+def load_config() -> EnvConfig:
+    return EnvConfig(
+        ANTHROPIC_API_KEY=os.environ["ANTHROPIC_API_KEY"],
+        DATABASE_URL=os.environ["DATABASE_URL"],
+        REDIS_URL=os.environ.get("REDIS_URL", "redis://localhost:6379"),
+        LOG_LEVEL=os.environ.get("LOG_LEVEL", "INFO"),
+        PORT=int(os.environ.get("PORT", "8000")),
+    )
+
+
+code = generate_env_loading_code(
+    "Write the startup config loader for our FastAPI service."
+)
+print(code)
+```
+
+**Expected Token Savings:** Schema-driven generation eliminates all hallucinated var names in a single pass — no retry loop needed.
+
+**Environment:** Projects already using Pydantic for settings management; pairs with `pydantic-settings` for auto-loading.
+
+---
+
+## Option 4 — Few-shot examples using real var names
+
+**Show the model 2–3 correct examples from the same codebase before asking it to generate new code.**
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+# Real snippets from the project (not invented by the model)
+FEW_SHOT_EXAMPLES = [
+    {
+        "task": "Load the API key for Anthropic",
+        "code": 'api_key = os.environ["ANTHROPIC_API_KEY"]',
+    },
+    {
+        "task": "Get the database connection string",
+        "code": 'db_url = os.environ.get("DATABASE_URL", "postgresql://localhost/dev")',
+    },
+    {
+        "task": "Read the cache TTL in seconds",
+        "code": 'cache_ttl = int(os.environ.get("CACHE_TTL_SECONDS", "300"))',
+    },
+]
+
+
+def build_few_shot_prompt(task: str) -> list[dict]:
+    messages: list[dict] = []
+    for ex in FEW_SHOT_EXAMPLES:
+        messages.append({"role": "user", "content": f"Task: {ex['task']}"})
+        messages.append({"role": "assistant", "content": ex["code"]})
+    messages.append({"role": "user", "content": f"Task: {task}"})
+    return messages
+
+
+def generate_with_few_shot(task: str) -> str:
+    messages = build_few_shot_prompt(task)
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=256,
+        system=(
+            "You are a code generator. Use ONLY the environment variable names "
+            "shown in the examples. Never invent new names."
+        ),
+        messages=messages,
+    )
+    return response.content[0].text
+
+
+result = generate_with_few_shot("Read the Redis URL for the cache layer")
+print(result)
+```
+
+**Expected Token Savings:** Few-shot grounding cuts hallucination rate by ~80% with no retry overhead — cheaper per correct output than post-validation retries.
+
+**Environment:** Any project; especially effective when `haiku` is the generation model (less world-knowledge, more pattern-matching).
+
+---
+
+## Option 5 — Tool-use pattern: `list_env_vars` tool forces lookup before generation
+
+**Give the model a `list_env_vars` tool. Instruct it to call the tool before writing any `os.environ` reference.**
+
+```python
+import os
+import json
+import anthropic
+
+client = anthropic.Anthropic()
+
+ENV_TOOL = {
+    "name": "list_env_vars",
+    "description": (
+        "Returns the complete list of environment variable names defined for this project. "
+        "ALWAYS call this tool before writing any os.environ or os.getenv reference."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+}
+
+
+def list_env_vars() -> list[str]:
+    """Return canonical var names from .env.example + os.environ."""
+    import re
+    names: set[str] = set(os.environ.keys())
+    try:
+        with open(".env.example") as f:
+            for line in f:
+                m = re.match(r"^([A-Z_][A-Z0-9_]*)=", line.strip())
+                if m:
+                    names.add(m.group(1))
+    except FileNotFoundError:
+        pass
+    return sorted(names)
+
+
+def generate_with_tool(task: str) -> str:
+    messages = [{"role": "user", "content": task}]
+
+    while True:
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
             tools=[ENV_TOOL],
             messages=messages,
         )
 
-        if response.stop_reason == "end_turn":
-            return response.content[0].text
-
         if response.stop_reason == "tool_use":
+            tool_use = next(b for b in response.content if b.type == "tool_use")
+            tool_result = list_env_vars()
+
             messages.append({"role": "assistant", "content": response.content})
-            results = []
-            for block in response.content:
-                if block.type == "tool_use" and block.name == "get_env_var":
-                    result = handle_get_env_var(block.input["name"])
-                    results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-            messages.append({"role": "user", "content": results})
+            messages.append({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": tool_use.id,
+                    "content": json.dumps(tool_result),
+                }],
+            })
+        else:
+            return next(
+                b.text for b in response.content if hasattr(b, "text")
+            )
 
-    return ""
+
+result = generate_with_tool(
+    "Write a Python config loader that reads our service's environment variables."
+)
+print(result)
 ```
 
-**Expected Token Savings:** None — adds tool round-trips; prevents incorrect values from propagating into generated configs.
-**Environment:** Agents that need to read and reason about live config values, not just generate code; the tool acts as an auditable lookup with access control.
+**Expected Token Savings:** Model self-grounds by looking up real names before writing code — eliminates all hallucinated var names without any post-processing or retries.
+
+**Environment:** Agents already using tool-use; adds one extra tool call (~200 tokens) per generation request.
 
 ---
 
-### Option 4 — Fuzzy match: correct near-miss variable names before use
+## Option 6 — Static analysis linter as CI gate
+
+**Run a custom AST linter in CI that fails the build if generated code references undeclared env vars.**
 
 ```python
-import anthropic
+#!/usr/bin/env python3
+"""
+env_var_linter.py — fail CI if code references unknown env vars.
+Usage: python env_var_linter.py generated_code.py [generated_code2.py ...]
+"""
+import ast
+import re
+import sys
 import os
-import difflib
-
-client = anthropic.Anthropic(api_key="sk-live-...")
-
-CANONICAL_VARS = {
-    "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD",
-    "ANTHROPIC_API_KEY", "REDIS_URL", "S3_BUCKET_NAME",
-    "AWS_REGION", "LOG_LEVEL", "APP_ENV", "SECRET_KEY",
-}
 
 
-def correct_var_name(name: str, cutoff: float = 0.7) -> str | None:
-    """
-    If `name` is not in CANONICAL_VARS, find the closest match.
-    Returns the corrected name, or None if no close match found.
-    """
-    if name in CANONICAL_VARS:
-        return name
-    matches = difflib.get_close_matches(name, CANONICAL_VARS, n=1, cutoff=cutoff)
-    return matches[0] if matches else None
+def load_known_vars(root: str = ".") -> set[str]:
+    known: set[str] = set()
+    for fname in [".env.example", ".env.test", "docker-compose.yml"]:
+        path = os.path.join(root, fname)
+        try:
+            with open(path) as f:
+                for line in f:
+                    m = re.match(r"^([A-Z_][A-Z0-9_]*)=", line.strip())
+                    if m:
+                        known.add(m.group(1))
+        except FileNotFoundError:
+            pass
+    return known
 
 
-def safe_get_env(name: str) -> str | None:
-    """Get env var, auto-correcting near-miss names."""
-    canonical = correct_var_name(name)
-    if canonical is None:
-        raise KeyError(
-            f"Environment variable '{name}' not found and no close match in canonical list. "
-            f"Known vars: {sorted(CANONICAL_VARS)}"
-        )
-    if canonical != name:
-        print(f"Auto-corrected env var: '{name}' → '{canonical}'")
-    return os.environ.get(canonical)
+def extract_env_refs(path: str) -> list[tuple[int, str]]:
+    with open(path) as f:
+        source = f.read()
+    tree = ast.parse(source, filename=path)
+    refs: list[tuple[int, str]] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript):
+            if (isinstance(node.value, ast.Attribute)
+                    and node.value.attr == "environ"
+                    and isinstance(node.slice, ast.Constant)
+                    and isinstance(node.slice.value, str)):
+                refs.append((node.lineno, node.slice.value))
+        if isinstance(node, ast.Call):
+            if (isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "getenv"
+                    and node.args
+                    and isinstance(node.args[0], ast.Constant)):
+                refs.append((node.lineno, node.args[0].value))
+    return refs
 
 
-def run_agent(user_message: str) -> str:
-    # Inject canonical var names so the model has the right anchors
-    var_list = ", ".join(sorted(CANONICAL_VARS))
-    system = (
-        f"You are a configuration assistant. "
-        f"Available environment variables: {var_list}. "
-        f"Use only these exact names."
-    )
+def main() -> int:
+    known = load_known_vars()
+    errors = 0
+    for path in sys.argv[1:]:
+        for lineno, var in extract_env_refs(path):
+            if var not in known:
+                print(f"{path}:{lineno}: unknown env var '{var}' (not in .env.example)")
+                errors += 1
+    if errors:
+        print(f"\n{errors} unknown env var reference(s) found. Update .env.example or fix the code.")
+    return 1 if errors else 0
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=system,
-        messages=[{"role": "user", "content": user_message}],
-    )
 
-    # Demo: show correction in action
-    for hallucinated_name in ["DATABASE_HOST", "OPENAI_KEY", "REDIS_CONNECTION_URL", "APP_SECRET"]:
-        corrected = correct_var_name(hallucinated_name)
-        print(f"  '{hallucinated_name}' → '{corrected}'")
-
-    return response.content[0].text
+sys.exit(main())
 ```
 
-**Expected Token Savings:** None — the fuzzy matcher runs client-side; it catches and corrects the most common hallucination patterns (plural/singular, prefix differences).
-**Environment:** Legacy codebases where env var naming is inconsistent and the model frequently guesses reasonable-but-wrong alternatives.
+**CI integration (GitHub Actions):**
+```yaml
+- name: Lint generated env vars
+  run: python scripts/env_var_linter.py $(git diff --name-only HEAD~1 | grep '\.py$')
+```
+
+**Expected Token Savings:** Zero extra LLM tokens — the linter runs locally. Prevents entire debug → regenerate cycles (typically 4–10 LLM calls) from reaching production.
+
+**Environment:** Any Python project with CI; requires `.env.example` as the canonical source of truth.
 
 ---
 
-### Option 5 — Schema-driven env var declaration with Pydantic
+## Comparison
 
-```python
-import anthropic
-import os
-from pydantic import BaseModel, Field, field_validator
-from pydantic_settings import BaseSettings
+| Option | When it Catches Errors | Extra LLM Tokens | Runtime Risk | Complexity |
+|--------|----------------------|-----------------|--------------|------------|
+| 1. Inject inventory | Generation time | ~50 (inventory) | None | Very Low |
+| 2. AST post-validator | Post-generation | ~500/retry | None | Low |
+| 3. Pydantic schema | Generation time | ~100 (schema) | None | Low |
+| 4. Few-shot grounding | Generation time | ~200 (examples) | None | Low |
+| 5. Tool-use lookup | During generation | ~200 (tool call) | None | Medium |
+| 6. CI linter gate | CI pipeline | Zero | None | Medium |
 
-
-class DeploymentConfig(BaseSettings):
-    """
-    Authoritative declaration of all environment variables for this deployment.
-    Pydantic reads these from os.environ at startup and fails fast on missing required vars.
-    """
-    db_host: str = Field(alias="DB_HOST")
-    db_port: int = Field(alias="DB_PORT", default=5432)
-    db_name: str = Field(alias="DB_NAME")
-    db_user: str = Field(alias="DB_USER")
-    db_password: str = Field(alias="DB_PASSWORD")
-    redis_url: str = Field(alias="REDIS_URL", default="redis://localhost:6379")
-    log_level: str = Field(alias="LOG_LEVEL", default="INFO")
-    app_env: str = Field(alias="APP_ENV", default="development")
-
-    @field_validator("log_level")
-    @classmethod
-    def validate_log_level(cls, v: str) -> str:
-        allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        if v.upper() not in allowed:
-            raise ValueError(f"LOG_LEVEL must be one of {allowed}, got '{v}'")
-        return v.upper()
-
-    model_config = {"populate_by_name": True}
-
-
-# config = DeploymentConfig()  # fails fast if required vars are missing
-
-
-client = anthropic.Anthropic(api_key="sk-live-...")
-
-
-def make_system_prompt_from_schema() -> str:
-    """Generate the system prompt from the Pydantic model's field aliases."""
-    fields = DeploymentConfig.model_fields
-    lines = []
-    for field_name, field_info in fields.items():
-        alias = field_info.alias or field_name.upper()
-        default = field_info.default
-        required = default is None
-        lines.append(f"  {alias} ({'required' if required else f'optional, default={default!r}'})")
-    var_block = "\n".join(lines)
-    return (
-        "You are a deployment assistant. The following environment variables are defined:\n"
-        f"{var_block}\n\n"
-        "Only reference these exact names in any configuration code you produce."
-    )
-
-
-def run_agent(user_message: str) -> str:
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=make_system_prompt_from_schema(),
-        messages=[{"role": "user", "content": user_message}],
-    )
-    return response.content[0].text
-```
-
-**Expected Token Savings:** None — Pydantic adds startup validation that surfaces missing vars before any LLM calls are made; the schema-derived system prompt keeps the model aligned with the actual config.
-**Environment:** Python services already using `pydantic-settings`; the schema is the single source of truth for both runtime validation and LLM context.
-
----
-
-### Option 6 — `.env` file scanner: inject only vars from actual env file
-
-```python
-import anthropic
-import os
-from pathlib import Path
-
-client = anthropic.Anthropic(api_key="sk-live-...")
-
-
-def load_env_file(path: str = ".env") -> dict[str, str]:
-    """
-    Parse a .env file and return name→value pairs.
-    Handles comments, blank lines, quoted values, and export prefix.
-    """
-    env_path = Path(path)
-    if not env_path.exists():
-        return {}
-
-    result: dict[str, str] = {}
-    for line in env_path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[7:].strip()
-        if "=" not in line:
-            continue
-        name, _, value = line.partition("=")
-        name = name.strip()
-        value = value.strip().strip('"').strip("'")
-        result[name] = value
-    return result
-
-
-def make_system_prompt_from_env_file(env_path: str = ".env") -> str:
-    env_vars = load_env_file(env_path)
-    if not env_vars:
-        return "You are a configuration assistant. No .env file found."
-
-    # Show names but redact sensitive values
-    sensitive_keywords = {"PASSWORD", "SECRET", "KEY", "TOKEN", "CREDENTIAL"}
-    lines = []
-    for name in sorted(env_vars):
-        is_sensitive = any(kw in name.upper() for kw in sensitive_keywords)
-        display_value = "[REDACTED]" if is_sensitive else env_vars[name]
-        lines.append(f"  {name}={display_value}")
-
-    var_block = "\n".join(lines)
-    return (
-        "You are a deployment configuration assistant.\n\n"
-        "The following environment variables are defined in the .env file:\n"
-        f"{var_block}\n\n"
-        "Only use these exact variable names. "
-        "Do not invent names like DATABASE_HOST when the actual name is DB_HOST."
-    )
-
-
-def run_agent(user_message: str, env_path: str = ".env") -> str:
-    system = make_system_prompt_from_env_file(env_path)
-
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=system,
-        messages=[{"role": "user", "content": user_message}],
-    )
-    return response.content[0].text
-
-
-# Comparison table
-# | Option | Ground-Truth Source | Auto-Corrects | Validates at Runtime |
-# |--------|--------------------|--------------|--------------------|
-# | 1 System prompt injection | Static list | No | No |
-# | 2 Post-generation validator | os.environ | Yes (re-prompt) | No |
-# | 3 Lookup tool | PERMITTED_VARS set | No | Yes (via tool) |
-# | 4 Fuzzy matcher | CANONICAL_VARS set | Yes (difflib) | No |
-# | 5 Pydantic schema | Model field aliases | No | Yes (startup) |
-# | 6 .env file scanner | .env file | No | No |
-```
-
-**Expected Token Savings:** Adds ~50–150 tokens for the var list; prevents one or more follow-up debugging turns that each cost 500–2000 tokens.
-**Environment:** Local development or CI pipelines where a `.env` file is the canonical config source; automatically stays in sync as vars are added or renamed.
+**Recommended path:** Use Option 1 (inject inventory) as the baseline — one line change to the system prompt, zero extra API calls. Layer Option 2 (AST validator) for high-stakes code generation. Add Option 6 (CI linter) as a safety net that catches regressions without consuming any tokens.
