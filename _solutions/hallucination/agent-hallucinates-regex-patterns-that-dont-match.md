@@ -1,0 +1,608 @@
+---
+layout: solution
+title: "Agent Hallucinates Regex Patterns That Don't Match"
+category: hallucination
+description: "Agent generates regex patterns that look syntactically valid but contain subtle bugs — wrong anchors, greedy quantifiers that over-match, missing escape sequences, or character class errors — causing silent data corruption downstream."
+tags: [hallucination, regex, validation, code-generation, testing]
+---
+
+## Symptom
+
+The agent generates a regex that passes a quick visual inspection but silently fails in production:
+
+```python
+# Agent-generated pattern for matching ISO dates
+pattern = r"\d{4}-\d{2}-\d{2}"
+
+# Looks fine — but matches "9999-99-99", "0000-00-00", and embedded dates in longer strings
+import re
+print(re.findall(pattern, "Invoice date: 2026-04-15T10:00:00"))
+# → ['2026-04-15']  ← OK here
+
+print(re.findall(pattern, "Error code: A2026-04-15B"))
+# → ['2026-04-15']  ← Should NOT match — missing anchors
+
+print(re.search(pattern, "9999-99-99"))
+# → Match  ← Matches invalid date — no range validation
+```
+
+The bug only surfaces in production when edge-case inputs arrive.
+
+## Root Cause
+
+The model is trained on regex examples but doesn't execute them. It generates patterns that look correct based on token patterns in training data, but misses:
+- Anchors (`^`, `$`, `\b`) needed to prevent partial matches
+- Lookaheads/lookbehinds for context requirements
+- Character class edge cases (`[a-Z]` vs `[a-zA-Z]`)
+- Greedy vs lazy quantifier behaviour
+- Platform differences (Python `re` vs `re2` vs JavaScript)
+
+```python
+import anthropic
+
+client = anthropic.Anthropic(api_key="sk-live-...")
+
+# Anti-pattern: trust the generated regex without testing
+def get_regex(description: str) -> str:
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=100,
+        messages=[{"role": "user", "content": f"Write a Python regex for: {description}"}]
+    )
+    return response.content[0].text.strip()
+
+pattern = get_regex("match email addresses")
+# May return something that misses edge cases or over-matches
+```
+
+---
+
+## Fix
+
+### Option 1 — Generate regex with test cases and validate immediately
+
+Ask the model to generate both the pattern AND test cases, then run the tests in Python before returning.
+
+```python
+import anthropic
+import re
+import json
+
+client = anthropic.Anthropic(api_key="sk-live-...")
+
+REGEX_PROMPT = """Generate a Python regex pattern for: {description}
+
+Respond with JSON only:
+{{
+  "pattern": "<regex pattern string>",
+  "flags": "<re.IGNORECASE|re.MULTILINE|etc or empty string>",
+  "should_match": ["<example that must match>", ...],
+  "should_not_match": ["<example that must NOT match>", ...]
+}}
+
+Be precise. Include anchors if the pattern should match the full string.
+Include word boundaries if the pattern should avoid partial matches."""
+
+
+def safe_regex(description: str) -> re.Pattern:
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=400,
+        messages=[{"role": "user", "content": REGEX_PROMPT.format(description=description)}]
+    )
+
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = "\n".join(raw.split("\n")[1:-1])
+
+    spec = json.loads(raw)
+    pattern_str = spec["pattern"]
+    flags_str = spec.get("flags", "")
+
+    # Build flags
+    flags = 0
+    if "IGNORECASE" in flags_str:
+        flags |= re.IGNORECASE
+    if "MULTILINE" in flags_str:
+        flags |= re.MULTILINE
+
+    compiled = re.compile(pattern_str, flags)
+
+    # Validate against generated test cases
+    failures = []
+    for example in spec.get("should_match", []):
+        if not compiled.search(example):
+            failures.append(f"Should match but didn't: {example!r}")
+
+    for example in spec.get("should_not_match", []):
+        if compiled.search(example):
+            failures.append(f"Should NOT match but did: {example!r}")
+
+    if failures:
+        raise ValueError(
+            f"Regex {pattern_str!r} failed {len(failures)} test(s):\n" + "\n".join(failures)
+        )
+
+    return compiled
+
+
+# Usage
+try:
+    email_re = safe_regex("match a valid email address (strict: user@domain.tld format)")
+    print(f"Pattern: {email_re.pattern}")
+    print(f"Test: {email_re.search('user@example.com')}")
+except ValueError as e:
+    print(f"Regex rejected: {e}")
+
+# Expected Token Savings: catches bad regex before it corrupts data; avoids debugging sessions
+# Environment: any agent that generates regex patterns for use in data pipelines
+```
+
+---
+
+### Option 2 — Provide canonical test suite and verify against it
+
+Define your own authoritative test cases. Ask the model for the pattern, then verify it against your tests — not the model's own tests.
+
+```python
+import anthropic
+import re
+
+client = anthropic.Anthropic(api_key="sk-live-...")
+
+# Your authoritative test suite — not generated by the model
+PATTERN_SPECS = {
+    "iso_date": {
+        "description": "ISO 8601 date (YYYY-MM-DD), exact match only, no surrounding text",
+        "should_match":     ["2026-04-15", "2000-01-01", "1999-12-31"],
+        "should_not_match": ["2026-4-15", "26-04-15", "2026-13-01",
+                             "2026-04-15T10:00", "abc2026-04-15", "2026-04-15xyz"],
+    },
+    "ipv4": {
+        "description": "IPv4 address with valid octet ranges (0-255)",
+        "should_match":     ["0.0.0.0", "192.168.1.1", "255.255.255.255", "10.0.0.1"],
+        "should_not_match": ["256.0.0.1", "192.168.1", "192.168.1.1.1", "999.1.1.1"],
+    },
+}
+
+
+def get_verified_pattern(spec_name: str) -> re.Pattern:
+    spec = PATTERN_SPECS[spec_name]
+
+    for attempt in range(3):
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=200,
+            messages=[{
+                "role": "user",
+                "content": f"""Write a Python regex pattern for: {spec['description']}
+
+Respond with ONLY the raw regex string (no quotes, no code block, no explanation).
+The pattern will be used with re.fullmatch()."""
+            }]
+        )
+
+        pattern_str = response.content[0].text.strip().strip("`")
+
+        try:
+            compiled = re.compile(pattern_str)
+        except re.error as e:
+            print(f"[attempt {attempt+1}] Invalid regex syntax: {e}")
+            continue
+
+        failures = []
+        for ex in spec["should_match"]:
+            if not compiled.fullmatch(ex):
+                failures.append(f"MISS: {ex!r}")
+        for ex in spec["should_not_match"]:
+            if compiled.fullmatch(ex):
+                failures.append(f"FALSE POSITIVE: {ex!r}")
+
+        if not failures:
+            print(f"[attempt {attempt+1}] Pattern verified: {pattern_str!r}")
+            return compiled
+
+        # Feed failures back to the model for correction
+        print(f"[attempt {attempt+1}] {len(failures)} failure(s) — retrying with feedback")
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=200,
+            messages=[{
+                "role": "user",
+                "content": f"""Your regex {pattern_str!r} failed these tests:
+{chr(10).join(failures)}
+
+Write a corrected Python regex for: {spec['description']}
+Respond with ONLY the raw regex string."""
+            }]
+        )
+        # Will retry on next iteration
+
+    raise RuntimeError(f"Could not produce a correct regex for {spec_name} after 3 attempts")
+
+
+date_re = get_verified_pattern("iso_date")
+print(f"Using: {date_re.pattern}")
+
+# Expected Token Savings: 3 attempts max; authoritative tests prevent silent data corruption
+# Environment: data validation pipelines, ETL agents, form validation generators
+```
+
+---
+
+### Option 3 — Use the model to explain the regex before trusting it
+
+Ask the model to explain what its own pattern matches. If the explanation contradicts the requirement, reject before testing.
+
+```python
+import anthropic
+import re
+
+client = anthropic.Anthropic(api_key="sk-live-...")
+
+
+def get_regex_with_explanation(description: str) -> tuple[str, str]:
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=500,
+        messages=[{
+            "role": "user",
+            "content": f"""Write a Python regex for: {description}
+
+Format your response as:
+PATTERN: <regex only, no quotes>
+EXPLANATION: <what this pattern matches and does NOT match, step by step>
+EDGE_CASES: <list 3 inputs that might trip up the pattern>"""
+        }]
+    )
+
+    text = response.content[0].text
+    pattern = ""
+    explanation = ""
+
+    for line in text.splitlines():
+        if line.startswith("PATTERN:"):
+            pattern = line[len("PATTERN:"):].strip()
+        elif line.startswith("EXPLANATION:"):
+            explanation = line[len("EXPLANATION:"):].strip()
+
+    return pattern, explanation
+
+
+def verify_explanation_vs_requirement(explanation: str, requirement: str) -> bool:
+    """Ask Haiku if the explanation satisfies the requirement."""
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=10,
+        messages=[{
+            "role": "user",
+            "content": f"""Does this regex explanation satisfy the requirement?
+Requirement: {requirement}
+Explanation: {explanation}
+Answer YES or NO only."""
+        }]
+    )
+    return "YES" in response.content[0].text.upper()
+
+
+def safe_regex_explained(description: str) -> re.Pattern:
+    pattern, explanation = get_regex_with_explanation(description)
+    print(f"Pattern:     {pattern}")
+    print(f"Explanation: {explanation}")
+
+    if not verify_explanation_vs_requirement(explanation, description):
+        raise ValueError(f"Explanation doesn't satisfy requirement. Pattern rejected.")
+
+    try:
+        return re.compile(pattern)
+    except re.error as e:
+        raise ValueError(f"Invalid regex syntax: {e}")
+
+
+try:
+    phone_re = safe_regex_explained("US phone numbers in format (XXX) XXX-XXXX or XXX-XXX-XXXX")
+    print(f"\nVerified pattern: {phone_re.pattern}")
+except ValueError as e:
+    print(f"Rejected: {e}")
+
+# Expected Token Savings: explanation check catches semantic mismatches before runtime
+# Environment: interactive regex generation tools where a human reviews the output
+```
+
+---
+
+### Option 4 — Stepwise regex construction with unit tests at each step
+
+Break complex regex into named components and test each component independently before combining.
+
+```python
+import anthropic
+import re
+
+client = anthropic.Anthropic(api_key="sk-live-...")
+
+
+def build_component(description: str, examples: list[str]) -> str:
+    """Get a regex fragment for one part of a larger pattern."""
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=60,
+        messages=[{
+            "role": "user",
+            "content": f"Regex fragment (no anchors) for: {description}\nMust match: {examples}\nRaw fragment only:"
+        }]
+    )
+    fragment = response.content[0].text.strip().strip("`")
+
+    # Quick sanity check
+    compiled = re.compile(fragment)
+    for ex in examples:
+        if not compiled.search(ex):
+            raise ValueError(f"Fragment {fragment!r} doesn't match {ex!r}")
+
+    return fragment
+
+
+def build_email_regex() -> re.Pattern:
+    """Build email regex component by component with tests at each step."""
+    # Component 1: local part
+    local = build_component(
+        "email local part (letters, digits, dots, underscores, hyphens)",
+        ["user", "first.last", "user-name", "user123"]
+    )
+    print(f"local:  {local}")
+
+    # Component 2: domain label
+    label = build_component(
+        "domain label (letters, digits, hyphens, no leading/trailing hyphen)",
+        ["example", "my-domain", "acme123"]
+    )
+    print(f"label:  {label}")
+
+    # Component 3: TLD
+    tld = build_component(
+        "TLD (2-6 letters only)",
+        ["com", "io", "co", "museum"]
+    )
+    print(f"tld:    {tld}")
+
+    # Combine
+    full_pattern = rf"^{local}@{label}(?:\.{label})*\.{tld}$"
+    compiled = re.compile(full_pattern, re.IGNORECASE)
+
+    # Final integration tests
+    should_match = ["user@example.com", "first.last@my-domain.co.uk", "a@b.io"]
+    should_not   = ["@example.com", "user@", "user@@example.com", "user@.com"]
+
+    for ex in should_match:
+        assert compiled.match(ex), f"Should match: {ex!r}"
+    for ex in should_not:
+        assert not compiled.match(ex), f"Should not match: {ex!r}"
+
+    print(f"\nFull pattern: {full_pattern}")
+    return compiled
+
+email_re = build_email_regex()
+
+# Expected Token Savings: Haiku for components, catch errors early vs debugging full pattern
+# Environment: complex pattern generation where components can be tested independently
+```
+
+---
+
+### Option 5 — Runtime regex sandboxing with timeout
+
+Some regex patterns cause catastrophic backtracking (ReDoS). Run generated patterns in a sandboxed subprocess with a timeout before deploying them.
+
+```python
+import anthropic
+import re
+import subprocess
+import sys
+import json
+import textwrap
+
+client = anthropic.Anthropic(api_key="sk-live-...")
+
+REDOS_TEST_STRINGS = [
+    "a" * 30 + "!",
+    "aa" * 20 + "b",
+    "x" * 50,
+]
+
+
+def test_regex_for_redos(pattern: str, timeout_seconds: float = 1.0) -> bool:
+    """
+    Run regex tests in a subprocess with timeout.
+    Returns True if safe, False if catastrophic backtracking detected.
+    """
+    test_code = textwrap.dedent(f"""
+        import re, json, sys
+        pattern = {pattern!r}
+        test_strings = {json.dumps(REDOS_TEST_STRINGS)}
+        try:
+            compiled = re.compile(pattern)
+            for s in test_strings:
+                compiled.search(s)
+            print("SAFE")
+        except Exception as e:
+            print(f"ERROR: {{e}}")
+    """)
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", test_code],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        return "SAFE" in result.stdout
+    except subprocess.TimeoutExpired:
+        return False  # Pattern caused ReDoS
+
+
+def get_safe_regex(description: str) -> re.Pattern:
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=100,
+        messages=[{
+            "role": "user",
+            "content": f"Python regex for: {description}\nAvoid nested quantifiers to prevent ReDoS.\nRaw pattern only:"
+        }]
+    )
+    pattern_str = response.content[0].text.strip().strip("`")
+
+    # Syntax check
+    try:
+        compiled = re.compile(pattern_str)
+    except re.error as e:
+        raise ValueError(f"Invalid syntax: {e}")
+
+    # ReDoS check
+    if not test_regex_for_redos(pattern_str, timeout_seconds=0.5):
+        raise ValueError(f"Pattern {pattern_str!r} caused timeout (possible ReDoS)")
+
+    return compiled
+
+
+try:
+    url_re = get_safe_regex("HTTP or HTTPS URLs")
+    print(f"Safe pattern: {url_re.pattern}")
+except ValueError as e:
+    print(f"Pattern rejected: {e}")
+
+# Expected Token Savings: prevents deploying a ReDoS pattern that causes 100% CPU on one request
+# Environment: user-input-facing agents where untrusted strings will be matched against the pattern
+```
+
+---
+
+### Option 6 — Regex registry with versioning and regression tests
+
+Store all generated (and verified) patterns in a versioned registry. New patterns must pass the full historical test suite before replacing old ones.
+
+```python
+import anthropic
+import re
+import json
+from pathlib import Path
+from dataclasses import dataclass, asdict
+
+client = anthropic.Anthropic(api_key="sk-live-...")
+
+REGISTRY_PATH = Path("regex_registry.json")
+
+
+@dataclass
+class RegexEntry:
+    name: str
+    pattern: str
+    flags: int
+    description: str
+    should_match: list[str]
+    should_not_match: list[str]
+    version: int
+
+
+def load_registry() -> dict[str, RegexEntry]:
+    if not REGISTRY_PATH.exists():
+        return {}
+    raw = json.loads(REGISTRY_PATH.read_text())
+    return {k: RegexEntry(**v) for k, v in raw.items()}
+
+
+def save_registry(registry: dict[str, RegexEntry]) -> None:
+    REGISTRY_PATH.write_text(json.dumps({k: asdict(v) for k, v in registry.items()}, indent=2))
+
+
+def test_entry(entry: RegexEntry) -> list[str]:
+    compiled = re.compile(entry.pattern, entry.flags)
+    failures = []
+    for ex in entry.should_match:
+        if not compiled.search(ex):
+            failures.append(f"MISS:  {ex!r}")
+    for ex in entry.should_not_match:
+        if compiled.search(ex):
+            failures.append(f"FALSE: {ex!r}")
+    return failures
+
+
+def register_pattern(
+    name: str,
+    description: str,
+    should_match: list[str],
+    should_not_match: list[str],
+) -> RegexEntry:
+    registry = load_registry()
+    current_version = registry[name].version if name in registry else 0
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=150,
+        messages=[{
+            "role": "user",
+            "content": f"""Python regex for: {description}
+Must match: {should_match}
+Must NOT match: {should_not_match}
+Raw pattern only (no explanation, no quotes):"""
+        }]
+    )
+    pattern_str = response.content[0].text.strip().strip("`")
+
+    entry = RegexEntry(
+        name=name,
+        pattern=pattern_str,
+        flags=0,
+        description=description,
+        should_match=should_match,
+        should_not_match=should_not_match,
+        version=current_version + 1,
+    )
+
+    failures = test_entry(entry)
+    if failures:
+        raise ValueError(f"New pattern failed {len(failures)} test(s):\n" + "\n".join(failures))
+
+    registry[name] = entry
+    save_registry(registry)
+    print(f"Registered {name} v{entry.version}: {pattern_str!r}")
+    return entry
+
+
+def get_pattern(name: str) -> re.Pattern:
+    registry = load_registry()
+    if name not in registry:
+        raise KeyError(f"Pattern {name!r} not in registry")
+    e = registry[name]
+    return re.compile(e.pattern, e.flags)
+
+
+# Register once; reuse everywhere
+register_pattern(
+    "iso_date",
+    "ISO 8601 date YYYY-MM-DD, full string match",
+    should_match=["2026-04-15", "2000-01-01"],
+    should_not_match=["2026-4-15", "abc2026-04-15", "2026-13-01"],
+)
+
+date_re = get_pattern("iso_date")
+print(date_re.fullmatch("2026-04-15"))  # Match
+
+# Expected Token Savings: patterns generated once, tested, and stored — never re-generated
+# Environment: production agents where regex patterns must be stable across deployments
+```
+
+---
+
+## Comparison
+
+| Option | Auto-Tests | ReDoS Safe | Versioned | Feedback Loop | Best For |
+|--------|-----------|-----------|-----------|---------------|----------|
+| 1 | Model-generated | No | No | No | Quick generation with self-validation |
+| 2 | Authoritative suite | No | No | Yes (retry) | Critical data pipelines |
+| 3 | Explanation audit | No | No | No | Interactive tools with human review |
+| 4 | Per-component | No | No | No | Complex patterns with testable parts |
+| 5 | ReDoS sandbox | Yes | No | No | User-input-facing patterns |
+| 6 | Full suite + registry | No | Yes | No | Production pattern libraries |
+
+**Recommended starting point:** Option 2 — define your own authoritative test cases before asking the model. The model's self-generated tests have the same biases as the model's regex generation. Your tests are ground truth.
