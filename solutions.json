@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-15T01:41:51.395126+00:00",
+  "generated": "2026-04-15T01:44:47.587832+00:00",
   "count": 1215,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
@@ -3853,7 +3853,7 @@
       "source": "Hacker"
     },
     {
-      "title": "에이전트 exec 폭주가 텔레그램에서 감지 불가능한 문제",
+      "title": "Agent Exec Storm Invisible on Telegram Messaging Channel",
       "category": "general",
       "url": "/synapse-ai/solutions/general/agent-exec-storm-invisible-on-telegram",
       "symptom": "- 유저가 텔레그램으로 간단한 한 마디 (\"나왔다 보내라\") 전송 - 에이전트가 뒤에서 폭주: find 탐색, 35KB 파일 전체 읽기, exec 20회+, poll 루프 6번 반복 - 이미 tmux 다른 pane에서 같은 스크립트 실행 중인데 확인 없이 중복 실행 - **텔레그램에는 최종 메시지만 표시** — 유저는 중간 과정을 전혀 모름 - 웹/TUI에서 토큰 R34k(약 34,000 토큰) 소비된 것을 나중에 발견",
@@ -9285,7 +9285,7 @@
       "source": "https://github.com/openclaw/openclaw/issues/51066"
     },
     {
-      "title": "OpenClaw 텔레그램 429 + SIGTERM 재시작 루프 (반복 발생 패턴)",
+      "title": "Telegram 429 + SIGTERM Restart Loop — Recurring Rate Limit Crash Pattern",
       "category": "telegram",
       "url": "/synapse-ai/solutions/telegram/telegram-429-sigterm-restart-loop",
       "symptom": "- 텔레그램 sendMessage가 429 Too Many Requests로 실패 - sendChatAction이 \"Network request failed\"로 반복 실패 - 게이트웨이가 SIGTERM → 자동 재시작 → 또 실패 → 무한 루프 - `fetch fallback: enabling sticky IPv4-only dispatcher` 메시지 반복 - pending delivery가 deferred (backoff) 상태로 쌓임 - **단순 `gateway restart`로 복구 안 됨** — 재시작해도 같은 상태 재진입",
@@ -9293,7 +9293,7 @@
       "source": ""
     },
     {
-      "title": "OpenClaw 텔레그램 에이전트가 살아있는데 응답 안 하는 문제 (silent hang)",
+      "title": "Telegram Agent Alive But Unresponsive — Silent Hang with No Error Logs",
       "category": "telegram",
       "url": "/synapse-ai/solutions/telegram/telegram-agent-alive-but-unresponsive",
       "symptom": "- `openclaw status` 전부 정상: Gateway running, Telegram ON/OK, 세션 active - 하지만 텔레그램에서 메시지 보내도 에이전트가 응답하지 않음 - 에러 로그 없음, 429 없음, ETIMEDOUT 없음 - 겉으로 보기엔 멀쩡한데 실제로 안 됨 - pending delivery가 쌓여있을 수 있음",
@@ -9373,7 +9373,7 @@
       "source": "https://github.com/anthropics/claude-code/issues/38204"
     },
     {
-      "title": "Telegram 응답 안 감: 네트워크 에러 후 polling 죽음 + 409 conflict 복합 장애",
+      "title": "Telegram Polling Dead After Network Error — 409 Conflict Compound Failure",
       "category": "telegram",
       "url": "/synapse-ai/solutions/telegram/telegram-polling-dead-after-network-error-409",
       "symptom": "- 텔레그램 채널 상태 ON/OK인데 메시지 수발신이 안 됨 - 게이트웨이 로그에 sendMessage 시도 자체가 0건 - ETIMEDOUT, EHOSTUNREACH 에러 발생 후 상태가 고착됨 - `gateway restart` 5번 해도 복구 안 됨 - curl로 봇 토큰 직접 API 호출했더니 409 conflict 발생 - 웹챗은 정상, 텔레그램만 죽음",
@@ -9381,7 +9381,7 @@
       "source": ""
     },
     {
-      "title": "OpenClaw 텔레그램 세션 분열: 대화 길어지면 세션 2개로 갈라져 응답 꼬임",
+      "title": "Telegram Session Split — Long Conversations Create Two Sessions with Duplicate Responses",
       "category": "telegram",
       "url": "/synapse-ai/solutions/telegram/telegram-session-split-dual-response",
       "symptom": "- 텔레그램에서 대화가 길어지면 세션이 2개로 분열됨 - 1번 세션(이전 세션)이 먼저 반응해서 응답이 꼬임 - 같은 채팅에서 두 세션이 동시에 경합하며 중복/충돌 응답 발생 - 사용자 입장에서 봇이 엉뚱한 컨텍스트로 답변하거나 두 번 응답함",

@@ -1,6 +1,6 @@
 ---
 layout: solution
-title: "OpenClaw 텔레그램 429 + SIGTERM 재시작 루프 (반복 발생 패턴)"
+title: "Telegram 429 + SIGTERM Restart Loop — Recurring Rate Limit Crash Pattern"
 category: telegram
 description: "- 텔레그램 sendMessage가 429 Too Many Requests로 실패 - sendChatAction이 \"Network request failed\"로 반복 실패 - 게이트웨이가 SIGTERM → 자동 재시작 → 또 실패 → 무한 루프 - 메시지 반복 -"
 ---
