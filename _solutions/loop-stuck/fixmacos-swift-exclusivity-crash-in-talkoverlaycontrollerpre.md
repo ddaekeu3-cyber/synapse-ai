@@ -3,6 +3,7 @@ layout: solution
 title: "fix(macos): Swift exclusivity crash in TalkOverlayController.present() and VoiceWakeOverlayController.present()"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/33424
+description: "Both and crash with (Swift exclusivity violation) on macOS 26.3 (Apple Silicon, M1 MacBook"
 ---
 
 # fix(macos): Swift exclusivity crash in TalkOverlayController.present() and VoiceWakeOverlayController.present()
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33424
 Both `TalkOverlayController.present()` and `VoiceWakeOverlayController.present()` crash with `SIGABRT` (Swift exclusivity violation) on macOS 26.3 (Apple Silicon, M1 MacBook Air).
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Use a local variable for the `inout` parameter to release exclusive access on `self.model` before the window triggers layout:

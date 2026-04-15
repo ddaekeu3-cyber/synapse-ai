@@ -3,6 +3,7 @@ layout: solution
 title: "Mid-conversation rate limits bypass model fallback (retry_limit return instead of FailoverError throw)"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/50421
+description: "When a model succeeds on turn N but gets rate-limited on turn N+1 within the same embedded agent run, the model fallback mechanism is never triggered. The"
 ---
 
 # Mid-conversation rate limits bypass model fallback (retry_limit return instead of FailoverError throw)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50421
 When a model succeeds on turn N but gets rate-limited on turn N+1 within the same embedded agent run, the model fallback mechanism is never triggered. The run is killed with a user-facing error instead of falling back to the next model in the chain.
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 The retry-limit exit at line 887-917 should throw a `FailoverError` (instead of returning an error result) when:

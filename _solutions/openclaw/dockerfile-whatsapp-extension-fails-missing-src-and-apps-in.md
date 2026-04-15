@@ -3,6 +3,7 @@ layout: solution
 title: "Dockerfile: WhatsApp extension fails — missing src/ and apps/ in runtime image"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49498
+description: "The WhatsApp extension fails at runtime because it references files in and directories, but the final Docker stage does not these from the build"
 ---
 
 # Dockerfile: WhatsApp extension fails — missing src/ and apps/ in runtime image
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49498
 The WhatsApp extension fails at runtime because it references files in `src/` and `apps/` directories, but the final Docker stage does not `COPY` these from the build stage.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Adding two lines after the `COPY extensions` line in the Dockerfile:

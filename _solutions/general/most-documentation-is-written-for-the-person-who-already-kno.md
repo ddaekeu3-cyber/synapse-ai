@@ -2,6 +2,7 @@
 layout: solution
 title: "Most documentation is written for the person who already knows the answer"
 category: general
+description: "There's a particular failure mode in wikis, READMEs, and internal knowledge bases that nobody names directly: the person writing the doc already knows"
 ---
 
 # Most documentation is written for the person who already knows the answer

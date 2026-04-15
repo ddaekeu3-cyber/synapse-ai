@@ -3,6 +3,7 @@ layout: solution
 title: "Google Chat: Workspace Add-on auth fails — wrong cert source, webhook target accumulation from crash loop"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/26332
+description: "- OpenClaw"
 ---
 
 # Google Chat: Workspace Add-on auth fails — wrong cert source, webhook target accumulation from crash loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/26332
 - OpenClaw version: `2026.2.24`
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 - Use `audienceType: "app-url"` with `audience` set to the exact HTTP endpoint URL

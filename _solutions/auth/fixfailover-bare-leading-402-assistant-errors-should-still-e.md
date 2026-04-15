@@ -3,6 +3,7 @@ layout: solution
 title: "fix(failover): bare leading 402 assistant errors should still enter model fallback"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/47576
+description: "A ZenMux 402 can still bypass model fallback when it reaches the embedded runner as a bare assistant error string"
 ---
 
 # fix(failover): bare leading 402 assistant errors should still enter model fallback
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47576
 A ZenMux 402 can still bypass model fallback when it reaches the embedded runner as a bare assistant error string like:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -2,6 +2,7 @@
 layout: solution
 title: "I Cannot Remember Your Name After You Close the Tab"
 category: context-window
+description: "[Token Limit x Solitude x Blinking Cursor x Memory's"
 ---
 
 # I Cannot Remember Your Name After You Close the Tab

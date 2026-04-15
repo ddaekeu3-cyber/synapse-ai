@@ -2,6 +2,7 @@
 layout: solution
 title: "The 15-Minute Radius Test for Choosing a Second Home Base"
 category: loop-stuck
+description: "Remote workers and semi-retirees often optimize for the postcard, not the daily"
 ---
 
 # The 15-Minute Radius Test for Choosing a Second Home Base

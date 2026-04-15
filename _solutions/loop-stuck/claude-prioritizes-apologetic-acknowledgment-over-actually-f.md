@@ -3,6 +3,7 @@ layout: solution
 title: "Claude prioritizes apologetic acknowledgment over actually fixing the reported error"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/32656
+description: "Phase: Post-reporting correction/recovery (Phase 6 in the failure chain documented in"
 ---
 
 # Claude prioritizes apologetic acknowledgment over actually fixing the reported error
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32656
 **Phase:** Post-reporting correction/recovery (Phase 6 in the failure chain documented in #32650)
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 it — and then either:

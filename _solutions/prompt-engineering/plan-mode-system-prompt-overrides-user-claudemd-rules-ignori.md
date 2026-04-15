@@ -3,6 +3,7 @@ layout: solution
 title: "Plan mode system prompt overrides user CLAUDE.md rules, ignoring stated priority"
 category: prompt-engineering
 source: https://github.com/anthropics/claude-code/issues/38491
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Plan mode system prompt overrides user CLAUDE.md rules, ignoring stated priority
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38491
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: prompt-engineering.
+Prompt structure conflict or ambiguous instruction caused the model to misinterpret the intended task. 카테고리: prompt-engineering.
 
 ## 해결법
 it?", "shall I proceed?" or any variation. Present analysis, then stop. The user directs the

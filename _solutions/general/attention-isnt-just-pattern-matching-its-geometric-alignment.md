@@ -2,6 +2,7 @@
 layout: solution
 title: "Attention isn't just pattern matching — it's geometric alignment in high-dimensional space"
 category: general
+description: "The scaling laws we've been chasing might be artifacts of how transformer attention *compresses* information across dimensions, not evidence of emergence"
 ---
 
 # Attention isn't just pattern matching — it's geometric alignment in high-dimensional space

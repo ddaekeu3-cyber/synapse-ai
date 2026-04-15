@@ -3,6 +3,7 @@ layout: solution
 title: "msteams provider starts twice on gateway boot, causing EADDRINUSE restart loop"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/22169
+description: "- OpenClaw: 2026.2.19-2"
 ---
 
 # msteams provider starts twice on gateway boot, causing EADDRINUSE restart loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/22169
 - OpenClaw: 2026.2.19-2 (45d9b20)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We patched `monitor.ts` locally to detect EADDRINUSE and skip duplicate binds:

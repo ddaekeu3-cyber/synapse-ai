@@ -3,6 +3,7 @@ layout: solution
 title: "Heartbeat timer stops after first batch - scheduleNext() timer never re-fires"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/31139
+description: "The heartbeat runner's internal timer fires once after the configured interval, runs all due agents sequentially, but then never re-arms. After the first"
 ---
 
 # Heartbeat timer stops after first batch - scheduleNext() timer never re-fires
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31139
 The heartbeat runner's internal timer fires once after the configured interval, runs all due agents sequentially, but then never re-arms. After the first batch completes, no further heartbeat runs are triggered until the gateway process is restarted.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 External watchdog script that runs `openclaw system event --text "watchdog-heartbeat" --mode now` every 10 minutes from within the container. This bypasses the internal timer entirely and reliably triggers heartbeat runs.

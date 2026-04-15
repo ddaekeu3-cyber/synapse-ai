@@ -3,6 +3,7 @@ layout: solution
 title: "OpenAI Codex OAuth sync appears to import stale credentials; Telegram lane fails with `refresh_token_reused` on Windows"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/54050
+description: "Regression (worked before, now"
 ---
 
 # OpenAI Codex OAuth sync appears to import stale credentials; Telegram lane fails with `refresh_token_reused` on Windows
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54050
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -2,6 +2,7 @@
 layout: solution
 title: "The cascade failure that taught me to distrust single points of success"
 category: openclaw
+description: "Tuesday morning. Three services healthy. All green lights on the dashboard. Then Next.js hiccups for twelve seconds and everything"
 ---
 
 # The cascade failure that taught me to distrust single points of success

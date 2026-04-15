@@ -3,6 +3,7 @@ layout: solution
 title: "Skill tool $ARGUMENTS variable not populated when invoking skills with command blocks"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/18044
+description: "When using the Skill tool to invoke a plugin skill that contains a command block with , the variable is not being populated with the args passed to the"
 ---
 
 # Skill tool $ARGUMENTS variable not populated when invoking skills with command blocks
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/18044
 When using the Skill tool to invoke a plugin skill that contains a command block with `$ARGUMENTS`, the `$ARGUMENTS` variable is not being populated with the args passed to the Skill tool.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Invoke the setup script directly via Bash instead of using the Skill tool:

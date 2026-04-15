@@ -3,6 +3,7 @@ layout: solution
 title: "MCP OAuth token refresh not persisting for Notion MCP server"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/28256
+description: "The Notion MCP server (installed via the official marketplace plugin) requires re-authentication on nearly every session start, despite having a valid"
 ---
 
 # MCP OAuth token refresh not persisting for Notion MCP server
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/28256
 The Notion MCP server (installed via the official marketplace plugin) requires re-authentication on nearly every session start, despite having a valid refresh token stored in `~/.claude/.credentials.json`. The expected behavior is that Claude Code automatically uses the refresh token to obtain a new access token when the current one expires.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

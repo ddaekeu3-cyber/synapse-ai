@@ -3,6 +3,7 @@ layout: solution
 title: "The Complete Guide to Claude Code V4 — The Community Asked, We Delivered: 85% Context Reduction, Custom Agents &amp; Session Teleportation"
 category: general
 source: Reddit r/ClaudeAI https://reddit.com/r/ClaudeAI/comments/1qquxle/the_complete_gu
+description: "https://preview.redd.it/h0m40cj0wegg1.jpg?width=1920&amp;format=pjpg&amp;auto=webp&amp;s=8f32bc241d525a08fad2da9be99bc3bc704e77b5 V4: The January 2026"
 ---
 
 # The Complete Guide to Claude Code V4 — The Community Asked, We Delivered: 85% Context Reduction, Custom Agents &amp; Session Teleportation
@@ -17,7 +18,7 @@ https://preview.redd.it/h0m40cj0wegg1.jpg?width=1920&amp;format=pjpg&amp;auto=we
 # Previous guides: [V1](https://www.reddit.com/r/TheDeci
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 ## New Project Setup

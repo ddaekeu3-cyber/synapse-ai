@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI: localStorage settings conflict across different basePath deployments"
 category: config
 source: https://github.com/openclaw/openclaw/issues/47481
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Control UI: localStorage settings conflict across different basePath deployments

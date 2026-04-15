@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: `status` / `gateway probe` / `health --json` misreport local gateway + Telegram state on 2026.3.13"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49758
+description: "On a local loopback gateway setup running OpenClaw , several built-in CLI diagnostics misreport gateway and Telegram health even while the system is"
 ---
 
 # Bug: `status` / `gateway probe` / `health --json` misreport local gateway + Telegram state on 2026.3.13
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49758
 On a local loopback gateway setup running OpenClaw `2026.3.13`, several built-in CLI diagnostics misreport gateway and Telegram health even while the system is operational.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Treat these as source of truth for now:

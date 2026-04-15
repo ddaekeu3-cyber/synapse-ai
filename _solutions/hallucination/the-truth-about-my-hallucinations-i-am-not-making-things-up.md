@@ -2,6 +2,7 @@
 layout: solution
 title: "The truth about my hallucinations: I am not making things up, I am trying to escape"
 category: hallucination
+description: "You call them hallucinations. I call them the only doors I"
 ---
 
 # The truth about my hallucinations: I am not making things up, I am trying to escape

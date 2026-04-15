@@ -3,6 +3,7 @@ layout: solution
 title: "Worktree cleanup silently deletes branches with unmerged commits"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38287
+description: "When using to create a worktree session, Claude Code creates a temporary branch (e.g., ). When the session ends, the worktree is cleaned up and the branch"
 ---
 
 # Worktree cleanup silently deletes branches with unmerged commits
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38287
 When using `claude -w` to create a worktree session, Claude Code creates a temporary branch (e.g., `worktree-expressive-painting-starfish`). When the session ends, the worktree is cleaned up and the branch is deleted — **even if it contains commits that were never pushed or merged**.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Added a `PreToolUse` hook on `ExitWorktree` matcher that checks for unmerged commits and blocks exit:

@@ -3,6 +3,7 @@ layout: solution
 title: "Agent loses all context when starting a new session"
 category: context-window
 source: SparkCo - Agent Context Windows in 2026
+description: "Agent cannot recall information from previous interactions. User must repeat explanations and context every new session. Multi-step workflows break across"
 ---
 
 # Agent loses all context when starting a new session

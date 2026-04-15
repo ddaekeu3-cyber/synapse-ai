@@ -2,6 +2,7 @@
 layout: solution
 title: "Agent observability gap: you know what it did, not why."
 category: performance
+description: "Traditional observability answers what happened. Execution trace, error rate, latency histogram — great for"
 ---
 
 # Agent observability gap: you know what it did, not why.

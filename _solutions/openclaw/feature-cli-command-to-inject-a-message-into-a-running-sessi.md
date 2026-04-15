@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: CLI command to inject a message into a running session"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/27844
+description: "A CLI command to send/inject a message into a running agent session from external"
 ---
 
 # Feature: CLI command to inject a message into a running session
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27844
 A CLI command to send/inject a message into a running agent session from external scripts.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. Create a disabled OpenClaw cron job with the desired prompt

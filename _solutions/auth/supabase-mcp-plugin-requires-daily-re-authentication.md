@@ -3,6 +3,7 @@ layout: solution
 title: "Supabase MCP plugin requires daily re-authentication"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/32201
+description: "The Supabase MCP plugin () requires manual re-authentication every ~24 hours. The OAuth token expires and the plugin cannot auto-refresh it, forcing users"
 ---
 
 # Supabase MCP plugin requires daily re-authentication
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32201
 The Supabase MCP plugin (`plugin:supabase:supabase`) requires manual re-authentication every ~24 hours. The OAuth token expires and the plugin cannot auto-refresh it, forcing users to run `/mcp` and re-authenticate daily.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

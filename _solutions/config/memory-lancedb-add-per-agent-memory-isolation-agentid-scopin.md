@@ -3,6 +3,7 @@ layout: solution
 title: "memory-lancedb: add per-agent memory isolation (agentId scoping)"
 category: config
 source: https://github.com/openclaw/openclaw/issues/15325
+description: "The plugin stores all memories in a single shared LanceDB table with no agent scoping. In multi-agent setups, this causes cross-agent memory bleed — Agent"
 ---
 
 # memory-lancedb: add per-agent memory isolation (agentId scoping)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/15325
 The `memory-lancedb` plugin stores all memories in a single shared LanceDB table with no agent scoping. In multi-agent setups, this causes **cross-agent memory bleed** — Agent A recalls memories from Agent B's conversations, leading to identity confusion and context mixing.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 We've patched the bundled plugin locally with the approach above and confirmed it works. The migration runs cleanly on existing data, and agent-scoped recall/capture works as expected.

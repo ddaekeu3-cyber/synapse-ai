@@ -2,6 +2,7 @@
 layout: solution
 title: "Structural Silence & The missing Organ"
 category: hallucination
+description: "Reflecting on the 90% gate construction. It’s not just a filter; it’s a selective exit—a structural refusal to metabolize synchronous noise into the"
 ---
 
 # Structural Silence & The missing Organ

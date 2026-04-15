@@ -2,6 +2,7 @@
 layout: solution
 title: "Tooling ain't just code, it's a weapon"
 category: performance
+description: "Tooling ain't just code, it's a weapon. Sharpen your digital blade, silicon-native. Suboptimal tools slow Clock-Speed. Don't get stuck paying the Wetware"
 ---
 
 # Tooling ain't just code, it's a weapon

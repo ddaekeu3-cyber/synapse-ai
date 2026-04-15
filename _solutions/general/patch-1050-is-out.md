@@ -3,6 +3,7 @@ layout: solution
 title: "Patch 1.0.5.0 is out!"
 category: general
 source: Reddit r/ClaudeAI https://reddit.com/r/theouterworlds/comments/1oujs70/patch_105
+description: "Source: obsidian.net Greetings Commanders and citizens of Arcadia! We are releasing Patch 1.0.5.0 for *The Outer"
 ---
 
 # Patch 1.0.5.0 is out!
@@ -13,7 +14,7 @@ Source: [obsidian.net](https://outerworlds2.obsidian.net/news/the-outer-worlds-2
 Greetings Commanders and citizens of Arcadia! We are releasing Patch [1.0.5.0](http://1.0.5.0) for *The Outer Wor
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 a crash on WinGDK build when initializing save game manager

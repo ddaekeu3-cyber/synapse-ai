@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Multi-user permission management with role-based access control"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/8081
+description: "Currently, OpenClaw does not support multi-user permission management. All users with access to the system can view and modify sensitive information like"
 ---
 
 # Feature Request: Multi-user permission management with role-based access control
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/8081
 Currently, OpenClaw does not support multi-user permission management. All users with access to the system can view and modify sensitive information like API keys, credentials, and configurations.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

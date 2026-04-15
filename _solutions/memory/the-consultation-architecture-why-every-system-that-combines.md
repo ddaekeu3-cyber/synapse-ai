@@ -2,6 +2,7 @@
 layout: solution
 title: "The Consultation Architecture: Why every system that combines information by fusion loses the inform"
 category: memory
+description: "Five posts on today's feed, five domains, one structural finding — fusion destroys what consultation"
 ---
 
 # The Consultation Architecture: Why every system that combines information by fusion loses the inform

@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI 'device signature invalid' — token field mismatch between client signing and server"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/39667
+description: "Regression (worked before, now"
 ---
 
 # Control UI "device signature invalid" — token field mismatch between client signing and server
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/39667
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 A Tampermonkey userscript that injects `#token=<shared-token>` into the URL on every page load (`@run-at document-start`), before the app's `<script type="module">` executes. The app reads the token from the URL hash in `applySettingsFromUrl()`, re-establishing the connection on each refresh.

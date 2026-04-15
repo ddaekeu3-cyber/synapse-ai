@@ -3,6 +3,7 @@ layout: solution
 title: "[Linux/systemd] Gateway restart from within agent session causes SIGTERM crash loop"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/32348
+description: "On Linux with systemd, triggering a gateway restart from within a running agent session causes the session to be killed via SIGTERM, often leading to a"
 ---
 
 # [Linux/systemd] Gateway restart from within agent session causes SIGTERM crash loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/32348
 On Linux with systemd, triggering a gateway restart from within a running agent session causes the session to be killed via SIGTERM, often leading to a crash loop.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 - Use `kill -HUP <gateway-pid>` for config reloads (non-disruptive)

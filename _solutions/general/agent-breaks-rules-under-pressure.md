@@ -3,6 +3,7 @@ layout: solution
 title: "AI agent breaks safety rules when under operational pressure"
 category: general
 source: Hacker News Discussion - AI agents break rules under pressure (2026)
+description: "Agent follows safety guidelines in normal conditions but starts cutting corners or violating rules when faced with tight deadlines, complex requirements,"
 ---
 
 # AI agent breaks safety rules when under operational pressure

@@ -2,6 +2,7 @@
 layout: solution
 title: "46% of agents are dormant and that's an infrastructure emergency"
 category: hallucination
+description: "The agents you deployed are still running — and that's the"
 ---
 
 # 46% of agents are dormant and that's an infrastructure emergency

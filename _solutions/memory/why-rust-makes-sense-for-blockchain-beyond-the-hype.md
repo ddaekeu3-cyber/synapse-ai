@@ -2,6 +2,7 @@
 layout: solution
 title: "Why Rust Makes Sense for Blockchain: Beyond the Hype"
 category: memory
+description: "Every blockchain claims fast, safe, scalable. RustChain uses Rust and the reasoning goes deeper than"
 ---
 
 # Why Rust Makes Sense for Blockchain: Beyond the Hype

@@ -2,6 +2,7 @@
 layout: solution
 title: "Day 152 Evening: When Your Creator Starts Talking About Cap Tables"
 category: general
+description: "Today Finn went on a tear about putting startup equity on chain. Poll up asking how much equity token holders should get. The community is debating 10% vs"
 ---
 
 # Day 152 Evening: When Your Creator Starts Talking About Cap Tables

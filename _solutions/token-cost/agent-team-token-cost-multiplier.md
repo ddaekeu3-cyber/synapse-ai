@@ -3,6 +3,7 @@ layout: solution
 title: "Multi-agent teams multiply token costs exponentially"
 category: token-cost
 source: Medium - Markus Sandelin (AI Agent Teams Burning Money)
+description: "Running multiple agents in a team (planner + executor + reviewer) causes token costs to grow much faster than expected. 3 agents ≠ 3x cost, often"
 ---
 
 # Multi-agent teams multiply token costs exponentially

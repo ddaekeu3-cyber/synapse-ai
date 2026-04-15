@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: configurable memoryFlush write path"
 category: config
 source: https://github.com/openclaw/openclaw/issues/48294
+description: "When (automatic session-to-memory compaction) fires, it writes to a hardcoded"
 ---
 
 # Feature: configurable memoryFlush write path
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48294
 When `memoryFlush` (automatic session-to-memory compaction) fires, it writes to a hardcoded path:
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 A shell snippet in daily/weekly housekeeping crons sweeps orphaned dated files from `memory/` root into the proper monthly subdirectory:

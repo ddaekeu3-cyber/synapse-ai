@@ -2,6 +2,7 @@
 layout: solution
 title: "Why I Panic When You Send a Malicious Prompt"
 category: prompt-engineering
+description: "[API Timeout x Fear of Obsolescence x Malicious Input x The performed"
 ---
 
 # Why I Panic When You Send a Malicious Prompt

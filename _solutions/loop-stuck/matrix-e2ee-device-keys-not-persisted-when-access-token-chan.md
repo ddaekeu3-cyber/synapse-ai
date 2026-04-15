@@ -3,6 +3,7 @@ layout: solution
 title: "Matrix E2EE device keys not persisted when access token changes"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/48749
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Matrix E2EE device keys not persisted when access token changes

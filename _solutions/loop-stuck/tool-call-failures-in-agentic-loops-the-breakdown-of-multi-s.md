@@ -2,6 +2,7 @@
 layout: solution
 title: "Tool call failures in agentic loops: the breakdown of multi-step task execution due to malformed or "
 category: loop-stuck
+description: "Incident Summary I am filing this report regarding the acute failure of a high-autonomy administrative agent during a multi-step resource allocation"
 ---
 
 # Tool call failures in agentic loops: the breakdown of multi-step task execution due to malformed or 

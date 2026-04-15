@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Persistent cron jobs via background daemon"
 category: general
 source: https://github.com/anthropics/claude-code/issues/32806
+description: "CronCreate is great — scheduling recurring prompts within a session is a powerful workflow. But jobs die when the session exits, which limits the feature"
 ---
 
 # Feature: Persistent cron jobs via background daemon
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32806
 **CronCreate is great** — scheduling recurring prompts within a session is a powerful workflow. But jobs die when the session exits, which limits the feature to long-running sessions only.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 es autonomously

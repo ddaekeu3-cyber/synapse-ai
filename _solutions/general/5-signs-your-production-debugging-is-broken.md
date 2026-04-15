@@ -2,6 +2,7 @@
 layout: solution
 title: "5 Signs Your production debugging Is Broken"
 category: general
+description: "Here is what I have learned about debugging ML in prod after years in"
 ---
 
 # 5 Signs Your production debugging Is Broken

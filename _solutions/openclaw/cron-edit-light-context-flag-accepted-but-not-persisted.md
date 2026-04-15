@@ -3,6 +3,7 @@ layout: solution
 title: "cron edit --light-context flag accepted but not persisted"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/31425
+description: "accepts the flag without error but does not persist to the job"
 ---
 
 # cron edit --light-context flag accepted but not persisted
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31425
 `openclaw cron edit <id> --light-context` accepts the flag without error but does not persist `lightContext` to the job payload.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Edit `~/.openclaw/cron/jobs.json` directly and restart the gateway, or recreate the job with `cron add`.

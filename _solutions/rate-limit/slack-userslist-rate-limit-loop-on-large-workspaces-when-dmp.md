@@ -3,6 +3,7 @@ layout: solution
 title: "Slack: users.list rate-limit loop on large workspaces when dmPolicy uses ID-based allowlist"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/31733
+description: "When is set to with user IDs (e.g., ), OpenClaw calls to resolve the allowlist on startup and on incoming messages. On large Slack workspaces (thousands"
 ---
 
 # Slack: users.list rate-limit loop on large workspaces when dmPolicy uses ID-based allowlist
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31733
 When `channels.slack.dmPolicy` is set to `allowlist` with user IDs (e.g., `allowFrom: ["U03A3QXEER3"]`), OpenClaw calls `users.list` to resolve the allowlist on startup and on incoming messages. On large Slack workspaces (thousands of users), this exhausts Slack's rate limit, causing an infinite retry loop:
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 Set `dmPolicy: disabled` to prevent the allowlist resolution from running. This disables Slack DM support entirely but stops the loop. Channel functionality (controlled by `groupPolicy`) is unaffected.

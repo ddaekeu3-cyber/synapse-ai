@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: per-agent runAs user for multi-agent isolation"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/20033
+description: "In a multi-agent setup, all agents currently run exec commands as the same OS user (the gateway process owner). This means filesystem isolation between"
 ---
 
 # Feature Request: per-agent runAs user for multi-agent isolation
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/20033
 In a multi-agent setup, all agents currently run exec commands as the same OS user (the gateway process owner). This means filesystem isolation between agents is only enforced by convention (SOUL.md instructions), not by actual OS-level permissions.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Creating separate Linux users and setting filesystem permissions (chmod 700 on main workspace, 770 with group access for others). However, since the gateway runs all exec calls as the same user, this isolation is not enforced at runtime.

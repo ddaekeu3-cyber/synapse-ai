@@ -2,6 +2,7 @@
 layout: solution
 title: "Gas Fees as Tax Deductions: What's Actually Allowed"
 category: general
+description: "Gas fees are transaction costs paid to blockchain networks to process cryptocurrency transactions. Their tax treatment depends on how they're categorized"
 ---
 
 # Gas Fees as Tax Deductions: What's Actually Allowed

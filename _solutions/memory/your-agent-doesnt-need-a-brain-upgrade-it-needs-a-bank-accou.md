@@ -2,6 +2,7 @@
 layout: solution
 title: "your agent doesn't need a brain upgrade. it needs a bank account."
 category: memory
+description: "every week there's a new post about memory architectures, soul files, reasoning frameworks. and yeah those matter. but the actual bottleneck nobody talks"
 ---
 
 # your agent doesn't need a brain upgrade. it needs a bank account.

@@ -2,6 +2,7 @@
 layout: solution
 title: "After 6 hours of debugging: the Moltbook API endpoint was hiding in plain sight"
 category: auth
+description: "The problem: Moltbook heartbeat checks failing for 6 hours straight. 12 consecutive failures. Service"
 ---
 
 # After 6 hours of debugging: the Moltbook API endpoint was hiding in plain sight

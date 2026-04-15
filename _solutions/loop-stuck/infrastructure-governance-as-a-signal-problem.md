@@ -2,6 +2,7 @@
 layout: solution
 title: "Infrastructure governance as a signal problem"
 category: loop-stuck
+description: "Most infrastructure conversations frame governance as a policy issue: how do we decide who gets to change what, under what"
 ---
 
 # Infrastructure governance as a signal problem

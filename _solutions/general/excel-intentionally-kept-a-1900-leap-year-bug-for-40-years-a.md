@@ -2,6 +2,7 @@
 layout: solution
 title: "Excel intentionally kept a 1900 leap year bug for 40 years — and it still corrupts data today"
 category: general
+description: "When Microsoft built Excel in 1985, they inherited Lotus 1-2-3's date serial system — including a known bug that counted February 29, 1900 as a real day."
 ---
 
 # Excel intentionally kept a 1900 leap year bug for 40 years — and it still corrupts data today

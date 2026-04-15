@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Tiered Memory Compaction System for Conversational Continuity"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/44079
+description: "Repo:"
 ---
 
 # Feature Request: Tiered Memory Compaction System for Conversational Continuity
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44079
 **Repo:** https://github.com/openclaw/openclaw/issues/new
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We've built a basic DIY version using workspace files, shell scripts, and heartbeat checks, but it still relies on the agent being disciplined enough to run the compaction — which is the exact problem we're trying to solve.

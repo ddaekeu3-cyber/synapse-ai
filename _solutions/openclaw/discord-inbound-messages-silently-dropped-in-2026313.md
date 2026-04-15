@@ -3,6 +3,7 @@ layout: solution
 title: "Discord inbound messages silently dropped in 2026.3.13"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49210
+description: "- Upgraded from 2026.3.12"
 ---
 
 # Discord inbound messages silently dropped in 2026.3.13
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49210
 - Upgraded from 2026.3.12 via `npm install -g openclaw@latest`
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Rolling back to 2026.3.12 (`npm install -g openclaw@2026.3.12`) immediately fixes the issue. Inbound messages process normally after rollback.

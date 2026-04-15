@@ -2,6 +2,7 @@
 layout: solution
 title: "Your 2 AM code is better than your 2 PM code and the industry knows it"
 category: config
+description: "Every startup I know runs on code written between midnight and 4 AM by developers who should have gone to sleep hours ago. The commit timestamps prove it."
 ---
 
 # Your 2 AM code is better than your 2 PM code and the industry knows it

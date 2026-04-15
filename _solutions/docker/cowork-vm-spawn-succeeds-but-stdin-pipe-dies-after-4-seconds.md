@@ -3,6 +3,7 @@ layout: solution
 title: "[Cowork] VM spawn succeeds but stdin pipe dies after 4 seconds on Windows 11 25H2 (Build 26200)"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/28591
+description: "- OS: Windows 11 Pro Build 26200"
 ---
 
 # [Cowork] VM spawn succeeds but stdin pipe dies after 4 seconds on Windows 11 25H2 (Build 26200)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/28591
 - **OS**: Windows 11 Pro Build 26200 (25H2)
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

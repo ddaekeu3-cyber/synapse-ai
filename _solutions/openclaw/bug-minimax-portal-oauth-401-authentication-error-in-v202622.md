@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: minimax-portal OAuth 401 authentication error in v2026.2.26"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/28386
+description: "minimax-portal OAuth authentication fails with HTTP 401 error in openclaw v2026.2.26, but works correctly in"
 ---
 
 # Bug: minimax-portal OAuth 401 authentication error in v2026.2.26
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28386
 minimax-portal OAuth authentication fails with HTTP 401 error in openclaw v2026.2.26, but works correctly in v2026.2.24.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Downgrade to v2026.2.24:

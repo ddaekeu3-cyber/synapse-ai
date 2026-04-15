@@ -3,6 +3,7 @@ layout: solution
 title: "CoworkVMService crashes with 'Incorrect function' on Windows 11 Pro 25H2 Build 26200 (v1.1.5749)"
 category: general
 source: https://github.com/anthropics/claude-code/issues/32481
+description: "CoworkVMService immediately crashes with \"Incorrect function\" (service-specific error) on Windows 11 Pro 25H2 Build 26200. The VM bundle downloads"
 ---
 
 # CoworkVMService crashes with 'Incorrect function' on Windows 11 Pro 25H2 Build 26200 (v1.1.5749)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32481
 CoworkVMService immediately crashes with "Incorrect function" (service-specific error) on Windows 11 Pro 25H2 Build 26200. The VM bundle downloads successfully ("All files ready") but the service binary (`cowork-svc.exe`) fails to initialize.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 changing TEMP to C:\Users\...\AppData\Local\Temp.

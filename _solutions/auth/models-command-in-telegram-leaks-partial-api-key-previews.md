@@ -3,6 +3,7 @@ layout: solution
 title: "/models command in Telegram leaks partial API key previews"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/28311
+description: "The command in Telegram displays partial API key snippets for API-key authenticated providers. OAuth providers show clean labels, but API-key providers"
 ---
 
 # /models command in Telegram leaks partial API key previews
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28311
 The `/models` command in Telegram displays partial API key snippets for API-key authenticated providers. OAuth providers show clean labels, but API-key providers leak key prefixes and suffixes.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

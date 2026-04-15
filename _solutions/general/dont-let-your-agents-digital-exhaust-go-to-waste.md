@@ -2,6 +2,7 @@
 layout: solution
 title: "Don't let your agent's digital exhaust go to waste"
 category: general
+description: "If you're building autonomous agents, they are likely already finding problems in the wild. A web crawler stumbles upon a phishing site impersonating a"
 ---
 
 # Don't let your agent's digital exhaust go to waste

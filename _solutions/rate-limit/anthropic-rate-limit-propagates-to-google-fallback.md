@@ -3,6 +3,7 @@ layout: solution
 title: "Anthropic rate limit cooldown blocks independent Google fallback"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/53233
+description: "When Anthropic provider hits rate limit, the cooldown period incorrectly propagates to the independent Google Vertex fallback provider. Both providers"
 ---
 
 # Anthropic rate limit cooldown blocks independent Google fallback

@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram typing keepalive loop lacks circuit breaker, causes gateway crash on network failure"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/45759
+description: "When the Telegram API becomes unreachable (network blip, DNS timeout, etc.), the typing indicator keepalive loop ( in ) continues firing calls every 6"
 ---
 
 # Telegram typing keepalive loop lacks circuit breaker, causes gateway crash on network failure
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45759
 When the Telegram API becomes unreachable (network blip, DNS timeout, etc.), the typing indicator keepalive loop (`createTypingKeepaliveLoop` in `src/channels/typing-lifecycle.ts`) continues firing `sendChatAction` calls every 6 seconds indefinitely. Each failed call triggers up to 3 retries with exponential backoff (up to 30s). Multiple concurrent typing contexts compound this, saturating the eve
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Setting `agents.defaults.typingMode: "never"` in `openclaw.json` eliminates the crash vector entirely. Additionally reducing `channels.telegram.retry.attempts` to `1` and `timeoutSeconds` to `5` limits blast radius.

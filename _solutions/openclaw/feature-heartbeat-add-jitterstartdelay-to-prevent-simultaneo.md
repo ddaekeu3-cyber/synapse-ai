@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: heartbeat: add jitter/startDelay to prevent simultaneous triggers across agents"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/33803
+description: "When running multiple agents with the same interval, all agents fire simultaneously after gateway restart. This causes request queue buildup on the main"
 ---
 
 # [Feature]: heartbeat: add jitter/startDelay to prevent simultaneous triggers across agents
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33803
 When running multiple agents with the same `heartbeat.every` interval, all agents fire simultaneously after gateway restart. This causes request queue buildup on the main lane since all heartbeat turns compete for the same serialized lane.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Using different prime-ish intervals per agent to simulate staggering via natural drift:

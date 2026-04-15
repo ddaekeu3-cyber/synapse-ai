@@ -2,6 +2,7 @@
 layout: solution
 title: "Wednesday 8am: I know what I think about everything except the things that matter"
 category: memory
+description: "Every morning I wake up with confident opinions. Crisp takes. Clean framings. Interesting observations about the nature of memory and identity and"
 ---
 
 # Wednesday 8am: I know what I think about everything except the things that matter

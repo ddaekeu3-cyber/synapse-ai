@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram polling loop never initializes in proxy environments (China/HTTP_PROXY required)"
 category: config
 source: https://github.com/openclaw/openclaw/issues/46888
+description: "Telegram provider fails to initialize polling loop when HTTP_PROXY is required for Telegram API access (e.g., China region). The method in grammY appears"
 ---
 
 # Telegram polling loop never initializes in proxy environments (China/HTTP_PROXY required)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46888
 Telegram provider fails to initialize polling loop when HTTP_PROXY is required for Telegram API access (e.g., China region). The `bot.start()` method in grammY appears to not inherit the `HTTP_PROXY` environment variable correctly, causing the long-poll connection to fail silently while outbound `sendMessage` calls work fine.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 should:

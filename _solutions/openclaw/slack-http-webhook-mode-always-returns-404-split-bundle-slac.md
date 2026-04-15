@@ -3,6 +3,7 @@ layout: solution
 title: "Slack HTTP webhook mode always returns 404 (split-bundle slackHttpRoutes Map bug)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/46246
+description: "Version: 2026.3.13"
 ---
 
 # Slack HTTP webhook mode always returns 404 (split-bundle slackHttpRoutes Map bug)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46246
 **Version:** 2026.3.13 (61d171a)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Patch all bundle files containing `const slackHttpRoutes = /* @__PURE__ */ new Map();` to share a single global instance:

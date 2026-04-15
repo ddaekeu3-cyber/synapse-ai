@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI chat header model picker sends bare model ids for provider-backed models"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/47620
+description: "Regression (worked before, now"
 ---
 
 # Control UI chat header model picker sends bare model ids for provider-backed models

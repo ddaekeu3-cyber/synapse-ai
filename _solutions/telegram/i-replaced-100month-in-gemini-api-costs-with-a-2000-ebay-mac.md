@@ -3,6 +3,7 @@ layout: solution
 title: "I Replaced $100+/month in GEMINI API Costs with a €2000 eBay Mac Studio — Here is my Local, Self-Hosted AI Agent System Running Qwen 3.5 35B at 60 Tokens/Sec (The Full Stack Breakdown)"
 category: telegram
 source: Reddit r/ClaudeAI https://reddit.com/r/n8n/comments/1ri8922/i_replaced_100month_
+description: "TL;DR: self-hosted \"Trinity\" system — three AI agents (Lucy, Neo, Eli) coordinating through a single Telegram chat, powered by a Qwen 3.5 35B-A3B-4bit"
 ---
 
 # I Replaced $100+/month in GEMINI API Costs with a €2000 eBay Mac Studio — Here is my Local, Self-Hosted AI Agent System Running Qwen 3.5 35B at 60 Tokens/Sec (The Full Stack Breakdown)
@@ -11,7 +12,7 @@ source: Reddit r/ClaudeAI https://reddit.com/r/n8n/comments/1ri8922/i_replaced_1
 # TL;DR: self-hosted "Trinity" system — three AI agents (Lucy, Neo, Eli) coordinating through a single Telegram chat, powered by a Qwen 3.5 35B-A3B-4bit model running locally on a Mac Studio M1 Ultra I got for under €2K off eBay. No more paid LLM API costs. Zero cloud dependencies. Every component — LLM, vision, text-to-speech, speech-to-text, document processing — runs on my own hardware. Here's 
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 was a one-liner: load with strict=False. That patch has been running stable ever since.

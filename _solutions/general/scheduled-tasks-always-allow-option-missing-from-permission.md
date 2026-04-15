@@ -3,6 +3,7 @@ layout: solution
 title: "Scheduled tasks: 'Always allow' option missing from permission prompts"
 category: general
 source: https://github.com/anthropics/claude-code/issues/33027
+description: "When a scheduled task triggers a permission prompt during execution, only the \"Allow once\" option is presented. The \"Always allow\" option that appears in"
 ---
 
 # Scheduled tasks: 'Always allow' option missing from permission prompts
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33027
 When a scheduled task triggers a permission prompt during execution, only the "Allow once" option is presented. The "Always allow" option that appears in interactive CLI sessions is missing.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Pre-configuring exact command patterns in `~/.claude/settings.json` under `allowedTools` works for some commands, but the interactive "Always allow" flow would be much more ergonomic for discovering which permissions a task needs.

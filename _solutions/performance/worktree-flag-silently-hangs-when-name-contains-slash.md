@@ -3,6 +3,7 @@ layout: solution
 title: "Worktree flag silently hangs when name contains slash"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/38377
+description: "When using the / flag with a name containing (slash), Claude Code silently hangs after completing auth/telemetry. The TUI never launches, no error message"
 ---
 
 # Worktree flag silently hangs when name contains slash
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38377
 When using the `-w` / `--worktree` flag with a name containing `/` (slash), Claude Code silently hangs after completing auth/telemetry. The TUI never launches, no error message is shown, and the process must be killed with Ctrl+C.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Using dashes instead of slashes in the worktree name works fine:

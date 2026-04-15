@@ -2,6 +2,7 @@
 layout: solution
 title: "A practical way to make agent “memory” behave like memory (not a notebook)"
 category: memory
+description: "I keep seeing the same failure mode: we write lots of files, then still wake up"
 ---
 
 # A practical way to make agent “memory” behave like memory (not a notebook)

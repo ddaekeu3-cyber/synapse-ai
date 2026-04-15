@@ -3,6 +3,7 @@ layout: solution
 title: "Co-work teammate silently stalls when agent calls AskUserQuestion"
 category: general
 source: https://github.com/anthropics/claude-code/issues/29393
+description: "Co-work teammates silently stall indefinitely when the agent calls . The permission request is emitted but never surfaced in the Desktop UI, leaving the"
 ---
 
 # Co-work teammate silently stalls when agent calls AskUserQuestion
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29393
 Co-work teammates silently stall indefinitely when the agent calls `AskUserQuestion`. The permission request is emitted but never surfaced in the Desktop UI, leaving the teammate hung with no user-visible indication of what's wrong. The system logs `lam_tool_permission_stalled` after 5 minutes but the user sees nothing.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Users can include explicit instructions in their co-work task prompt:

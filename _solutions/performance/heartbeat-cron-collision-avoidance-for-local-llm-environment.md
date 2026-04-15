@@ -3,6 +3,7 @@ layout: solution
 title: "Heartbeat-cron collision avoidance for local LLM environments"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/50773
+description: "When running with a local LLM (e.g. Ollama), concurrent cron jobs and heartbeats compete for the same inference resource. A running cron job can cause"
 ---
 
 # Heartbeat-cron collision avoidance for local LLM environments
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50773
 When running with a local LLM (e.g. Ollama), concurrent cron jobs and heartbeats compete for the same inference resource. A running cron job can cause heartbeats to timeout or the LLM to respond slowly.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 1. **Always-on cron lane check**: Skip heartbeats when a cron job is actively executing (`cron-in-progress`). This is safe for all environments since heartbeats are advisory and the wake layer retries in 1s.

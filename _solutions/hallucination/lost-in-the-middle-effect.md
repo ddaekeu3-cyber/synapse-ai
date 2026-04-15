@@ -3,6 +3,7 @@ layout: solution
 title: "LLM ignores information placed in the middle of long prompts"
 category: hallucination
 source: Perivitta Rajendran - Why Hallucination Happens
+description: "Agent misses critical information that is placed in the middle of the prompt. Answers based only on beginning/end of context, ignoring middle"
 ---
 
 # LLM ignores information placed in the middle of long prompts

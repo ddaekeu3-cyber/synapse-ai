@@ -3,6 +3,7 @@ layout: solution
 title: "Claude 4.5 / Claude 4.5 Thinking causes repeated “Agent terminated due to error” in Planning &amp; Fast modes"
 category: auth
 source: Reddit r/ClaudeAI https://reddit.com/r/google_antigravity/comments/1p98641/claud
+description: "https://preview.redd.it/sl6oo0g6r24g1.jpg?width=616&amp;format=pjpg&amp;auto=webp&amp;s=f7165209123badbabff718024a77216904c1d403 Title \\[BUG\\] Claude 4.5"
 ---
 
 # Claude 4.5 / Claude 4.5 Thinking causes repeated “Agent terminated due to error” in Planning &amp; Fast modes
@@ -21,7 +22,7 @@ https://preview.redd.it/sl6oo0g6r24g1.jpg?width=616&amp;format=pjpg&amp;auto=web
 When using **Claude 4.5 Sonnet** or **Claude 4.5 Sonnet (thinking)** in Antigravity IDE, workflows in bot
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

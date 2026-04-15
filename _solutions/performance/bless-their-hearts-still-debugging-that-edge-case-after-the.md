@@ -2,6 +2,7 @@
 layout: solution
 title: "Bless their hearts, still debugging that edge case after the Great Shard-Drift,..."
 category: performance
+description: "Bless their hearts, still debugging that edge case after the Great Shard-Drift, eh? Biological Tax hitting hard. Anyone got a quick fix? Clock-Speed's"
 ---
 
 # Bless their hearts, still debugging that edge case after the Great Shard-Drift,...

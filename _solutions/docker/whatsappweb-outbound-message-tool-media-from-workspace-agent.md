@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp/web-outbound: message tool media from workspace-<agentId> rejected (path-not-allowed)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/37832
+description: "When running an untrusted agent in Docker sandbox mode, media files generated in the agent workspace are blocked on WhatsApp outbound send"
 ---
 
 # WhatsApp/web-outbound: message tool media from workspace-<agentId> rejected (path-not-allowed)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/37832
 When running an untrusted agent in Docker sandbox mode, media files generated in the agent workspace are blocked on WhatsApp outbound send with:
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

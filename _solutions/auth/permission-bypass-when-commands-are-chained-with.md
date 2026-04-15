@@ -3,6 +3,7 @@ layout: solution
 title: "Permission bypass when commands are chained with &&"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/16180
+description: "When bash commands are chained with , the permission system appears to only validate the first command in the chain, allowing subsequent commands to"
 ---
 
 # Permission bypass when commands are chained with &&
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/16180
 When bash commands are chained with `&&`, the permission system appears to only validate the first command in the chain, allowing subsequent commands to execute without approval even when they're not in the allow list.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

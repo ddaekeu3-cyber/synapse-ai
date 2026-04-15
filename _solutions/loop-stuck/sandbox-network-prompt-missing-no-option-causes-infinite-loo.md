@@ -3,6 +3,7 @@ layout: solution
 title: "Sandbox network prompt missing 'No' option — causes infinite loop with retrying subprocesses"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/38152
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Sandbox network prompt missing "No" option — causes infinite loop with retrying subprocesses
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38152
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Kill the subprocess externally, or disable the tool's telemetry before enabling sandbox. In this case: `dolt config --global --add metrics.disabled true` and restart the Dolt server.

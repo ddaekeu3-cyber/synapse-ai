@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: WhatsApp plugin still broken in 2026.3.23-1 — missing @whiskeysockets/baileys dependency"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53285
+description: "fixed the missing / from #53244, but the WhatsApp plugin still fails at runtime because its npm dependency is not bundled in the"
 ---
 
 # Bug: WhatsApp plugin still broken in 2026.3.23-1 — missing @whiskeysockets/baileys dependency
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53285
 `openclaw@2026.3.23-1` fixed the missing `light-runtime-api.js` / `runtime-api.js` from #53244, but the WhatsApp plugin still fails at runtime because its npm dependency `@whiskeysockets/baileys` is not bundled in the package.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We run `npm install --omit=dev` inside `dist/extensions/whatsapp/` (after removing `workspace:*` refs from package.json) during our Docker asset build to inject the missing dependencies manually.

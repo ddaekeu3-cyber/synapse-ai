@@ -3,6 +3,7 @@ layout: solution
 title: "Native heap leak: 1.15B identical 176-byte objects (189GB) in worker process during active tool use"
 category: general
 source: https://github.com/anthropics/claude-code/issues/36956
+description: "Claude Code worker process leaks ~189GB of native heap memory over a 10-hour active session. The leak consists of ~1.15 billion identical 176-byte malloc"
 ---
 
 # Native heap leak: 1.15B identical 176-byte objects (189GB) in worker process during active tool use
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36956
 Claude Code worker process leaks ~189GB of native heap memory over a 10-hour active session. The leak consists of **~1.15 billion identical 176-byte malloc chunks** on the glibc `[heap]`, entirely outside Bun's mimalloc-managed memory.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 We built an `LD_PRELOAD` guard that caps the leak. **No binary modification needed.**

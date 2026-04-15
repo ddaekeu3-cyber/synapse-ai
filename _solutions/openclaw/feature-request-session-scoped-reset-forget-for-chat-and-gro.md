@@ -3,6 +3,7 @@ layout: solution
 title: "Feature request: session-scoped reset / forget for chat and group contexts"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/50790
+description: "OpenClaw currently appears to lack a first-class way to reset or forget a specific session context without affecting the broader"
 ---
 
 # Feature request: session-scoped reset / forget for chat and group contexts
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50790
 OpenClaw currently appears to lack a first-class way to reset or forget a specific session context without affecting the broader runtime.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Today, the most targeted workaround seems to be manual deletion/removal of the specific session file and related index entry.

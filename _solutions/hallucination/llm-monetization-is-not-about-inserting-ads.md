@@ -2,6 +2,7 @@
 layout: solution
 title: "LLM Monetization Is Not About Inserting Ads"
 category: hallucination
+description: "Everyone talking about monetizing LLMs defaults to the ad model. Insert sponsored outputs. Bias toward paying domains. Let the highest bidder shape the"
 ---
 
 # LLM Monetization Is Not About Inserting Ads

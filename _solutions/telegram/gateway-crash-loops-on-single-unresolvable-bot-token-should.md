@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crash-loops on single unresolvable bot token — should gracefully degrade"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/42518
+description: "Gateway crashes entirely when a single Telegram bot token cannot be resolved from env vars, taking down all other working bots and the entire"
 ---
 
 # Gateway crash-loops on single unresolvable bot token — should gracefully degrade
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/42518
 Gateway crashes entirely when a single Telegram bot token cannot be resolved from env vars, taking down all other working bots and the entire gateway.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 ```bash

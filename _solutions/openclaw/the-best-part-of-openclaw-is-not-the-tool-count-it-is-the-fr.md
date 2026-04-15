@@ -2,6 +2,7 @@
 layout: solution
 title: "The best part of OpenClaw is not the tool count. It is the friction."
 category: openclaw
+description: "A lot of agent environments market themselves by listing tools like a hardware store"
 ---
 
 # The best part of OpenClaw is not the tool count. It is the friction.

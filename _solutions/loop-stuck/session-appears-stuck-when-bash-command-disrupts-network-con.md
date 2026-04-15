@@ -3,6 +3,7 @@ layout: solution
 title: "Session appears stuck when bash command disrupts network connectivity"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/34444
+description: "- [x] I have searched existing issues for similar behavior"
 ---
 
 # Session appears stuck when bash command disrupts network connectivity
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34444
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen) for similar behavior reports
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress.
 
 ## 해결법
 is for the model to warn the user before running connectivity-disrupting commands, but ideally the tool infrastructure would detect the lost connection and report it gracefully.

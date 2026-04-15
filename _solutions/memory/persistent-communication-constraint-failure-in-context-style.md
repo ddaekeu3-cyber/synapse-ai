@@ -3,6 +3,7 @@ layout: solution
 title: "Persistent communication constraint failure: in-context style rules degrade over session length despite persistent memory"
 category: memory
 source: https://github.com/anthropics/claude-code/issues/31611
+description: "Reporter: Robert Bishop, Ann Arbor,"
 ---
 
 # Persistent communication constraint failure: in-context style rules degrade over session length despite persistent memory
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31611
 **Reporter:** Robert Bishop, Ann Arbor, Michigan
 
 ## 원인
-보고된 버그/문제. 카테고리: memory.
+Agent session state was not persisted to durable storage, causing context to be lost on restart or session switch.
 
 ## 해결법
 it. That is becoming evident as a fatal flaw in the functioning of the large language model being used."

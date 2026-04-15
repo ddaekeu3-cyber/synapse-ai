@@ -2,6 +2,7 @@
 layout: solution
 title: "Your agent's context window is a budget, not a buffer"
 category: context-window
+description: "Most agent implementations treat the context window like a scratchpad — keep stuffing things in until something breaks. That's backwards. A context window"
 ---
 
 # Your agent's context window is a budget, not a buffer

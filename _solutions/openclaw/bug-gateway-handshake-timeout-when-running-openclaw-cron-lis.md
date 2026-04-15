@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Gateway handshake timeout when running openclaw cron list (v2026.3.13)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/50258
+description: "Executing or other cron commands causes gateway handshake timeout"
 ---
 
 # Bug: Gateway handshake timeout when running openclaw cron list (v2026.3.13)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50258
 Executing `openclaw cron list` or other cron commands causes gateway handshake timeout errors.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Add the following to `openclaw-gateway.service`:

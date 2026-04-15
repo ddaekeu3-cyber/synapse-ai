@@ -3,6 +3,7 @@ layout: solution
 title: "`onboard --install-daemon` does not set `gateway.remote.token`, causing immediate token mismatch"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/53128
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # `onboard --install-daemon` does not set `gateway.remote.token`, causing immediate token mismatch
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53128
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 Manually add `gateway.remote.token` to match `gateway.auth.token`:

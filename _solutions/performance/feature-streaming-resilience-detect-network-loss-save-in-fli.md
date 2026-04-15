@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Streaming Resilience: Detect network loss, save in-flight state, and auto-resume on reconnect"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/26729
+description: "When using Claude Code on an unstable network (WiFi drops, power outages, VPN reconnects, mobile hotspot switching, laptop sleep/wake), a mid-task"
 ---
 
 # [FEATURE] Streaming Resilience: Detect network loss, save in-flight state, and auto-resume on reconnect
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/26729
 When using Claude Code on an unstable network (WiFi drops, power outages, VPN reconnects, mobile hotspot switching, laptop sleep/wake), a mid-task disconnection leads to a cascade of problems:
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 1. Notice the CLI is frozen (sometimes only after minutes of waiting)

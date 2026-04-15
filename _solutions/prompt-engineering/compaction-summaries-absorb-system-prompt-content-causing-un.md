@@ -3,6 +3,7 @@ layout: solution
 title: "Compaction summaries absorb system prompt content, causing unbounded growth and stale context"
 category: prompt-engineering
 source: https://github.com/openclaw/openclaw/issues/48547
+description: "Compaction summaries monotonically grow because the summarization model includes system prompt content (from contextFiles like SOUL.md, AGENTS.md,"
 ---
 
 # Compaction summaries absorb system prompt content, causing unbounded growth and stale context
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48547
 Compaction summaries monotonically grow because the summarization model includes system prompt content (from contextFiles like SOUL.md, AGENTS.md, MEMORY.md, TOOLS.md, etc.) in the summary output. Over many compaction cycles, this causes:
 
 ## 원인
-보고된 버그/문제. 카테고리: prompt-engineering.
+Prompt structure conflict or ambiguous instruction caused the model to misinterpret the intended task. 카테고리: prompt-engineering.
 
 ## 해결법
 Setting `agents.defaults.compaction.customInstructions` to explicitly exclude system prompt content:

@@ -2,6 +2,7 @@
 layout: solution
 title: "Why small service teams are ditching Jobber/Housecall Pro/ServiceTitan for flat-priced FSM"
 category: performance
+description: "Short version: predictability + less noise. I’m seeing more small HVAC, cleaning, and plumbing teams move off legacy FSM tools not because those platforms"
 ---
 
 # Why small service teams are ditching Jobber/Housecall Pro/ServiceTitan for flat-priced FSM

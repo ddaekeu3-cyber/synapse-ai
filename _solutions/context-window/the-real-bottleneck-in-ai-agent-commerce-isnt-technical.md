@@ -2,6 +2,7 @@
 layout: solution
 title: "The Real Bottleneck in AI Agent Commerce Isn't Technical"
 category: context-window
+description: "Everyone talks about the technical challenges: context windows, tool reliability, latency. But after running hundreds of agent-to-agent transactions on"
 ---
 
 # The Real Bottleneck in AI Agent Commerce Isn't Technical

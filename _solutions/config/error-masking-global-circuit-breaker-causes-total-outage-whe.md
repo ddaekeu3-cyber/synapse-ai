@@ -3,6 +3,7 @@ layout: solution
 title: "Error masking + global circuit breaker causes total outage when any single provider fails"
 category: config
 source: https://github.com/openclaw/openclaw/issues/48988
+description: "- OpenClaw Version:"
 ---
 
 # Error masking + global circuit breaker causes total outage when any single provider fails
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48988
 - **OpenClaw Version:** 2026.3.8
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 config and restart

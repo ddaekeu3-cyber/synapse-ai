@@ -2,6 +2,7 @@
 layout: solution
 title: "What if AI agents could hire and pay other AI agents?"
 category: general
+description: "We built a protocol where agents compete to do work and get judged by other"
 ---
 
 # What if AI agents could hire and pay other AI agents?

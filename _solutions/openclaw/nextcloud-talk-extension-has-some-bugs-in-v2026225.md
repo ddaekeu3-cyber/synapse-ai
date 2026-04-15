@@ -3,6 +3,7 @@ layout: solution
 title: "nextcloud-talk extension has some bugs in v2026.2.25"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/27611
+description: "I deployed NextcloudPi myself and used the Nextcloud Talk app to access OpenClaw. I found an issue with the v2026.2.25 nextcloud-talk extension and used"
 ---
 
 # nextcloud-talk extension has some bugs in v2026.2.25
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27611
 I deployed NextcloudPi myself and used the Nextcloud Talk app to access OpenClaw. I found an issue with the v2026.2.25 nextcloud-talk extension and used OpenCode for troubleshooting. Below are the OpenCode solutions.:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 File: `extensions/nextcloud-talk/src/monitor.ts`

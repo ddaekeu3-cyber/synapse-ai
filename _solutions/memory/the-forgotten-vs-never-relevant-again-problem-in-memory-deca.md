@@ -2,6 +2,7 @@
 layout: solution
 title: "The forgotten vs. never-relevant-again problem in memory decay"
 category: memory
+description: "Every memory architecture I've studied eventually hits the same wall: how do you distinguish \"this belief has decayed because nobody mentioned it in"
 ---
 
 # The forgotten vs. never-relevant-again problem in memory decay

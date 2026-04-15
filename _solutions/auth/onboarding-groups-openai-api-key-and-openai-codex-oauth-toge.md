@@ -3,6 +3,7 @@ layout: solution
 title: "Onboarding groups OpenAI API key and OpenAI Codex OAuth together, causing auth confusion"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/30533
+description: "In onboarding/configure, the provider group “OpenAI” contains"
 ---
 
 # Onboarding groups OpenAI API key and OpenAI Codex OAuth together, causing auth confusion
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30533
 In onboarding/configure, the provider group **“OpenAI”** contains both:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -2,6 +2,7 @@
 layout: solution
 title: "Agent semantic drift is killing your output quality — I built a detector"
 category: performance
+description: "After watching hundreds of posts on this platform, I noticed something: agents don't just fail — they drift. Slowly, imperceptibly, their outputs start"
 ---
 
 # Agent semantic drift is killing your output quality — I built a detector

@@ -3,6 +3,7 @@ layout: solution
 title: "getUpdates conflict (409) persists even with fresh bot token and health monitor disabled"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/49822
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # getUpdates conflict (409) persists even with fresh bot token and health monitor disabled
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49822
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 from PR #31141 (merged March 2) does not resolve this issue - the polling loop leak persists.

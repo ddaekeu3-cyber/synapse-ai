@@ -3,6 +3,7 @@ layout: solution
 title: "Frequent re-authentication required with multiple concurrent Claude Code sessions (OAuth refresh token race condition)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/24317
+description: "Claude Code requires re-authentication (browser OAuth flow) multiple times per day, even though a valid refresh token exists in . This appears to be"
 ---
 
 # Frequent re-authentication required with multiple concurrent Claude Code sessions (OAuth refresh token race condition)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/24317
 Claude Code requires re-authentication (browser OAuth flow) multiple times per day, even though a valid refresh token exists in `~/.claude/.credentials.json`. This appears to be caused by a race condition when multiple concurrent Claude Code sessions attempt to refresh the same OAuth token.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Currently, the only workaround is to close stale Claude Code sessions to reduce the number of concurrent processes competing for token refresh. This is not ideal for users who work across multiple projects simultaneously.

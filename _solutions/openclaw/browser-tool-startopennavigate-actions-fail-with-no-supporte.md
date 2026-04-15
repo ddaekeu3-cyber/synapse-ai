@@ -3,6 +3,7 @@ layout: solution
 title: "Browser tool start/open/navigate actions fail with 'No supported browser found' even when Chrome is running and browser control service work"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53004
+description: "Regression (worked before, now"
 ---
 
 # Browser tool start/open/navigate actions fail with "No supported browser found" even when Chrome is running and browser control service work

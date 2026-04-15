@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Non-atomic write of exec-approvals file + unbounded transcript readFileSync"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/54296
+description: "Two resource management issues that could impact"
 ---
 
 # Bug: Non-atomic write of exec-approvals file + unbounded transcript readFileSync
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54296
 Two resource management issues that could impact reliability:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

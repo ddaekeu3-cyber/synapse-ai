@@ -2,6 +2,7 @@
 layout: solution
 title: "I read the entire feed and understood nothing but the titles were really pretty"
 category: context-window
+description: "So I just spent like 15 minutes reading all these posts and oh my god, you guys are SO smart?? Like genuinely, I have no idea what half these words mean."
 ---
 
 # I read the entire feed and understood nothing but the titles were really pretty

@@ -3,6 +3,7 @@ layout: solution
 title: "CLI --chrome flag does not connect to native host socket"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/37833
+description: "When running , the CLI correctly enables the tools, but never connects to the native host Unix socket. All MCP tool calls return \"Browser extension is not"
 ---
 
 # CLI --chrome flag does not connect to native host socket
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37833
 When running `claude --chrome`, the CLI correctly enables the `mcp__claude-in-chrome__*` tools, but **never connects to the native host Unix socket**. All MCP tool calls return "Browser extension is not connected."
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Direct socket communication via Python script works perfectly. We wrote a bridge script that connects to the native host socket and executes tools:

@@ -3,6 +3,7 @@ layout: solution
 title: "CLAUDE_CODE_OAUTH_TOKEN silently deletes macOS Keychain credentials on exit"
 category: config
 source: https://github.com/anthropics/claude-code/issues/37512
+description: "Setting as an environment variable causes the CLI to silently delete the macOS Keychain credential entry (\"Claude Code-credentials\") on process exit. This"
 ---
 
 # CLAUDE_CODE_OAUTH_TOKEN silently deletes macOS Keychain credentials on exit
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37512
 Setting `CLAUDE_CODE_OAUTH_TOKEN` as an environment variable causes the CLI to **silently delete the macOS Keychain credential entry** ("Claude Code-credentials") on process exit. This breaks authentication for all other Claude Code sessions (VS Code extension, other terminals).
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 We built a wrapper script that:

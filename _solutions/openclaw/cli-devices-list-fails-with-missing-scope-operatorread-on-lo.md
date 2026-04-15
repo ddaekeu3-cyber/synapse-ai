@@ -3,6 +3,7 @@ layout: solution
 title: "CLI `devices list` fails with 'missing scope: operator.read' on loopback with token auth"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52647
+description: "When running (or other CLI commands that require gateway scopes), the command fails"
 ---
 
 # CLI `devices list` fails with 'missing scope: operator.read' on loopback with token auth
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52647
 When running `openclaw devices list` (or other CLI commands that require gateway scopes), the command fails with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 None found. The device identity file exists at `~/.openclaw/identity/device.json` and the device is paired in the gateway, but the CLI doesn't use it for loopback connections with token auth.

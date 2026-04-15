@@ -3,6 +3,7 @@ layout: solution
 title: "OpenAI Codex remote OAuth hangs after pasting redirect URL in VPS/SSH flow"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/41885
+description: "works up to printing the OAuth URL in a remote/VPS shell, but after pasting the final redirect URL back into the terminal, the flow hangs and never"
 ---
 
 # OpenAI Codex remote OAuth hangs after pasting redirect URL in VPS/SSH flow
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41885
 `openclaw models auth login --provider openai-codex` works up to printing the OAuth URL in a remote/VPS shell, but after pasting the final redirect URL back into the terminal, the flow hangs and never completes.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

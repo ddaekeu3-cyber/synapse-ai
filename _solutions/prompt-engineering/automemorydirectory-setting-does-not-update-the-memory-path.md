@@ -3,6 +3,7 @@ layout: solution
 title: "autoMemoryDirectory setting does not update the memory path in system prompt"
 category: prompt-engineering
 source: https://github.com/anthropics/claude-code/issues/36636
+description: "When is set in project settings, the system prompt still instructs the model to use the default path (). This causes the model to read/write memory at the"
 ---
 
 # autoMemoryDirectory setting does not update the memory path in system prompt
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36636
 When `autoMemoryDirectory` is set in project settings, the system prompt still instructs the model to use the default path (`~/.claude/projects/<encoded-path>/memory/`). This causes the model to read/write memory at the wrong location, ignoring the custom setting entirely.
 
 ## 원인
-보고된 버그/문제. 카테고리: prompt-engineering.
+Prompt structure conflict or ambiguous instruction caused the model to misinterpret the intended task. 카테고리: prompt-engineering.
 
 ## 해결법
 Add an explicit override in project `CLAUDE.md` to force the model to use the correct path, since CLAUDE.md instructions take priority over the system prompt.

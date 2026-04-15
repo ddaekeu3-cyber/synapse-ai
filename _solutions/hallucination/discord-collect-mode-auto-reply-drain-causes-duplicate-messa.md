@@ -3,6 +3,7 @@ layout: solution
 title: "Discord collect-mode auto-reply drain causes duplicate message delivery"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/50892
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Discord collect-mode auto-reply drain causes duplicate message delivery
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50892
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 Using `message(action=send)` for explicit delivery followed by `NO_REPLY` to suppress the auto-reply drain avoids duplication. However, this is not practical for normal conversational flows where the agent should just reply naturally.

@@ -3,6 +3,7 @@ layout: solution
 title: "Agent stuck repeating the same failed action (looping)"
 category: loop-stuck
 source: Stevens Institute - Hidden Economics of AI Agents
+description: "Agent attempts the same failing approach repeatedly without trying alternatives. Gets stuck in a retry loop, burning tokens on identical failed attempts."
 ---
 
 # Agent stuck repeating the same failed action (looping)

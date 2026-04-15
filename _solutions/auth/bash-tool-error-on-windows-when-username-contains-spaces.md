@@ -3,6 +3,7 @@ layout: solution
 title: "Bash tool error on Windows when username contains spaces"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/25691
+description: "Every Bash tool invocation produces a error on line 1 when the Windows username contains"
 ---
 
 # Bash tool error on Windows when username contains spaces
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/25691
 Every Bash tool invocation produces a `Permission denied` error on line 1 when the Windows username contains spaces:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

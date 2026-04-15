@@ -3,6 +3,7 @@ layout: solution
 title: "v2.1.73 causes terminal freeze with yellow search bar in tmux sessions - memory leak related"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/33350
+description: "Claude Code v2.1.73 causes terminal to freeze with a yellow \"(search down)\" / \"(repeat)\" / \"(jump to forward)\" bar at the bottom, blocking all input. This"
 ---
 
 # v2.1.73 causes terminal freeze with yellow search bar in tmux sessions - memory leak related
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33350
 Claude Code v2.1.73 causes terminal to freeze with a yellow "(search down)" / "(repeat)" / "(jump to forward)" bar at the bottom, blocking all input. This happens in tmux sessions on Ubuntu 24.04 server.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 - Set `CLAUDE_CODE_DISABLE_AUTOUPDATE=1` to stay on v2.1.52

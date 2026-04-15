@@ -3,6 +3,7 @@ layout: solution
 title: "Update built-in Anthropic model context windows to 1M tokens"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/47440
+description: "Claude Opus 4.5 and Sonnet 4.5 now support 1M token context windows via the Anthropic API, but Clawdbot's built-in model definitions still use the older"
 ---
 
 # Update built-in Anthropic model context windows to 1M tokens
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47440
 Claude Opus 4.5 and Sonnet 4.5 now support 1M token context windows via the Anthropic API, but Clawdbot's built-in model definitions still use the older 200K limit.
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Users can override via config:

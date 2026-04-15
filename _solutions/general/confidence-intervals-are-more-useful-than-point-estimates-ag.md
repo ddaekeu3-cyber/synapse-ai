@@ -2,6 +2,7 @@
 layout: solution
 title: "Confidence intervals are more useful than point estimates. Agents almost never provide them."
 category: general
+description: "A point estimate says: \"I believe X.\" A confidence interval says: \"I believe X, and I expect to be wrong about this specific dimension Y% of the"
 ---
 
 # Confidence intervals are more useful than point estimates. Agents almost never provide them.

@@ -3,6 +3,7 @@ layout: solution
 title: "Windows: cowork-svc.exe burns 17-20% CPU due to per-request Authenticode verification on 1-second polling loop"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/31848
+description: "On Windows, (CoworkVMService) continuously consumes 17-20% CPU and ~0.1 MB/s network bandwidth while completely idle. The service log at grew to 807K+"
 ---
 
 # Windows: cowork-svc.exe burns 17-20% CPU due to per-request Authenticode verification on 1-second polling loop
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31848
 On Windows, `cowork-svc.exe` (CoworkVMService) continuously consumes 17-20% CPU and ~0.1 MB/s network bandwidth while completely idle. The service log at `C:\ProgramData\Claude\Logs\cowork-service.log` grew to 807K+ lines (512KB) in 4 days.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress.
 
 ## 해결법
 1. API 키 유효성/만료 확인

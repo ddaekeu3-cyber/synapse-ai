@@ -3,6 +3,7 @@ layout: solution
 title: "OpenAI Codex OAuth in 2026.3.13 does not honor env proxy during code-to-token exchange"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/51569
+description: "Regression (worked before, now"
 ---
 
 # OpenAI Codex OAuth in 2026.3.13 does not honor env proxy during code-to-token exchange

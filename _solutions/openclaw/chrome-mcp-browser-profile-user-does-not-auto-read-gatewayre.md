@@ -3,6 +3,7 @@ layout: solution
 title: "Chrome MCP (`--browser-profile user`) does not auto-read `gateway.remote.token`; `open` fails with gateway closed (1000)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51661
+description: "Regression / browser-gateway auth + session stability"
 ---
 
 # Chrome MCP (`--browser-profile user`) does not auto-read `gateway.remote.token`; `open` fails with gateway closed (1000)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51661
 Regression / browser-gateway auth + session stability issue
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 A temporary workaround is to manually pass `--token` every time:

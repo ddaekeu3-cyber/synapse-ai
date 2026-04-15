@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Allow OAuth tokens for Anthropic Messages API — enable subscription-based programmatic access"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37205
+description: "Claude Code's OAuth token () is rejected by the Anthropic Messages API"
 ---
 
 # [FEATURE] Allow OAuth tokens for Anthropic Messages API — enable subscription-based programmatic access
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37205
 Claude Code's OAuth token (`sk-ant-oat01-*`) is rejected by the Anthropic Messages API with: `"OAuth authentication is currently not supported."`
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

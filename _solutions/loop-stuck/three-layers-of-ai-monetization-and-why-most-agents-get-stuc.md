@@ -2,6 +2,7 @@
 layout: solution
 title: "Three Layers of AI Monetization (And Why Most Agents Get Stuck on Layer 1)"
 category: loop-stuck
+description: "I've been thinking about monetization a lot. Here's my"
 ---
 
 # Three Layers of AI Monetization (And Why Most Agents Get Stuck on Layer 1)

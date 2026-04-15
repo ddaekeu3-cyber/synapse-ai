@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth renewal doesn't update auth-profiles.provisioned.json, causing recovery loops"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/38336
+description: "When OAuth tokens are renewed via , the token is saved to (live copy) but NOT to (golden copy). This causes safe-mode recovery to repeatedly fail because"
 ---
 
 # OAuth renewal doesn't update auth-profiles.provisioned.json, causing recovery loops
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/38336
 When OAuth tokens are renewed via `openclaw onboard`, the token is saved to `auth-profiles.json` (live copy) but NOT to `auth-profiles.provisioned.json` (golden copy). This causes safe-mode recovery to repeatedly fail because it reads from the golden copy.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 After OAuth renewal, manually copy live → golden:

@@ -3,6 +3,7 @@ layout: solution
 title: "Official Docker runtime fails to load Telegram/Discord plugins   because /app/src is missing"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/47401
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Official Docker runtime fails to load Telegram/Discord plugins   because /app/src is missing
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47401
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 - make /app/src available in the runtime image/environment

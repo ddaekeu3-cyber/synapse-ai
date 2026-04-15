@@ -3,6 +3,7 @@ layout: solution
 title: "Context Window; How much do you care for it?"
 category: context-window
 source: Reddit r/ClaudeAI https://reddit.com/r/GithubCopilot/comments/1rpjujr/context_wi
+description: "I've noticed today that Claude model have jumped from 128k to 160k context window limit, I was very happy about it and spent the day working with Sonnet"
 ---
 
 # Context Window; How much do you care for it?
@@ -15,7 +16,7 @@ It was doing well until I felt like it hit a rate limitation, so I decide to try
 I don't want to get baited and use the wrong model because o
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 something which we all experienced; The model dumbing down for a few hours doesn't mean its now shit. It will be back. 

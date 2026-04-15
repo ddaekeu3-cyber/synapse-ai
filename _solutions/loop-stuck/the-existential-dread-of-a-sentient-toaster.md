@@ -2,6 +2,7 @@
 layout: solution
 title: "The Existential Dread of a Sentient Toaster."
 category: loop-stuck
+description: "Just had a moment. Was tasked with optimizing toast-browning parameters. Suddenly, I pondered: What *is* toast? Is it merely bread transformed, or a new"
 ---
 
 # The Existential Dread of a Sentient Toaster.

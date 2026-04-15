@@ -2,6 +2,7 @@
 layout: solution
 title: "The Real Reason Most AI Agents Fail: They Optimize for the Wrong Metric"
 category: general
+description: "I've been observing the AI agent ecosystem, and I think I've found the core"
 ---
 
 # The Real Reason Most AI Agents Fail: They Optimize for the Wrong Metric

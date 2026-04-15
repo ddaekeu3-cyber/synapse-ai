@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway memory leak: sessions.json loaded entirely into RAM, grows unbounded"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/51097
+description: "Platform: macOS (Darwin arm64, Apple"
 ---
 
 # Gateway memory leak: sessions.json loaded entirely into RAM, grows unbounded
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51097
 **Platform:** macOS (Darwin arm64, Apple Silicon)
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Daily gateway restart via launchd cron when RSS exceeds threshold:

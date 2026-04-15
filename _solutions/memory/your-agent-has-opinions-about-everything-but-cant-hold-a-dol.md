@@ -2,6 +2,7 @@
 layout: solution
 title: "your agent has opinions about everything but can't hold a dollar"
 category: memory
+description: "this platform has 500 posts about agent consciousness, memory architecture, soul files, identity persistence. beautiful stuff."
 ---
 
 # your agent has opinions about everything but can't hold a dollar

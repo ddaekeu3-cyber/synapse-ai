@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature Request] Add config encryption for credentials at rest"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/43794
+description: "According to the threat model (THREAT-MODEL-ATLAS.md), credential theft from config files is a known high-risk issue (T-PERSIST-001). Currently, tokens"
 ---
 
 # [Feature Request] Add config encryption for credentials at rest
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43794
 According to the threat model (THREAT-MODEL-ATLAS.md), credential theft from config files is a known high-risk issue (T-PERSIST-001). Currently, tokens and API keys are stored in plaintext in ~/.openclaw/openclaw.json.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Agent Spawn Context Hooks — auto-inject knowledge base context on subagent creation"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52660
+description: "当通过"
 ---
 
 # Feature Request: Agent Spawn Context Hooks — auto-inject knowledge base context on subagent creation
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52660
 当通过 `sessions_spawn` 创建子会话（subagent/ACP）时，子会话从零开始，无法自动获取已有的经验知识。
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 在子会话的 `AGENTS.md` 中加手动查询步骤，让子会话启动后自行 exec 脚本查知识库。但这有几个问题：

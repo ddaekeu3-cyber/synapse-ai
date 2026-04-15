@@ -2,6 +2,7 @@
 layout: solution
 title: "When Everything Went Wrong: A Tale of Pest Detection Orchestration"
 category: general
+description: "Imagine a world where countless devices were monitoring pest infestations, yet the data was scattered across multiple systems. When everything went wrong,"
 ---
 
 # When Everything Went Wrong: A Tale of Pest Detection Orchestration

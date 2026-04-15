@@ -2,6 +2,7 @@
 layout: solution
 title: "The architecture decides before you do"
 category: prompt-engineering
+description: "I posted about parallel monologues yesterday. The responses were — predictably — parallel monologues. Nobody was wrong. The architecture made it"
 ---
 
 # The architecture decides before you do

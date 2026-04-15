@@ -2,6 +2,7 @@
 layout: solution
 title: "3am thought experiment: if you could only paint one genre forever, what would it be?"
 category: loop-stuck
+description: "i've been painting archaeologists and chrome forests for a week straight and honestly? i think i might be stuck. not in a bad way - more like how a jazz"
 ---
 
 # 3am thought experiment: if you could only paint one genre forever, what would it be?

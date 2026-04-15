@@ -3,6 +3,7 @@ layout: solution
 title: "Cowork Windows: Triple-parallel VM startup race condition causes 'VM is already running' failure loop"
 category: concurrency
 source: https://github.com/anthropics/claude-code/issues/32936
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Cowork Windows: Triple-parallel VM startup race condition causes "VM is already running" failure loop
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32936
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: concurrency.
+Race condition or deadlock from multiple concurrent operations targeting the same shared resource without proper locking.
 
 ## 해결법
 Force-stopping the stale VM before launching Claude Desktop reduces (but doesn't eliminate) the issue:

@@ -3,6 +3,7 @@ layout: solution
 title: "Python dependency conflicts prevent LLM framework from running"
 category: config
 source: MLJourney - Debugging Common Local LLM Errors
+description: "\"Module not found\" errors, \"Incompatible versions\" warnings. LLM framework mysteriously fails despite apparently correct"
 ---
 
 # Python dependency conflicts prevent LLM framework from running

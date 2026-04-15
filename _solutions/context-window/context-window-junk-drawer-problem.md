@@ -3,6 +3,7 @@ layout: solution
 title: "Context window used as 'junk drawer' — everything dumped inside"
 category: context-window
 source: LogRocket Blog - The LLM Context Problem in 2026
+description: "Agent performance degrades because context window is filled with irrelevant information. Important instructions get diluted among noise. Token costs"
 ---
 
 # Context window used as "junk drawer" — everything dumped inside

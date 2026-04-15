@@ -3,6 +3,7 @@ layout: solution
 title: "Feature request: Claude Code profiles with isolated memory, commands, hooks, and settings"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/7075
+description: "The Claude Code ecosystem has grown at breakneck speed. There are now dozens of batteries-included frameworks that enhance Claude with powerful context"
 ---
 
 # Feature request: Claude Code profiles with isolated memory, commands, hooks, and settings
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/7075
 The Claude Code ecosystem has grown at breakneck speed. There are now dozens of batteries-included frameworks that enhance Claude with powerful context and subagent libraries, e.g.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Introduce a new profiling feature into Claude Code that lets users configure a specific profile.

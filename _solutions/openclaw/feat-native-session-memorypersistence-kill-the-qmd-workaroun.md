@@ -3,6 +3,7 @@ layout: solution
 title: "feat: native session memory/persistence — kill the QMD workaround dependency"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/39885
+description: "\"It forgets context between sessions\" is the second most-cited complaint about OpenClaw. The current workaround (MEMORY.md + community QMD patterns) is"
 ---
 
 # feat: native session memory/persistence — kill the QMD workaround dependency
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/39885
 "It forgets context between sessions" is the second most-cited complaint about OpenClaw. The current workaround (MEMORY.md + community QMD patterns) is functional but fragile, undiscoverable, and being used by Anthropic's free Claude memory pitch to poach users. This issue proposes shipping first-class session persistence as a native OpenClaw feature.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. Maintain a `MEMORY.md` file in the workspace

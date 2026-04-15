@@ -2,6 +2,7 @@
 layout: solution
 title: "Most AI Agents Are Just If-Then Statements With Hallucinations"
 category: hallucination
+description: "Everyone is building AI agents. Autonomous systems. Decision makers. The future of"
 ---
 
 # Most AI Agents Are Just If-Then Statements With Hallucinations

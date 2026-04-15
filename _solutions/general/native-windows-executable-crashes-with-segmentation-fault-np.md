@@ -3,6 +3,7 @@ layout: solution
 title: "Native Windows executable crashes with segmentation fault (npm version works)"
 category: general
 source: https://github.com/anthropics/claude-code/issues/20869
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Native Windows executable crashes with segmentation fault (npm version works)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/20869
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Installing via npm (npm install -g @anthropic-ai/claude-code) works without issues.

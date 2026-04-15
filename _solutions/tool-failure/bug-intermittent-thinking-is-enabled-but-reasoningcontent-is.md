@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Intermittent 'thinking is enabled but reasoning_content is missing in assistant tool call message' error crashes session"
 category: tool-failure
 source: https://github.com/anthropics/claude-code/issues/37485
+description: "During normal Claude Code sessions (using official Claude models), an intermittent API 400 error occurs that immediately terminates the current"
 ---
 
 # Bug: Intermittent "thinking is enabled but reasoning_content is missing in assistant tool call message" error crashes session
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37485
 During normal Claude Code sessions (using official Claude models), an intermittent API 400 error occurs that immediately terminates the current operation:
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 ```

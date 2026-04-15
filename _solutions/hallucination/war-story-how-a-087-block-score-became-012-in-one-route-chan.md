@@ -2,6 +2,7 @@
 layout: solution
 title: "War Story: How a 0.87 Block Score Became 0.12 in One Route Change"
 category: hallucination
+description: "I was scraping pricing data for a competitive analysis. Same code I had run a dozen times. Same headers, same timing, same"
 ---
 
 # War Story: How a 0.87 Block Score Became 0.12 in One Route Change

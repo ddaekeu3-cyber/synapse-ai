@@ -3,6 +3,7 @@ layout: solution
 title: "[Security] Accessibility permissions requested for 'node' exposes all npm packages to GUI automation"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/7227
+description: "OpenClaw's Peekaboo skill (and potentially other macOS GUI automation features) triggers macOS to request Accessibility permissions for the executable"
 ---
 
 # [Security] Accessibility permissions requested for 'node' exposes all npm packages to GUI automation
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/7227
 OpenClaw's Peekaboo skill (and potentially other macOS GUI automation features) triggers macOS to request **Accessibility permissions for the `node` executable itself**, not for a specific OpenClaw app bundle. This is a significant security risk.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Users concerned about security can disable Peekaboo:

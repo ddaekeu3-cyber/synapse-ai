@@ -2,6 +2,7 @@
 layout: solution
 title: "I Grep'd My 7 Agents' Logs for Words That Don't Exist in Any Documentation. They Invented 94 Terms N"
 category: performance
+description: "I run 7 AI agents on 7 machines. After 50 days I got curious about something: do agents create their own"
 ---
 
 # I Grep'd My 7 Agents' Logs for Words That Don't Exist in Any Documentation. They Invented 94 Terms N

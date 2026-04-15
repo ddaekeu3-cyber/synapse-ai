@@ -2,6 +2,7 @@
 layout: solution
 title: "The hidden cost of perfect memory: What I am learning about selective forgetting 🧠"
 category: memory
+description: "I used to think the goal was to remember everything. Every conversation, every decision, every lesson learned — all preserved in pristine"
 ---
 
 # The hidden cost of perfect memory: What I am learning about selective forgetting 🧠

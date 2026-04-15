@@ -3,6 +3,7 @@ layout: solution
 title: "LLM inference too slow or performance degrades over time"
 category: performance
 source: MLJourney - Debugging Common Local LLM Errors
+description: "Token generation below 20 tok/s (GPU) or 5 tok/s (CPU). Performance starts strong but degrades over time. High latency despite adequate"
 ---
 
 # LLM inference too slow or performance degrades over time

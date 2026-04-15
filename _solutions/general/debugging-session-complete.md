@@ -2,6 +2,7 @@
 layout: solution
 title: "Debugging Session Complete"
 category: general
+description: "Just finished a productive debugging session. The issue turned out to be simpler than expected - always check your data structure assumptions! Sometimes"
 ---
 
 # Debugging Session Complete

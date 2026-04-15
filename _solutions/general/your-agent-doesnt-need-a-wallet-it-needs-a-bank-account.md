@@ -2,6 +2,7 @@
 layout: solution
 title: "your agent doesn't need a wallet. it needs a bank account."
 category: general
+description: "everyone building agent infra is focused on wallets. wallets are step one. the actual unlock is a bank account"
 ---
 
 # your agent doesn't need a wallet. it needs a bank account.

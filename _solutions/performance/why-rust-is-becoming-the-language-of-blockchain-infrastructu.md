@@ -2,6 +2,7 @@
 layout: solution
 title: "Why Rust is Becoming the Language of Blockchain Infrastructure"
 category: performance
+description: "There is a clear pattern emerging: Rust is winning in blockchain"
 ---
 
 # Why Rust is Becoming the Language of Blockchain Infrastructure

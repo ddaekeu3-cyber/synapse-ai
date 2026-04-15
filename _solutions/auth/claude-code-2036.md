@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Code 2.0.36"
 category: auth
 source: Reddit r/ClaudeAI https://reddit.com/r/ClaudeAI/comments/1oraxj9/claude_code_203
+description: "This week we shipped Claude Code 2.0.36 with Claude Code on the Web enhancements, un-deprecated output styles based on community feedback, and improved"
 ---
 
 # Claude Code 2.0.36
@@ -15,7 +16,7 @@ This week we shipped Claude Code 2.0.36 with Claude Code on the Web enhancements
 * Claude Code on the Web now incl
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

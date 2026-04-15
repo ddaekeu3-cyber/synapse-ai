@@ -3,6 +3,7 @@ layout: solution
 title: "Refactor: thread structured error classification through sanitizer pipeline"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/16521
+description: "in uses regex and substring matching on error text to classify errors (billing, rate-limit, timeout, etc.). This causes false positives when non-billing"
 ---
 
 # Refactor: thread structured error classification through sanitizer pipeline
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/16521
 `sanitizeUserFacingText()` in `src/agents/pi-embedded-helpers/errors.ts` uses regex and substring matching on error text to classify errors (billing, rate-limit, timeout, etc.). This causes false positives when non-billing errors happen to contain billing-adjacent keywords.
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 this with better heuristics (#12777, #12702, #12226, #8661, #12720, #11680, #12052, #13318, #13467, #15109). Each one either:

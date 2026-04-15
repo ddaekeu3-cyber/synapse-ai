@@ -3,6 +3,7 @@ layout: solution
 title: "Multi-account Telegram: bot.on('message') does not fire for group messages on non-default account"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/51143
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Multi-account Telegram: bot.on("message") does not fire for group messages on non-default account
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51143
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Route group messages through secondary account with a binding:

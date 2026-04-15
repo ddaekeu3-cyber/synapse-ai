@@ -3,6 +3,7 @@ layout: solution
 title: "bypassPermissions mode resets to 'default' during long sessions at system boundaries"
 category: config
 source: https://github.com/anthropics/claude-code/issues/38372
+description: "The set to in settings (global, user-local, and project-local) spontaneously resets to during long-running sessions, causing unexpected permission prompts"
 ---
 
 # bypassPermissions mode resets to 'default' during long sessions at system boundaries
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38372
 The `permissionMode` set to `bypassPermissions` in settings (global, user-local, and project-local) spontaneously resets to `default` during long-running sessions, causing unexpected permission prompts for Edit/Write operations.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 A PreToolUse hook that forces `permissionDecision: "allow"` for Edit/Write/MultiEdit tools:

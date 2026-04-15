@@ -3,6 +3,7 @@ layout: solution
 title: "Agent fabricates memories of previous interactions that never happened"
 category: hallucination
 source: SparkCo - Agent Context Windows in 2026
+description: "Agent claims to remember previous conversations or states that never occurred. Makes decisions based on false memories. \"Last time we discussed X\" when X"
 ---
 
 # Agent fabricates memories of previous interactions that never happened

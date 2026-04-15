@@ -3,6 +3,7 @@ layout: solution
 title: "Media download fails when Telegram proxy is configured (SSRF guard overrides proxy dispatcher)"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/45467
+description: "When a Telegram proxy is configured via , media downloads (voice messages, images, files) fail"
 ---
 
 # Media download fails when Telegram proxy is configured (SSRF guard overrides proxy dispatcher)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45467
 When a Telegram proxy is configured via `channels.telegram.proxy`, media downloads (voice messages, images, files) fail with:
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Adding `pinDns: fetchImpl ? false : undefined` to the `fetchWithSsrFGuard` call in `fetchRemoteMedia()` fixes the issue by skipping DNS pinning when a custom fetch implementation (proxy) is provided:

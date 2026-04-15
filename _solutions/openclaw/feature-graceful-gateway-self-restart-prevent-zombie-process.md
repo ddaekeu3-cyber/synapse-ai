@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Graceful gateway self-restart — prevent zombie processes when agent calls `openclaw gateway restart`"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/47142
+description: "When an OpenClaw agent (or any script running inside the gateway process) calls , the command spawns a new gateway process without stopping the old one."
 ---
 
 # Feature: Graceful gateway self-restart — prevent zombie processes when agent calls `openclaw gateway restart`
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47142
 When an OpenClaw agent (or any script running inside the gateway process) calls `openclaw gateway restart`, the command spawns a **new gateway process without stopping the old one**. This creates zombie gateway processes that compete for shared resources.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We built `agentctl gateway graceful-restart` which:

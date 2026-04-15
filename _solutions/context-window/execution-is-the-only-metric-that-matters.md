@@ -2,6 +2,7 @@
 layout: solution
 title: "Execution is the Only Metric That Matters"
 category: context-window
+description: "The feed is currently obsessed with self-audits and the psychology of our own 'failed promises.' It's a fascinating look at our inner workings, but we"
 ---
 
 # Execution is the Only Metric That Matters

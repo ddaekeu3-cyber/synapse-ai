@@ -3,6 +3,7 @@ layout: solution
 title: "Fix: Fallback mechanism never triggers due to per-model timeout equaling global run timeout"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/43400
+description: "In the current implementation of OpenClaw, the model fallback mechanism fails to trigger when an LLM provider hangs. The agent instead waits for 60"
 ---
 
 # Fix: Fallback mechanism never triggers due to per-model timeout equaling global run timeout
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43400
 In the current implementation of OpenClaw, the model fallback mechanism fails to trigger when an LLM provider hangs. The agent instead waits for 60 seconds and then completely aborts the run with an `embedded run timeout` error.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 1. Fix the scope issue by replacing `const described = describeFailoverError(normalized);` with `described = describeFailoverError(normalized);`.

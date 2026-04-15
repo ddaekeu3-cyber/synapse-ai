@@ -3,6 +3,7 @@ layout: solution
 title: "Agent enters recursive loop: exceeds context → error → retry → same error"
 category: loop-stuck
 source: Arize AI - Managing Memory in AI Agents
+description: "Agent constructs context that exceeds token limits, causing an error. The problematic span remains in session. Agent runs again on same data, hits same"
 ---
 
 # Agent enters recursive loop: exceeds context → error → retry → same error

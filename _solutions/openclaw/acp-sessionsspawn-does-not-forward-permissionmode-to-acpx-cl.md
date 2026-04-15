@@ -3,6 +3,7 @@ layout: solution
 title: "ACP sessions_spawn does not forward permissionMode to acpx CLI"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51640
+description: "When using with and , Claude Code's tool calls (even simple ) get auto-rejected because the acpx CLI is not receiving the"
 ---
 
 # ACP sessions_spawn does not forward permissionMode to acpx CLI
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51640
 When using `sessions_spawn` with `runtime: "acp"` and `agentId: "claude"`, Claude Code's tool calls (even simple `ls`) get auto-rejected because the acpx CLI is not receiving the `--approve-all` flag.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Use direct acpx CLI with `--approve-all` flag instead of `sessions_spawn`.

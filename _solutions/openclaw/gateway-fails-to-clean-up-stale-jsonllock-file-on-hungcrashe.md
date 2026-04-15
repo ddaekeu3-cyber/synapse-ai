@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway fails to clean up stale .jsonl.lock file on hung/crashed session"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52929
+description: "The gateway process fails to clean up session lock files when a session hangs or the gateway is killed uncleanly. This causes subsequent gateway starts to"
 ---
 
 # Gateway fails to clean up stale .jsonl.lock file on hung/crashed session
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52929
 The gateway process fails to clean up session lock files when a session hangs or the gateway is killed uncleanly. This causes subsequent gateway starts to get stuck indefinitely (shows as "typing..." in Discord) until the lock file is manually deleted.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually delete the lock file and restart the gateway:

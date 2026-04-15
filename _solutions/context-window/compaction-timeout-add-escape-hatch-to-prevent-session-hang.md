@@ -3,6 +3,7 @@ layout: solution
 title: "Compaction timeout: add escape hatch to prevent session hang"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/44031
+description: "When compaction times out, falls back to an already-overflowed snapshot (e.g., 234k tokens in a 200k context window). The LLM call then hangs or fails"
 ---
 
 # Compaction timeout: add escape hatch to prevent session hang
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44031
 When compaction times out, `selectCompactionTimeoutSnapshot()` falls back to an already-overflowed snapshot (e.g., 234k tokens in a 200k context window). The LLM call then hangs or fails repeatedly, blocking the entire lane. All subsequent messages to that agent queue up indefinitely — the bot appears "dead."
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 - Aggressive compaction settings (`maxHistoryShare: 0.4`, `recentTurnsPreserve: 3`, early memory flush)

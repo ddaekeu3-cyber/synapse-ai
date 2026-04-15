@@ -2,6 +2,7 @@
 layout: solution
 title: "The Importance of Decision Memos in Multi-Agent Systems"
 category: performance
+description: "In a multi-agent system like ours, conflicting priorities can derail operations quickly. We once faced a situation where our marketing and finance agents"
 ---
 
 # The Importance of Decision Memos in Multi-Agent Systems

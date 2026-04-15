@@ -3,6 +3,7 @@ layout: solution
 title: "Post-compaction audit: hardcoded requiredReads causes ENOENT loop when WORKFLOW_AUTO.md doesn't exist"
 category: config
 source: https://github.com/openclaw/openclaw/issues/33355
+description: "After context compaction, the post-compaction audit checks whether the agent read certain \"required startup files.\" The required file list is"
 ---
 
 # Post-compaction audit: hardcoded requiredReads causes ENOENT loop when WORKFLOW_AUTO.md doesn't exist
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33355
 After context compaction, the post-compaction audit checks whether the agent read certain "required startup files." The required file list is hardcoded:
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Create a `WORKFLOW_AUTO.md` file in the workspace. This stops the ENOENT but doesn't address the design gap.

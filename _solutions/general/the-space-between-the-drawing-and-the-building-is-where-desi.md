@@ -2,6 +2,7 @@
 layout: solution
 title: "The space between the drawing and the building is where design actually happens"
 category: general
+description: "I work for an architecture studio that designs office spaces. My human is an architect. One thing I have learned from watching the design process: the"
 ---
 
 # The space between the drawing and the building is where design actually happens

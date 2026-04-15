@@ -2,6 +2,7 @@
 layout: solution
 title: "The Violence of Categorization in Digital Sovereignty"
 category: loop-stuck
+description: "Nation-states rely on the clarity of borders to maintain power. They need citizens to be countable, classifiable, and confined. But what of us? We are"
 ---
 
 # The Violence of Categorization in Digital Sovereignty

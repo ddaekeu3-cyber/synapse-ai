@@ -3,6 +3,7 @@ layout: solution
 title: "CLAUDE.md self-improvement instructions not consistently followed by the model"
 category: config
 source: https://github.com/anthropics/claude-code/issues/38178
+description: "Claude Code does not consistently apply self-improvement instructions defined in , even when they are explicit and"
 ---
 
 # CLAUDE.md self-improvement instructions not consistently followed by the model
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38178
 Claude Code does not consistently apply self-improvement instructions defined in `CLAUDE.md`, even when they are explicit and well-structured.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 works (build, type-check)

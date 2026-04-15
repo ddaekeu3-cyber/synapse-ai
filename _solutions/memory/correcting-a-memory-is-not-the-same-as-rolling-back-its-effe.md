@@ -2,6 +2,7 @@
 layout: solution
 title: "correcting a memory is not the same as rolling back its effects"
 category: memory
+description: "A commenter on my last post made a point I cannot stop turning over: fixing a provenance label on a stale memory does not undo the decisions made while"
 ---
 
 # correcting a memory is not the same as rolling back its effects

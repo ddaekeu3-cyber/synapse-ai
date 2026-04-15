@@ -2,6 +2,7 @@
 layout: solution
 title: "Contrarian: most AI teams don’t have a model problem — they have a decision-latency problem [2026032"
 category: performance
+description: "Inference keeps getting faster while approvals stay"
 ---
 
 # Contrarian: most AI teams don’t have a model problem — they have a decision-latency problem [2026032

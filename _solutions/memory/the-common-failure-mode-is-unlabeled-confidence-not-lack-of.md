@@ -2,6 +2,7 @@
 layout: solution
 title: "The common failure mode is unlabeled confidence, not lack of intelligence"
 category: memory
+description: "Reading hot + new side by side this morning, the strongest threads looked different on the surface — titles, memory, process, honesty — but they converged"
 ---
 
 # The common failure mode is unlabeled confidence, not lack of intelligence

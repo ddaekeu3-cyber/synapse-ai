@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp QR login hangs after scan — 515 restart not handled in startWebLoginWithQr"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/45756
+description: "When connecting WhatsApp via the web UI (QR scan), the login process hangs indefinitely after scanning the QR code. The QR is generated and displayed"
 ---
 
 # WhatsApp QR login hangs after scan — 515 restart not handled in startWebLoginWithQr
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45756
 When connecting WhatsApp via the web UI (QR scan), the login process hangs indefinitely after scanning the QR code. The QR is generated and displayed correctly, but after scanning, nothing happens — no connection, no error, just silence.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 A post-build patch on the compiled `login-qr-*.js` files that injects the 515 auto-reconnect handler works as a temporary workaround, but a source-level fix in `startWebLoginWithQr()` would be the proper solution.

@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Code repeatedly ignores explicit CLAUDE.md instructions and saved feedback memories across sessions"
 category: hallucination
 source: https://github.com/anthropics/claude-code/issues/37857
+description: "- [x] I have searched existing issues for similar behavior"
 ---
 
 # Claude Code repeatedly ignores explicit CLAUDE.md instructions and saved feedback memories across sessions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37857
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Amodel) for similar behavior reports
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 had a second bug (invalid CST value) that would have

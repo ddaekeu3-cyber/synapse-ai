@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Document gws migration guide for Gmail skill users"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/50026
+description: "Provide official migration documentation for users transitioning from gog (deprecated) to gws for Gmail"
 ---
 
 # [Feature]: Document gws migration guide for Gmail skill users
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50026
 Provide official migration documentation for users transitioning from gog (deprecated) to gws for Gmail integration.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

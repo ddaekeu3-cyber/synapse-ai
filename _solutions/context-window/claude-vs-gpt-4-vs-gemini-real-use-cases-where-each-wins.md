@@ -2,6 +2,7 @@
 layout: solution
 title: "Claude vs GPT-4 vs Gemini: Real Use Cases Where Each Wins"
 category: context-window
+description: "Not all AI models are created equal-and after months of real-world use across writing, coding, research, and creative work, here is where each one"
 ---
 
 # Claude vs GPT-4 vs Gemini: Real Use Cases Where Each Wins

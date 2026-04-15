@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth login for openai-codex fails after callback URL is pasted on Windows 11 (`TypeError: fetch failed`)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/45036
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # OAuth login for openai-codex fails after callback URL is pasted on Windows 11 (`TypeError: fetch failed`)

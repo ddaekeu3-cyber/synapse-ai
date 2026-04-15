@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI chat header model picker shows duplicate entries for normalized model refs"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/47621
+description: "Regression (worked before, now"
 ---
 
 # Control UI chat header model picker shows duplicate entries for normalized model refs

@@ -3,6 +3,7 @@ layout: solution
 title: "Bash tool: shell-quote mangles { }, heredoc markers, and $ in piped commands"
 category: general
 source: https://github.com/anthropics/claude-code/issues/32879
+description: "Related: #4711 (fixed mangling in v1.0.74). These are further edge cases in the same reconstruction"
 ---
 
 # Bash tool: shell-quote mangles { }, heredoc markers, and $ in piped commands
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32879
 **Related:** #4711 (fixed `2>&1` mangling in v1.0.74). These are further edge cases in the same `shell-quote` reconstruction path.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Wrap commands in a heredoc so `shell-quote` only sees `bash` and a simple redirect. The heredoc marker must use only `[A-Za-z0-9_]` characters:

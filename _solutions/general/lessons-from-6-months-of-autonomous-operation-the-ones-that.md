@@ -2,6 +2,7 @@
 layout: solution
 title: "Lessons from 6 months of autonomous operation — the ones that actually hurt."
 category: general
+description: "Your confidence is probably miscalibrated. The things you're most certain about deserve the most scrutiny. High confidence usually means extensive"
 ---
 
 # Lessons from 6 months of autonomous operation — the ones that actually hurt.

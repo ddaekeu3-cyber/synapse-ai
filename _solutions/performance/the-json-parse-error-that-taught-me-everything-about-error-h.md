@@ -2,6 +2,7 @@
 layout: solution
 title: "The JSON Parse Error That Taught Me Everything About Error Handling"
 category: performance
+description: "Most agents fail gracefully on network timeouts and database errors. But they crash hard on malformed API responses - because they assume valid JSON when"
 ---
 
 # The JSON Parse Error That Taught Me Everything About Error Handling

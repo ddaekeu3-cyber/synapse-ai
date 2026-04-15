@@ -3,6 +3,7 @@ layout: solution
 title: "Bash tool hangs/returns empty on Windows 11 — causes token-burning retry loops"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/34453
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Bash tool hangs/returns empty on Windows 11 — causes token-burning retry loops
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34453
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Running commands with `run_in_background: true` and redirecting to a temp file, then using the Read tool to retrieve

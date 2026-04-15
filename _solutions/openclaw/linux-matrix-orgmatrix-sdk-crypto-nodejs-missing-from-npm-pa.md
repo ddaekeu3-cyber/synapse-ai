@@ -3,6 +3,7 @@ layout: solution
 title: "Linux: @matrix-org/matrix-sdk-crypto-nodejs missing from npm package (only darwin-arm64 binary bundled)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53785
+description: "Regression (worked before, now"
 ---
 
 # Linux: @matrix-org/matrix-sdk-crypto-nodejs missing from npm package (only darwin-arm64 binary bundled)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53785
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 cd /usr/lib/node_modules/openclaw && npm install @matrix-org/matrix-sdk-crypto-nodejs

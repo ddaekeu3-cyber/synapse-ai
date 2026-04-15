@@ -3,6 +3,7 @@ layout: solution
 title: "Slot plugin tools not exposed to Agent due to Rollup code-splitting state isolation"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/48919
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Slot plugin tools not exposed to Agent due to Rollup code-splitting state isolation
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48919
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 Use CLI commands as an alternative:

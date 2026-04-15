@@ -3,6 +3,7 @@ layout: solution
 title: "Discord health-monitor stuck-restart loop after upgrading to 2026.3.1"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/31760
+description: "After upgrading from 2026.2.26 to 2026.3.1, the Discord provider enters a stuck-restart loop where the health-monitor flags it as \"stuck\" every ~10"
 ---
 
 # Discord health-monitor stuck-restart loop after upgrading to 2026.3.1
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31760
 After upgrading from 2026.2.26 to 2026.3.1, the Discord provider enters a stuck-restart loop where the health-monitor flags it as "stuck" every ~10 minutes, despite Discord successfully logging in and resolving channels each time.
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 A full gateway restart (`openclaw gateway restart` or SIGUSR1) appears to break the loop temporarily. The health-monitor then stays stable. Rolling back to 2026.2.26 is the safe fallback.

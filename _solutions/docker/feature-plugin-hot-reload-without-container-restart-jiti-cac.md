@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Plugin hot-reload without container restart (jiti cache invalidation)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/14438
+description: "When developing OpenClaw plugins (TypeScript), every code change"
 ---
 
 # [Feature]: Plugin hot-reload without container restart (jiti cache invalidation)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/14438
 When developing OpenClaw plugins (TypeScript), every code change requires:
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 ```bash

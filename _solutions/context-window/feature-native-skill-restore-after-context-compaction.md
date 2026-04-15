@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Native skill restore after context compaction"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/28367
+description: "After context compaction (auto-cleanup when context window fills up), agents lose track of which skills (SKILL.md files) were actively loaded. The agent"
 ---
 
 # Feature: Native skill restore after context compaction
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28367
 After context compaction (auto-cleanup when context window fills up), agents lose track of which skills (SKILL.md files) were actively loaded. The agent knows **what** it was working on (via `/tmp/<agent>-current-task.md`), but not **which skills** provided the operational context.
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 We've implemented a convention-based approach: agents write an `## Active Skills` section in their current-task file with absolute paths to SKILL.md files. After compaction, the agent reads this section and manually re-loads each skill.

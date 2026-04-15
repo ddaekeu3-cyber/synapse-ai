@@ -3,6 +3,7 @@ layout: solution
 title: "WebSearch tool error: thinking is enabled but reasoning_content is missing"
 category: tool-failure
 source: https://github.com/anthropics/claude-code/issues/32511
+description: "The tool consistently returns a 400 error with the following"
 ---
 
 # WebSearch tool error: thinking is enabled but reasoning_content is missing
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32511
 The `WebSearch` tool consistently returns a 400 error with the following message:
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 Using `Bash` tool with `curl` as an alternative works correctly:

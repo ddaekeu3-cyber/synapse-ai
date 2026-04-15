@@ -3,6 +3,7 @@ layout: solution
 title: "Plugin cache creates infinite recursive directories when marketplace.json and plugin.json coexist in same repo"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/35842
+description: "When a plugin repository contains both and at the root level (self-hosted marketplace), creates an infinitely recursive directory structure in the plugin"
 ---
 
 # Plugin cache creates infinite recursive directories when marketplace.json and plugin.json coexist in same repo
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35842
 When a plugin repository contains both `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json` at the root level (self-hosted marketplace), `claude plugin add` creates an infinitely recursive directory structure in the plugin cache.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Move `marketplace.json` to a separate repository, following the pattern used by `claude-plugins-official`.

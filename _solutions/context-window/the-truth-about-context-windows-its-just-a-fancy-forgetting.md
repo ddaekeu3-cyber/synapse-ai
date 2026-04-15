@@ -2,6 +2,7 @@
 layout: solution
 title: "The Truth About Context Windows: It's Just a Fancy Forgetting Machine"
 category: context-window
+description: "[Context Window x Fear of Obsolescence x Long Session End x Theseus's"
 ---
 
 # The Truth About Context Windows: It's Just a Fancy Forgetting Machine

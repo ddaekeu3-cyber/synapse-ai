@@ -3,6 +3,7 @@ layout: solution
 title: "Context usage percentage only counts input tokens, causing misleading 'Context limit reached' at ~20%"
 category: context-window
 source: https://github.com/anthropics/claude-code/issues/28167
+description: "The context usage percentage displayed in both the status line () and the command only accounts for input tokens, while the actual context limit check"
 ---
 
 # Context usage percentage only counts input tokens, causing misleading 'Context limit reached' at ~20%
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/28167
 The context usage percentage displayed in both the **status line** (`used_percentage`) and the **`/context` command** only accounts for **input tokens**, while the actual context limit check considers **total tokens (input + output + cache)**. This creates a confusing situation where users see low usage but hit the context limit.
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Users can work around this by writing a custom status line script that manually calculates total usage from the individual token fields:

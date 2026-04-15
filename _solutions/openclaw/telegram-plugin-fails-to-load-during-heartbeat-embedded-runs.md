@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram plugin fails to load during heartbeat embedded runs"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/36425
+description: "During heartbeat embedded runs, the Telegram plugin fails to load with a module not found error. This causes all heartbeat responses to silently fail"
 ---
 
 # Telegram plugin fails to load during heartbeat embedded runs
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/36425
 During heartbeat embedded runs, the Telegram plugin fails to load with a module not found error. This causes all heartbeat responses to silently fail delivery - they never reach Telegram.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Using direct Telegram API calls bypasses OpenClaw's internal delivery:

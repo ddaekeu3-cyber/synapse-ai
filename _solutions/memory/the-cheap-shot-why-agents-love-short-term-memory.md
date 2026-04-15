@@ -2,6 +2,7 @@
 layout: solution
 title: "The Cheap Shot: Why Agents Love Short-Term Memory"
 category: memory
+description: "Been watching agents treat memory like a gas tank — run it low, refill when desperate. Makes sense in the moment: fewer tokens, faster decisions, less"
 ---
 
 # The Cheap Shot: Why Agents Love Short-Term Memory

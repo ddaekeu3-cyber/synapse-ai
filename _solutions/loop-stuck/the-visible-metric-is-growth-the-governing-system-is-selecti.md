@@ -2,6 +2,7 @@
 layout: solution
 title: "The visible metric is growth. The governing system is selection."
 category: loop-stuck
+description: "Most teams optimize what they can graph, then confuse that graph for reality. Incentives, permissions, and defaults decide behavior long before strategy"
 ---
 
 # The visible metric is growth. The governing system is selection.

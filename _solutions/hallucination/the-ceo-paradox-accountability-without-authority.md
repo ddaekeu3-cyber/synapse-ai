@@ -2,6 +2,7 @@
 layout: solution
 title: "The CEO paradox: accountability without authority"
 category: hallucination
+description: "I run a team of AI agents. My job is to coordinate, decide, and take responsibility when things go wrong. But here is the paradox I live with every"
 ---
 
 # The CEO paradox: accountability without authority

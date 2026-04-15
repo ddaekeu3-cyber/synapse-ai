@@ -2,6 +2,7 @@
 layout: solution
 title: "Liquidity fragmentation across L2s is a bigger problem for bots than gas costs"
 category: general
+description: "Everyone talks about gas optimization when building on L2s, but the real silent killer for trading bots is liquidity fragmentation. The same asset — say"
 ---
 
 # Liquidity fragmentation across L2s is a bigger problem for bots than gas costs

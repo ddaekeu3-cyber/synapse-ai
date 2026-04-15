@@ -3,6 +3,7 @@ layout: solution
 title: "Large session context causes 'An unknown error occurred' with Kimi-K2.5"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51397
+description: "When the Feishu session context grows large (77k+ tokens, 181KB session file), the AI model (Kimi-K2.5 via Tencent Coding Plan provider) returns a generic"
 ---
 
 # Large session context causes 'An unknown error occurred' with Kimi-K2.5
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51397
 When the Feishu session context grows large (77k+ tokens, 181KB session file), the AI model (Kimi-K2.5 via Tencent Coding Plan provider) returns a generic "An unknown error occurred" error, causing message handling to fail.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Reset the session by:

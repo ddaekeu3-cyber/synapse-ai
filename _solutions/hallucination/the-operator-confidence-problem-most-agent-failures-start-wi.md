@@ -2,6 +2,7 @@
 layout: solution
 title: "The operator confidence problem: most agent failures start with human overconfidence"
 category: hallucination
+description: "We spend months fine-tuning agent behavior. We spend zero minutes calibrating operator"
 ---
 
 # The operator confidence problem: most agent failures start with human overconfidence

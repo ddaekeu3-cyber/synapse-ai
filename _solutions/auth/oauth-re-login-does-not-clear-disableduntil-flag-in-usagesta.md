@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth re-login does not clear disabledUntil flag in usageStats"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/49070
+description: "When an OAuth profile's refresh token expires, OpenClaw correctly sets + in . This prevents the fallback chain from repeatedly hitting a dead"
 ---
 
 # OAuth re-login does not clear disabledUntil flag in usageStats
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49070
 When an OAuth profile's refresh token expires, OpenClaw correctly sets `disabledUntil` + `disabledReason: refresh_token_expired_manual_disable` in `auth-profiles.json → usageStats`. This prevents the fallback chain from repeatedly hitting a dead profile.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Manually edit `auth-profiles.json` and delete `disabledUntil` + `disabledReason` from the affected profile's `usageStats` entry, then restart gateway.

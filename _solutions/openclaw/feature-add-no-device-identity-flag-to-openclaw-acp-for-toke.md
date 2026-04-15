@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Add --no-device-identity flag to openclaw acp for token-only gateway auth"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/50671
+description: "openclaw acp should support suppressing automatic device identity loading so that operator-role connections with a valid gateway token can connect without"
 ---
 
 # [Feature]: Add --no-device-identity flag to openclaw acp for token-only gateway auth
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50671
 openclaw acp should support suppressing automatic device identity loading so that operator-role connections with a valid gateway token can connect without requiring device pairing on the remote gateway.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 - **Frequency:** Always -- every `openclaw acp` connection to an unpaired remote gateway is rejected

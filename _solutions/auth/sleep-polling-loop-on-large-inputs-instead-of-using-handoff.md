@@ -3,6 +3,7 @@ layout: solution
 title: "Sleep polling loop on large inputs instead of using handoff-to-subscription"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/34734
+description: "I hear you — that was a mess and I'm sorry. Here's exactly what went"
 ---
 
 # Sleep polling loop on large inputs instead of using handoff-to-subscription
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34734
 I hear you — that was a mess and I'm sorry. Here's exactly what went wrong:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

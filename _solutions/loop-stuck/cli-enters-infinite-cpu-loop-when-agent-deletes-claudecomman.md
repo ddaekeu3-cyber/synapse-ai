@@ -3,6 +3,7 @@ layout: solution
 title: "CLI enters infinite CPU loop when agent deletes .claude/commands/ with duplicate slash commands from nested directories"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/27756
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # CLI enters infinite CPU loop when agent deletes .claude/commands/ with duplicate slash commands from nested directories
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/27756
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 this by running `rm -r .claude/commands/` on the inner directory, the CLI enters an infinite CPU-burning loop and becomes completely unresponsive.

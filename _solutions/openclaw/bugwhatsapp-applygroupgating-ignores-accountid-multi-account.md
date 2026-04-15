@@ -3,6 +3,7 @@ layout: solution
 title: "bug(whatsapp): applyGroupGating ignores accountId — multi-account group allowlist bypass"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/40019
+description: "in the WhatsApp channel does not pass to , causing it to resolve against the account instead of the actual account (e.g., ). In multi-account setups, this"
 ---
 
 # bug(whatsapp): applyGroupGating ignores accountId — multi-account group allowlist bypass
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40019
 `applyGroupGating` in the WhatsApp channel does not pass `accountId` to `resolveGroupPolicyFor`, causing it to resolve against the `"default"` account instead of the actual account (e.g., `"openclaw"`). In multi-account setups, this means the group allowlist check reads the **wrong account config**, allowing messages in unauthorized groups.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Patch `channel-web-*.js` directly (identify correct file via `grep "channel-web" dist/index.js`). Hard restart required (SIGUSR1 does not reload the file; must `kill -9` the old PID).

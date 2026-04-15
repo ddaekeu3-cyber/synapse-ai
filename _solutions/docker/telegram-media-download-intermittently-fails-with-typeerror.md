@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram media download intermittently fails with TypeError: fetch failed in Docker"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/49008
+description: "Telegram DM photo uploads intermittently fail with at the file download step (), even though Telegram updates and text messages are received"
 ---
 
 # Telegram media download intermittently fails with TypeError: fetch failed in Docker
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49008
 Telegram DM photo uploads intermittently fail with `MediaFetchError` at the file download step (`https://api.telegram.org/file/bot...`), even though Telegram updates and text messages are received normally.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

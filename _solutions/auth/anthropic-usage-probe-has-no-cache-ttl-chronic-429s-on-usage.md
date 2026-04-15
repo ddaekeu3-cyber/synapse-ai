@@ -3,6 +3,7 @@ layout: solution
 title: "Anthropic usage probe has no cache TTL — chronic 429s on usage panel (every status/heartbeat hits api.anthropic.com/api/oauth/usage live)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/45332
+description: "Every call and every heartbeat fires a live uncached HTTP request to . No TTL or cache layer exists. With multiple agents + heartbeats, the endpoint gets"
 ---
 
 # Anthropic usage probe has no cache TTL — chronic 429s on usage panel (every status/heartbeat hits api.anthropic.com/api/oauth/usage live)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45332
 Every `session_status` call and every heartbeat fires a live uncached HTTP request to `https://api.anthropic.com/api/oauth/usage`. No TTL or cache layer exists. With multiple agents + heartbeats, the endpoint gets hammered, returns 429, and the usage panel never displays data.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

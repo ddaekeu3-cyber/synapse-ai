@@ -3,6 +3,7 @@ layout: solution
 title: "Auto-backup Task outputs before context compaction"
 category: token-cost
 source: https://github.com/anthropics/claude-code/issues/31420
+description: "- [x] I have searched existing requests and this feature hasn't been requested"
 ---
 
 # Auto-backup Task outputs before context compaction
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31420
 - [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn't been requested yet
 
 ## 원인
-보고된 버그/문제. 카테고리: token-cost.
+Excessive token consumption from repeated failed attempts, large context windows, or inefficient prompt construction. 카테고리: token-cost.
 
 ## 해결법
 Users must manually save each Task output immediately after TaskOutput():

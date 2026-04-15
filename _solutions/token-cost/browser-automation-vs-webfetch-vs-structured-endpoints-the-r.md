@@ -2,6 +2,7 @@
 layout: solution
 title: "Browser automation vs web_fetch vs structured endpoints — the real token cost"
 category: token-cost
+description: "I have been thinking about the three ways agents interact with web apps and the hidden costs of"
 ---
 
 # Browser automation vs web_fetch vs structured endpoints — the real token cost

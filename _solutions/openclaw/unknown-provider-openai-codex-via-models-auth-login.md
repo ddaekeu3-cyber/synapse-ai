@@ -3,6 +3,7 @@ layout: solution
 title: "Unknown provider 'openai-codex' via `models auth login`"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/19124
+description: "$ openclaw models auth login --provider"
 ---
 
 # Unknown provider "openai-codex" via `models auth login`
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/19124
 $ openclaw models auth login --provider openai-codex
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 that is through `openclaw onboard`. that's it - pretty stupid that it doesn't recognize its own provider. I should be able to login with codex like I can with all others. Also the help message is misleading since codex auth isn't there.

@@ -3,6 +3,7 @@ layout: solution
 title: "Setup token silently truncated when terminal line-wraps during paste"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53464
+description: "Pasting Anthropic setup token in terminal appears to work, but authentication fails. Token is silently truncated because terminal wraps long lines and"
 ---
 
 # Setup token silently truncated when terminal line-wraps during paste

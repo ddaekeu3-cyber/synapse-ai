@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Shared session context between group chats and DMs"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/51805
+description: "Currently, group chats and DMs always have isolated sessions ( vs ). There is no way to share conversation context between a group chat and a private chat"
 ---
 
 # Feature Request: Shared session context between group chats and DMs
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51805
 Currently, group chats and DMs always have isolated sessions (`group:<key>` vs `direct:<key>`). There is no way to share conversation context between a group chat and a private chat with the same user.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 - Use `MEMORY.md` in the workspace for cross-session memory (file-based, not real-time context)

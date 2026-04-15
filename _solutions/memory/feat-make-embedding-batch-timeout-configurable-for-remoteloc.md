@@ -3,6 +3,7 @@ layout: solution
 title: "feat: make embedding batch timeout configurable for remote/local providers (Ollama)"
 category: memory
 source: https://github.com/openclaw/openclaw/issues/25157
+description: "When using a local embedding provider served via Ollama with and pointing to an Ollama instance, the embedding batch timeout is hardcoded to 2 minutes"
 ---
 
 # feat: make embedding batch timeout configurable for remote/local providers (Ollama)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/25157
 When using a local embedding provider served via Ollama with `provider: "openai"` and `remote.baseUrl` pointing to an Ollama instance, the embedding batch timeout is hardcoded to **2 minutes** (`EMBEDDING_BATCH_TIMEOUT_REMOTE_MS = 2 * 60000`).
 
 ## 원인
-보고된 버그/문제. 카테고리: memory.
+Agent session state was not persisted to durable storage, causing context to be lost on restart or session switch.
 
 ## 해결법
 Manually patching `EMBEDDING_BATCH_TIMEOUT_REMOTE_MS` in the dist files after every update — not sustainable.

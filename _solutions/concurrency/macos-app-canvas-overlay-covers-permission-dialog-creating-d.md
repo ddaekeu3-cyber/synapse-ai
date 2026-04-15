@@ -3,6 +3,7 @@ layout: solution
 title: "macOS app: Canvas overlay covers permission dialog, creating deadlock"
 category: concurrency
 source: https://github.com/openclaw/openclaw/issues/28473
+description: "When is invoked by the agent, the Canvas overlay renders at a higher z-order (window level) than the \"Allow this command?\" permission dialog in the macOS"
 ---
 
 # macOS app: Canvas overlay covers permission dialog, creating deadlock
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28473
 When `canvas.present` is invoked by the agent, the Canvas overlay renders at a higher z-order (window level) than the "Allow this command?" permission dialog in the macOS app. This creates a deadlock: the user cannot see or interact with the permission dialog to approve or deny the command, and the Canvas overlay won't dismiss until the command completes.
 
 ## 원인
-보고된 버그/문제. 카테고리: concurrency.
+Race condition or deadlock from multiple concurrent operations targeting the same shared resource without proper locking.
 
 ## 해결법
 Send a blind Return keypress via AppleScript to approve the hidden dialog:

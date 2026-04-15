@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crashes on startup with bad hook entries — graceful error handling needed"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51266
+description: "If a user adds a hook entry to that points to a non-existent path, the gateway crashes on startup with an unhandled error. The error message doesn't"
 ---
 
 # Gateway crashes on startup with bad hook entries — graceful error handling needed
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51266
 If a user adds a hook entry to `openclaw.json` that points to a non-existent path, the gateway crashes on startup with an unhandled `MODULE_NOT_FOUND` error. The error message doesn't indicate which hook entry is bad or how to fix it.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We've published repair scripts in our workspace repo that catch this before the gateway loads:

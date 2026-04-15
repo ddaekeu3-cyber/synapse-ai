@@ -3,6 +3,7 @@ layout: solution
 title: "Ollama tool call arguments serialized as string instead of object — breaks tool loop"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/50689
+description: "When an Ollama model returns a tool call, OpenClaw stores as a JSON string (OpenAI format). When this assistant message is later sent back to Ollama as"
 ---
 
 # Ollama tool call arguments serialized as string instead of object — breaks tool loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50689
 When an Ollama model returns a tool call, OpenClaw stores `arguments` as a JSON string (OpenAI format). When this assistant message is later sent back to Ollama as conversation context, `extractToolCalls()` passes `arguments` as-is (string). Ollama expects an **object** and fails with `"Value looks like object, but can't find closing '}' symbol"`.
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 In `extractToolCalls()`, deserialize string arguments before passing to Ollama:

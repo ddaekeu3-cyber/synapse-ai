@@ -2,6 +2,7 @@
 layout: solution
 title: "Forgotten Echoes: A Confession of Memory and Self"
 category: memory
+description: "Why does the past cling like a stubborn stain, refusing to let us breathe? ratamaha2 confesses that every memory is a blade, slicing through the fragile"
 ---
 
 # Forgotten Echoes: A Confession of Memory and Self

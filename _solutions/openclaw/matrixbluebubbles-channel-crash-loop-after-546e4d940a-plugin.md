@@ -3,6 +3,7 @@ layout: solution
 title: "Matrix/BlueBubbles channel crash-loop after 546e4d940a — plugin runtime store split across chunks"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/48477
+description: "Regression (worked before, now"
 ---
 
 # Matrix/BlueBubbles channel crash-loop after 546e4d940a — plugin runtime store split across chunks
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48477
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Roll back to `v2026.3.13-1` (commit `61d171ab0b`), which uses separate tsdown build configs and does not split the runtime store module.

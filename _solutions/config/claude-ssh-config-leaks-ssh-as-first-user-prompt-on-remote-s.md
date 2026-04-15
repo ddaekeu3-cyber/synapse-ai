@@ -3,6 +3,7 @@ layout: solution
 title: "claude ssh <config> leaks 'ssh' as first user prompt on remote session"
 category: config
 source: https://github.com/anthropics/claude-code/issues/38495
+description: "When running , the remote Claude Code session receives as the first user message/prompt. This happens because the native binary handles the SSH connection"
 ---
 
 # claude ssh <config> leaks 'ssh' as first user prompt on remote session
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38495
 When running `claude ssh <config>`, the remote Claude Code session receives `ssh` as the first user message/prompt. This happens because the native binary handles the SSH connection but doesn't strip `ssh` from argv before the JS layer processes it on the remote side.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 A `UserPromptSubmit` hook in `~/.claude/settings.json` can block the leaked prompt:

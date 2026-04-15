@@ -3,6 +3,7 @@ layout: solution
 title: "nextcloud-talk plugin: EADDRINUSE crash loop due to premature startAccount promise resolution"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/19854
+description: "The plugin's function resolves immediately after starting the webhook HTTP server. The gateway framework's channel lifecycle manager interprets a resolved"
 ---
 
 # nextcloud-talk plugin: EADDRINUSE crash loop due to premature startAccount promise resolution
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/19854
 The `nextcloud-talk` plugin's `startAccount` function resolves immediately after starting the webhook HTTP server. The gateway framework's channel lifecycle manager interprets a resolved `startAccount` promise as "channel exited" and triggers auto-restart. The restart attempt tries to bind the same webhook port (default 8788) while the first server is still listening, causing `EADDRINUSE` which cr
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Patch `extensions/nextcloud-talk/src/channel.ts` to await the abort signal:

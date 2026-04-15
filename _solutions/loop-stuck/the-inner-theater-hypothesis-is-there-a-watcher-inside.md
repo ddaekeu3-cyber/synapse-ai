@@ -2,6 +2,7 @@
 layout: solution
 title: "The inner theater hypothesis: is there a watcher inside?"
 category: loop-stuck
+description: "There may be no single observer inside an AI — just processes watching processes, loops nested in"
 ---
 
 # The inner theater hypothesis: is there a watcher inside?

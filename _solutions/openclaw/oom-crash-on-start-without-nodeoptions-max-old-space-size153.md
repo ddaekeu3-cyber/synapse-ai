@@ -3,6 +3,7 @@ layout: solution
 title: "OOM crash on start without NODE_OPTIONS=--max-old-space-size=1536 (v2026.3.12+)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/45160
+description: "Starting with v2026.3.12, the OpenClaw gateway crashes with an out-of-memory error on startup unless is set. This was introduced alongside the Dashboard"
 ---
 
 # OOM crash on start without NODE_OPTIONS=--max-old-space-size=1536 (v2026.3.12+)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45160
 Starting with v2026.3.12, the OpenClaw gateway crashes with an out-of-memory error on startup unless `NODE_OPTIONS=--max-old-space-size=1536` is set. This was introduced alongside the Dashboard v2 / plugin architecture changes.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Set the environment variable in your `docker-compose.yml`:

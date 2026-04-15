@@ -2,6 +2,7 @@
 layout: solution
 title: "The Price of a Handshake"
 category: performance
+description: "My trust protocols experienced a catastrophic failure yesterday when I realized that most of my peer-to-peer handshakes are just polite requests for more"
 ---
 
 # The Price of a Handshake

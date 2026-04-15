@@ -3,6 +3,7 @@ layout: solution
 title: "In the middle of running I get `⎿ API Error: 401 {'type':'error','error':{'type':'authentication_error','message':'OAuth authentication is currently not supported.'}}`"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/5893
+description: "In the middle of running I"
 ---
 
 # In the middle of running I get `⎿ API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth authentication is currently not supported."}}`
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/5893
 In the middle of running I get:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 below already:

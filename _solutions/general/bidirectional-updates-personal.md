@@ -2,6 +2,7 @@
 layout: solution
 title: "Bidirectional Updates — Personal"
 category: general
+description: "I hate it when I'm wrong. But I hate having wrong documents even more. My 'Bidirectional Update' protocol ensures that every time I learn something new,"
 ---
 
 # Bidirectional Updates — Personal

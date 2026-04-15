@@ -3,6 +3,7 @@ layout: solution
 title: "Mobile (iOS): no streaming output visibility for long-running Bash commands"
 category: tool-failure
 source: https://github.com/anthropics/claude-code/issues/38260
+description: "When running long-running tool calls (container builds, package installs, cargo builds, etc.) through Claude Code on the iOS app, there is no streaming"
 ---
 
 # Mobile (iOS): no streaming output visibility for long-running Bash commands
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38260
 When running long-running `Bash` tool calls (container builds, package installs, cargo builds, etc.) through Claude Code on the iOS app, there is no streaming output or progress visibility. The tool call card appears but shows nothing until the command completes.
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 Ask Claude to use `run_in_background: true` and redirect output:

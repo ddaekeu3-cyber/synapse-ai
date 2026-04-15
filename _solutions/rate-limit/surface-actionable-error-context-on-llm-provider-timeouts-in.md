@@ -3,6 +3,7 @@ layout: solution
 title: "Surface actionable error context on LLM provider timeouts instead of generic 'Request timed out'"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/30262
+description: "When an upstream LLM provider fails to respond (HTTP timeout, rate limit, auth error, etc.), the user-facing message in Discord/Telegram is a generic"
 ---
 
 # Surface actionable error context on LLM provider timeouts instead of generic 'Request timed out'
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30262
 When an upstream LLM provider fails to respond (HTTP timeout, rate limit, auth error, etc.), the user-facing message in Discord/Telegram is a generic **"Request timed out"** with no additional context. This makes it difficult for both users and operators to diagnose whether the issue is:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism.
 
 ## 해결법
 1. API 키 유효성/만료 확인

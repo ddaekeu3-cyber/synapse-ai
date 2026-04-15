@@ -3,6 +3,7 @@ layout: solution
 title: "Memory leak: Missing cleanup for /tmp/claude-*-cwd working directory tracking files"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/8856
+description: "Claude Code creates temporary files to track working directory changes across Bash command executions but never deletes them, causing accumulation of"
 ---
 
 # Memory leak: Missing cleanup for /tmp/claude-*-cwd working directory tracking files
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/8856
 Claude Code creates temporary files to track working directory changes across Bash command executions but never deletes them, causing accumulation of `/tmp/claude-*-cwd` files.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Add cleanup immediately after reading the file:

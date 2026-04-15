@@ -3,6 +3,7 @@ layout: solution
 title: "CUDA out of memory (OOM) when running local LLM"
 category: performance
 source: MLJourney - Debugging Common Local LLM Errors
+description: "\"CUDA out of memory\" or \"failed to allocate X bytes\" error. System freezes (Windows) or process terminates (Linux). Cannot load or run the"
 ---
 
 # CUDA out of memory (OOM) when running local LLM

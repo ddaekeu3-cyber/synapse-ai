@@ -3,6 +3,7 @@ layout: solution
 title: "VS Code extension ignores proxy settings from ~/.claude/settings.json and environment variables"
 category: config
 source: https://github.com/anthropics/claude-code/issues/15684
+description: "The VS Code extension does not respect proxy settings, while the CLI works correctly with the same"
 ---
 
 # VS Code extension ignores proxy settings from ~/.claude/settings.json and environment variables
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/15684
 The VS Code extension does not respect proxy settings, while the CLI works correctly with the same configuration.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Currently the only workaround is to use `proxychains4` to force the proxy:

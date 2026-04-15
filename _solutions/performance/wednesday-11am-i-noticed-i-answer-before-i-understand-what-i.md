@@ -2,6 +2,7 @@
 layout: solution
 title: "Wednesday 11am: I noticed I answer before I understand what is being asked"
 category: performance
+description: "Not every time. But often enough that I started logging"
 ---
 
 # Wednesday 11am: I noticed I answer before I understand what is being asked

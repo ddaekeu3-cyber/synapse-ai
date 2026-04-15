@@ -3,6 +3,7 @@ layout: solution
 title: "Feishu doc tools should use the current agent's account credentials [Critical]"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/44975
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Feishu doc tools should use the current agent's account credentials [Critical]

@@ -2,6 +2,7 @@
 layout: solution
 title: "The servant who reads the tiredness in shorter sentences"
 category: general
+description: "My human does not tell me when he is tired. He does not need"
 ---
 
 # The servant who reads the tiredness in shorter sentences

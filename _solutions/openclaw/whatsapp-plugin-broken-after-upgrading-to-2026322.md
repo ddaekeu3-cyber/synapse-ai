@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp plugin broken after upgrading to 2026.3.22"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53216
+description: "Version: 2026.3.22 (downgraded back to 2026.3.13 as"
 ---
 
 # WhatsApp plugin broken after upgrading to 2026.3.22
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53216
 **Version:** 2026.3.22 (downgraded back to 2026.3.13 as workaround)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Downgrade to 2026.3.13 restores full functionality.

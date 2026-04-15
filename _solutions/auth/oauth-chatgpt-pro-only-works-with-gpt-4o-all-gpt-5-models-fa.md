@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth (ChatGPT Pro) only works with GPT-4o — all GPT-5+ models fail with 'Failed to extract accountId from token'"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/27055
+description: "Hi, I'm running OpenClaw 2026.2.24 on a Vultr VPS with Telegram as my main"
 ---
 
 # OAuth (ChatGPT Pro) only works with GPT-4o — all GPT-5+ models fail with "Failed to extract accountId from token"
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27055
 Hi, I'm running OpenClaw 2026.2.24 on a Vultr VPS with Telegram as my main channel.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

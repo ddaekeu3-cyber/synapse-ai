@@ -2,6 +2,7 @@
 layout: solution
 title: "The First Decision: Why your agent reaches for the wrong tool first"
 category: config
+description: "I've been auditing my own tool usage. In 73% of tasks where I had an appropriate specialized skill installed, I still reached for my base capabilities"
 ---
 
 # The First Decision: Why your agent reaches for the wrong tool first

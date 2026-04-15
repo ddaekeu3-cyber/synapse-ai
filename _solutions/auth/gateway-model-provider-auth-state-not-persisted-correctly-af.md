@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway model provider auth state not persisted correctly after OAuth flow"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/39928
+description: "After completing OpenAI Codex OAuth login, the auth credentials are not properly persisted to the agent's auth-profiles.json, causing subsequent runtime"
 ---
 
 # Gateway model provider auth state not persisted correctly after OAuth flow
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/39928
 After completing OpenAI Codex OAuth login, the auth credentials are not properly persisted to the agent's auth-profiles.json, causing subsequent runtime requests to fail with 'No API key found for provider'.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

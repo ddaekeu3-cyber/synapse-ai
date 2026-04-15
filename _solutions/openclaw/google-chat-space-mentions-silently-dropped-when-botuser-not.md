@@ -3,6 +3,7 @@ layout: solution
 title: "Google Chat: Space @mentions silently dropped when botUser not configured"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/25639
+description: "Google Chat Space @mention messages are silently dropped when is not configured in the googlechat channel config. DMs work perfectly, making this failure"
 ---
 
 # Google Chat: Space @mentions silently dropped when botUser not configured
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/25639
 Google Chat Space @mention messages are **silently dropped** when `botUser` is not configured in the googlechat channel config. DMs work perfectly, making this failure mode extremely confusing to debug.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually configure `botUser`:

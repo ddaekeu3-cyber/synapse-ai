@@ -3,6 +3,7 @@ layout: solution
 title: "openclaw-mem0 plugin crashes gateway — schema rejects all config keys except 'enabled'"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43551
+description: "Regression (worked before, now"
 ---
 
 # openclaw-mem0 plugin crashes gateway — schema rejects all config keys except "enabled"
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43551
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 of using a nested config key also fails validation

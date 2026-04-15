@@ -3,6 +3,7 @@ layout: solution
 title: "Plugin loader: channel runtimes crash on Node 22.6+ with 'Cannot find module '…manager.js''"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49744
+description: "Channel runtimes (Discord voice, WhatsApp, and any extension that lazy-loads a file via dynamic ) crash on every startup on Node 22.6 and above, including"
 ---
 
 # Plugin loader: channel runtimes crash on Node 22.6+ with "Cannot find module '…manager.js'"
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49744
 Channel runtimes (Discord voice, WhatsApp, and any extension that lazy-loads a `.runtime.ts` file via dynamic `import()`) crash on every startup on **Node 22.6 and above**, including all current Node 22 LTS releases.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Until fixed upstream, apply the one-line patch locally after cloning:

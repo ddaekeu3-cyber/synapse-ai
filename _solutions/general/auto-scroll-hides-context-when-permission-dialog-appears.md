@@ -3,6 +3,7 @@ layout: solution
 title: "Auto-scroll hides context when permission dialog appears"
 category: general
 source: https://github.com/anthropics/claude-code/issues/34354
+description: "When Claude Code is streaming output and a permission dialog appears (e.g., asking to approve a Bash command), the output continues to auto-scroll. By the"
 ---
 
 # Auto-scroll hides context when permission dialog appears
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34354
 When Claude Code is streaming output and a permission dialog appears (e.g., asking to approve a Bash command), the output continues to auto-scroll. By the time the user sees the permission prompt, the commentary explaining *why* the tool is being called has scrolled off screen.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Pre-approve commonly used tools via `allowedTools` in settings to reduce the frequency of permission dialogs. But this defeats the purpose of having permission controls for review.

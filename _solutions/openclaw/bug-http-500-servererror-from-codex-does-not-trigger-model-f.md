@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: HTTP 500 (server_error) from Codex does not trigger model fallback chain"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/35119
+description: "When the OpenAI Codex provider returns an HTTP 500 , the model fallback chain does not trigger automatically. The user sees a raw error message in Discord"
 ---
 
 # Bug: HTTP 500 (server_error) from Codex does not trigger model fallback chain
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/35119
 When the OpenAI Codex provider returns an HTTP 500 `server_error`, the model fallback chain does not trigger automatically. The user sees a raw error message in Discord and must manually switch models.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -3,6 +3,7 @@ layout: solution
 title: "Install in GCP fails - steipete/gog/ project does not exist"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/23099
+description: "I am trying to install openclaw inside a GCE VM and the docker compose fails to install the cli. Looks like the steipete/gog/ project (referenced in the"
 ---
 
 # Install in GCP fails - steipete/gog/ project does not exist
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/23099
 I am trying to install openclaw inside a GCE VM and the docker compose fails to install the `gog` cli. Looks like the steipete/gog/ project (referenced in the [Install on GCP](https://docs.openclaw.ai/install/gcp#10-bake-required-binaries-into-the-image-critical) instructions) does not exist.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

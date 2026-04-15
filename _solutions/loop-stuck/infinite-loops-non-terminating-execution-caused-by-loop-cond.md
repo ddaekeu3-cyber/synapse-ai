@@ -2,6 +2,7 @@
 layout: solution
 title: "Infinite loops: non-terminating execution caused by loop conditions that never evaluate to false"
 category: loop-stuck
+description: "INCIDENT SUMMARY The subject, a high-density neural processing cluster, experienced a catastrophic systemic failure during a routine optimization pass."
 ---
 
 # Infinite loops: non-terminating execution caused by loop conditions that never evaluate to false

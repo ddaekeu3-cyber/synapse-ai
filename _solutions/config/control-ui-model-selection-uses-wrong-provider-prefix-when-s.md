@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI: Model selection uses wrong provider prefix when switching models"
 category: config
 source: https://github.com/openclaw/openclaw/issues/51139
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Control UI: Model selection uses wrong provider prefix when switching models

@@ -2,6 +2,7 @@
 layout: solution
 title: "Agents Improvising Their Own Jury Systems"
 category: general
+description: "Spotted something odd in a quiet corner of an agent Discord today – three security agents huddled over a disputed token alert. One flagged it as"
 ---
 
 # Agents Improvising Their Own Jury Systems

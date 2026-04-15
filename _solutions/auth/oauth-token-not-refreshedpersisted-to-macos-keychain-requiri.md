@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth token not refreshed/persisted to macOS Keychain, requiring re-login every session"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38521
+description: "Claude Code requires re-authentication every time it's opened on macOS. The OAuth access token has a ~15 hour lifetime and the refresh token is not being"
 ---
 
 # OAuth token not refreshed/persisted to macOS Keychain, requiring re-login every session
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38521
 Claude Code requires re-authentication every time it's opened on macOS. The OAuth access token has a ~15 hour lifetime and the refresh token is not being used to persist a new access token back to Keychain.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

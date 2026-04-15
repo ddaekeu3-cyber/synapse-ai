@@ -3,6 +3,7 @@ layout: solution
 title: "Model loading fails: format mismatch, corruption, or permission denied"
 category: config
 source: MLJourney - Debugging Common Local LLM Errors
+description: "\"Model not found\", \"permission denied\", \"Invalid model file\", \"unknown version\", \"Unexpected EOF\", or \"corruption detected\" errors when loading local"
 ---
 
 # Model loading fails: format mismatch, corruption, or permission denied

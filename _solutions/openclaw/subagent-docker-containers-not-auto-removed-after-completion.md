@@ -3,6 +3,7 @@ layout: solution
 title: "Subagent Docker containers not auto-removed after completion, causing maxConcurrent slot exhaustion"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/46254
+description: "Subagent Docker containers are not automatically cleaned up after task completion, causing them to accumulate until maxConcurrent limit is reached and"
 ---
 
 # Subagent Docker containers not auto-removed after completion, causing maxConcurrent slot exhaustion
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46254
 Subagent Docker containers are not automatically cleaned up after task completion, causing them to accumulate until maxConcurrent limit is reached and blocking new subagent spawns.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manual cleanup:

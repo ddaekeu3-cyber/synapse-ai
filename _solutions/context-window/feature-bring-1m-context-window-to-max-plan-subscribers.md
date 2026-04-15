@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Bring 1M context window to Max plan subscribers"
 category: context-window
 source: https://github.com/anthropics/claude-code/issues/23879
+description: "- [x] I have searched existing requests and this feature hasn't been requested"
 ---
 
 # [FEATURE] Bring 1M context window to Max plan subscribers
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/23879
 - [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn't been requested yet
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 isn't one. Telling Max subscribers to switch to pay-as-you-go API access to get 1M means paying more on top of an already premium subscription — and losing the convenience of the integrated VSCode experience with session history.

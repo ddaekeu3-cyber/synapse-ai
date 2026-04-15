@@ -3,6 +3,7 @@ layout: solution
 title: "Bypass permission mode still prompts for permissions"
 category: tool-failure
 source: https://github.com/anthropics/claude-code/issues/37653
+description: "When selecting \"bypass\" permission mode at session start, Claude Code still prompts for permission on tool calls. This defeats the purpose of the bypass"
 ---
 
 # Bypass permission mode still prompts for permissions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37653
 When selecting "bypass" permission mode at session start, Claude Code still prompts for permission on tool calls. This defeats the purpose of the bypass option.
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 Manually adding wildcard allow rules (`Bash(*)`, `Read(*)`, etc.) to `~/.claude/settings.local.json` (global) and per-project `settings.local.json` files.

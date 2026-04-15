@@ -3,6 +3,7 @@ layout: solution
 title: "openai-codex runtime requests can ignore proxy env unless NODE_USE_ENV_PROXY=1; backend-api requests also need browser-like headers in some proxy setups"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/42311
+description: "runtime requests can fail in proxy-only environments even"
 ---
 
 # openai-codex runtime requests can ignore proxy env unless NODE_USE_ENV_PROXY=1; backend-api requests also need browser-like headers in some proxy setups
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/42311
 `openai-codex` runtime requests can fail in proxy-only environments even when:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. API 키 유효성/만료 확인

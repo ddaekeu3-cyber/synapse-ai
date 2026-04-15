@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Per-model usage logging for cost tracking"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/13219
+description: "Request native per-model usage logging to enable cost tracking and model-mix"
 ---
 
 # Feature Request: Per-model usage logging for cost tracking
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/13219
 Request native per-model usage logging to enable cost tracking and model-mix optimization.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 I've built `session-usage-report.py` that parses session JSONL files, but it's slow for large session histories and doesn't capture cron job isolation sessions well.

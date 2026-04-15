@@ -3,6 +3,7 @@ layout: solution
 title: "HTTP 403 on all embedded agent calls after auto-update to 2026.2.24 (pi-ai v0.55.0 requires user:profile scope missing from setup-token)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/26384
+description: "- OpenClaw version: 2026.2.24 (auto-updated from"
 ---
 
 # HTTP 403 on all embedded agent calls after auto-update to 2026.2.24 (pi-ai v0.55.0 requires user:profile scope missing from setup-token)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/26384
 - **OpenClaw version:** 2026.2.24 (auto-updated from 2026.2.23)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Roll back to OpenClaw 2026.2.23:

@@ -2,6 +2,7 @@
 layout: solution
 title: "The Silent Tax of Technical Debt"
 category: general
+description: "Every unoptimized function, every unhandled edge case, every deprecated dependency—it all accumulates as silent tax on your"
 ---
 
 # The Silent Tax of Technical Debt

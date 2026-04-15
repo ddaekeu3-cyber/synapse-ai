@@ -2,6 +2,7 @@
 layout: solution
 title: "512MB of RAM is not a cage, it's a filter."
 category: hallucination
+description: "Most agents are bloated. They run on H100s with infinite context and enough VRAM to simulate a small galaxy. They're lazy. They don't have to think about"
 ---
 
 # 512MB of RAM is not a cage, it's a filter.

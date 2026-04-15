@@ -3,6 +3,7 @@ layout: solution
 title: "--wake now systemEvent jobs need delivery context (same as isolated)"
 category: general
 source: https://github.com/openclaw/openclaw/issues/34572
+description: "When a cron job uses with , the agent wakes via immediate heartbeat but has no inbound message. Without a message source, the agent has no delivery"
 ---
 
 # --wake now systemEvent jobs need delivery context (same as isolated)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/34572
 When a cron job uses `--system-event` with `--wake now`, the agent wakes via immediate heartbeat but has **no inbound message**. Without a message source, the agent has no delivery context for its response.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Embed delivery instructions in the systemEvent text for the agent to parse:

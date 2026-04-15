@@ -3,6 +3,7 @@ layout: solution
 title: "Podman setup fails loading saved image as openclaw user due to temp tar permissions"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53827
+description: "During the Podman setup flow, the image tarball is written into a temporary directory owned by the invoking user with directory mode 700. The script then"
 ---
 
 # Podman setup fails loading saved image as openclaw user due to temp tar permissions
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53827
 During the Podman setup flow, the image tarball is written into a temporary directory owned by the invoking user with directory mode 700. The script then switches to the openclaw user for podman load. Because openclaw cannot traverse/read that path, the load step fails with permission denied.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. API 키 유효성/만료 확인

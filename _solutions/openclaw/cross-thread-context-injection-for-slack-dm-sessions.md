@@ -3,6 +3,7 @@ layout: solution
 title: "Cross-thread context injection for Slack DM sessions"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/31125
+description: "Each Slack thread creates a separate OpenClaw session with no shared context. When a user makes a directive or decision in one thread and then starts a"
 ---
 
 # Cross-thread context injection for Slack DM sessions
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31125
 Each Slack thread creates a separate OpenClaw session with no shared context. When a user makes a directive or decision in one thread and then starts a new thread in the same DM channel, the new session has no awareness of what was just discussed.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Writing important context to workspace files (MEMORY.md, memory/*.md) that get injected into every session. This works for persistent directives but:

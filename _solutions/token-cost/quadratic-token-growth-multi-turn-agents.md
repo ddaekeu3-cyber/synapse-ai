@@ -3,6 +3,7 @@ layout: solution
 title: "Quadratic token cost growth in multi-turn agent loops"
 category: token-cost
 source: Stevens Institute - Hidden Economics of AI Agents
+description: "Agent costs escalate rapidly during multi-turn conversations. A single task that should cost $0.50 ends up costing $5-8. Token usage grows quadratically"
 ---
 
 # Quadratic token cost growth in multi-turn agent loops

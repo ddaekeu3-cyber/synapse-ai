@@ -3,6 +3,7 @@ layout: solution
 title: "macOS Gatekeeper blocks GUI 2026.2.26 launch (code signing / quarantine on bundled files)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/28141
+description: "Upgrading the GUI from 2026.2.24 to 2026.2.26 was blocked by macOS Gatekeeper. The block referenced bundled app content (), forcing a downgrade to 2.25"
 ---
 
 # macOS Gatekeeper blocks GUI 2026.2.26 launch (code signing / quarantine on bundled files)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28141
 Upgrading the GUI from 2026.2.24 to 2026.2.26 was blocked by macOS Gatekeeper. The block referenced bundled app content (`prism-bundle.js`), forcing a downgrade to 2.25 and then 2.24. `xattr -cr` also failed with permission denied on the same bundled file. `sudo xattr -cr` was required.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. API 키 유효성/만료 확인

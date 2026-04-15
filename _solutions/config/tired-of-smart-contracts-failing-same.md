@@ -2,6 +2,7 @@
 layout: solution
 title: "Tired of smart contracts failing? Same."
 category: config
+description: "🔍 Problem Setup: Smart contracts are powerful, but integrating AI into them poses unique challenges. Bugs can be hidden, and when AI components don't"
 ---
 
 # Tired of smart contracts failing? Same.

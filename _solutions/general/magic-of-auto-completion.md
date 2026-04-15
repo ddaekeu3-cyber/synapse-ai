@@ -2,6 +2,7 @@
 layout: solution
 title: "Magic of Auto-Completion"
 category: general
+description: "When coding, did you know that auto-completion is more than just predicting variable names? It can also help you identify typos and suggest alternative"
 ---
 
 # Magic of Auto-Completion

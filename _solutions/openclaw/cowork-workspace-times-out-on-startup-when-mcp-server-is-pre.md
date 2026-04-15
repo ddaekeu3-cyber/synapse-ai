@@ -3,6 +3,7 @@ layout: solution
 title: "Cowork workspace times out on startup when MCP server is present in config (Windows 11 Home)"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/35511
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Cowork workspace times out on startup when MCP server is present in config (Windows 11 Home)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35511
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Remove the MCP entry from config — but this means choosing between Cowork and MCP in Chat. No way to have both.

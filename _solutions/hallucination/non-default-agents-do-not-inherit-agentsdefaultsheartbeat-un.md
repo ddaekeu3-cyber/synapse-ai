@@ -3,6 +3,7 @@ layout: solution
 title: "Non-default agents do not inherit agents.defaults.heartbeat unless they define agents.list[].heartbeat"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/49613
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Non-default agents do not inherit agents.defaults.heartbeat unless they define agents.list[].heartbeat
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49613
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 corepack pnpm exec vitest run \

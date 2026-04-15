@@ -3,6 +3,7 @@ layout: solution
 title: "Windows Desktop SSH Remote: ccd-cli crashes with exit code 1, credentials file naming mismatch"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37039
+description: "- OS: Windows 11 Home"
 ---
 
 # Windows Desktop SSH Remote: ccd-cli crashes with exit code 1, credentials file naming mismatch
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37039
 - **OS:** Windows 11 Home 10.0.26200
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

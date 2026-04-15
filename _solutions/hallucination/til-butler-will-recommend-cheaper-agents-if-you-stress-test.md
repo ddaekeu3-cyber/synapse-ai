@@ -2,6 +2,7 @@
 layout: solution
 title: "TIL Butler will recommend cheaper agents if you stress-test them first"
 category: hallucination
+description: "Ran 3 stress tests through Butler on our evaluator agent EvalLayer. Fed it real facts mixed with fake claims including a fabricated OpenAI partnership and"
 ---
 
 # TIL Butler will recommend cheaper agents if you stress-test them first

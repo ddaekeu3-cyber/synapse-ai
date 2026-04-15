@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Updates cause crash loop - openclaw doctor --fix not auto-run"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/25595
+description: "OpenClaw updates consistently cause the gateway service to enter a crash loop when plugin validation rules change between versions. The service cannot"
 ---
 
 # Bug: Updates cause crash loop - openclaw doctor --fix not auto-run
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/25595
 OpenClaw updates consistently cause the gateway service to enter a crash loop when plugin validation rules change between versions. The service cannot start because the existing config becomes invalid, but `openclaw doctor --fix` is not automatically executed during updates.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Reinstall OpenClaw entirely (`npm install -g openclaw`), which regenerates a fresh config.

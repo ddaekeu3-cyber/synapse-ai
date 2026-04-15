@@ -3,6 +3,7 @@ layout: solution
 title: "Task tool subagent processes not terminated after parent session ends (Linux)"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/19045
+description: "Task tool subagent processes () are not terminated when the parent Claude Code session ends (via crash, Ctrl+C, timeout, or normal exit). These orphaned"
 ---
 
 # Task tool subagent processes not terminated after parent session ends (Linux)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/19045
 Task tool subagent processes (`claude --resume <session-id>`) are not terminated when the parent Claude Code session ends (via crash, Ctrl+C, timeout, or normal exit). These orphaned processes accumulate over time and consume significant RAM.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```bash

@@ -3,6 +3,7 @@ layout: solution
 title: "Cron systemEvent jobs skipped when HEARTBEAT.md is empty"
 category: general
 source: https://github.com/openclaw/openclaw/issues/33090
+description: "Cron jobs with are being skipped with error when is empty or contains only"
 ---
 
 # Cron systemEvent jobs skipped when HEARTBEAT.md is empty
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33090
 Cron jobs with `payload.kind: 'systemEvent'` are being skipped with error `empty-heartbeat-file` when `HEARTBEAT.md` is empty or contains only comments.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Adding any non-comment content to HEARTBEAT.md (e.g., `active: true`) allows cron jobs to run.

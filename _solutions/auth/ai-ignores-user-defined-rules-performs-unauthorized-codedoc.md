@@ -3,6 +3,7 @@ layout: solution
 title: "AI ignores user-defined rules: performs unauthorized code/doc changes despite CLAUDE.md constraints"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38065
+description: "- Claude Code CLI (VSCode extension,"
 ---
 
 # AI ignores user-defined rules: performs unauthorized code/doc changes despite CLAUDE.md constraints
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38065
 - Claude Code CLI (VSCode extension, WSL2)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

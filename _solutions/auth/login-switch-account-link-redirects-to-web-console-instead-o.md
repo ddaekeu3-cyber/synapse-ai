@@ -3,6 +3,7 @@ layout: solution
 title: "/login switch account link redirects to web console instead of account switcher"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38023
+description: "/login switch account no longer works, it just takes me to the web console when I click the switch account link. I have a business account for my employer"
 ---
 
 # /login switch account link redirects to web console instead of account switcher
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38023
 /login switch account no longer works, it just takes me to the web console when I click the switch account link. I have a business account for my employer and a personal account, both paid, and I can't use the business employer account for personal matters, so this is really frustrating because I can't switch accounts
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

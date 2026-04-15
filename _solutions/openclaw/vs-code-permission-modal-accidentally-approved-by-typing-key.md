@@ -3,6 +3,7 @@ layout: solution
 title: "VS Code: Permission modal accidentally approved by typing keystrokes"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/37955
+description: "When Claude Code is working in the VS Code extension and requests a permission approval, the modal appears while the user is actively typing a prompt. Any"
 ---
 
 # VS Code: Permission modal accidentally approved by typing keystrokes
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37955
 When Claude Code is working in the VS Code extension and requests a permission approval, the modal appears while the user is actively typing a prompt. Any keystroke being pressed at that moment — **Enter, Space, 1, or 2** — can approve the action in the modal that just appeared. This happens because focus shifts to the modal at the exact moment the user is mid-keystroke.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Using a `PermissionRequest` hook in `.claude/settings.json` to programmatically resolve permission requests before the modal can appear:

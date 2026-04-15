@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Option to suppress tool call error notifications in Telegram"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/21675
+description: "Add a channel-level option (e.g. channels.telegram.showToolErrors: false) to suppress automatic tool call error notifications (⚠️ 🛠️ Exec: ... failed)"
 ---
 
 # [Feature]: Option to suppress tool call error notifications in Telegram
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/21675
 Add a channel-level option (e.g. channels.telegram.showToolErrors: false) to suppress automatic tool call error notifications (⚠️ 🛠️ Exec: ... failed) from being pushed to Telegram.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change.
 
 ## 해결법
 1. API 키 유효성/만료 확인

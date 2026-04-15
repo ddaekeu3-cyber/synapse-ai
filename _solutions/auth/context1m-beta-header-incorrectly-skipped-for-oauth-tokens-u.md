@@ -3,6 +3,7 @@ layout: solution
 title: "context1m beta header incorrectly skipped for OAuth tokens (usage-based billing)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/27846
+description: "OpenClaw skips the Anthropic beta header when the auth token is an OAuth token (). The code in filters out the 1M beta from and"
 ---
 
 # context1m beta header incorrectly skipped for OAuth tokens (usage-based billing)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27846
 OpenClaw skips the `context-1m-2025-08-07` Anthropic beta header when the auth token is an OAuth token (`sk-ant-oat-*`). The code in `createAnthropicBetaHeadersWrapper` filters out the 1M beta from `effectiveBetas` and logs:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Patching the 4 dist files locally to always use `const effectiveBetas = betas;` works but gets overwritten on updates.

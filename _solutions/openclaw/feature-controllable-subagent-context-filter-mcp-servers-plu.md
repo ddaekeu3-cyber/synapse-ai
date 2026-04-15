@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Controllable subagent context: filter MCP servers, plugins, skills, and rules per agent"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/38044
+description: "When users have many MCP servers, plugins, skills, and rules configured, subagents fail immediately with \"prompt is too long\" because they inherit the"
 ---
 
 # [FEATURE] Controllable subagent context: filter MCP servers, plugins, skills, and rules per agent
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38044
 When users have many MCP servers, plugins, skills, and rules configured, **subagents fail immediately with "prompt is too long"** because they inherit the full system prompt including all MCP tool schemas. This makes Explore, Plan, and general-purpose agents completely unusable for power users.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 it.

@@ -3,6 +3,7 @@ layout: solution
 title: "Mac DMG install: gateway fails silently, xattr workaround triggers system permission flood"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/33385
+description: "We run AgentStandard (agentstandard.ai), a package marketplace for OpenClaw. We conducted a first-run install test with a non-technical Mac user using the"
 ---
 
 # Mac DMG install: gateway fails silently, xattr workaround triggers system permission flood
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33385
 We run AgentStandard (agentstandard.ai), a package marketplace for OpenClaw. We conducted a first-run install test with a non-technical Mac user using the official DMG download (v2026.3.2). The experience was bad enough that the user abandoned and uninstalled.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 8. **Flood of macOS permission dialogs**: Apple Music library, Photo library, Desktop folder — all unrelated to OpenClaw, caused by xattr scanning broadly

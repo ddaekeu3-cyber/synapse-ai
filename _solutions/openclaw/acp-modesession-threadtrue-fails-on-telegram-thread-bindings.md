@@ -3,6 +3,7 @@ layout: solution
 title: "ACP mode='session' + thread=true fails on Telegram: 'Thread bindings do not support ACP thread spawn'"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49592
+description: "When using with , , and from a Telegram channel, the call fails"
 ---
 
 # ACP mode="session" + thread=true fails on Telegram: "Thread bindings do not support ACP thread spawn"
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49592
 When using `sessions_spawn` with `runtime: "acp"`, `mode: "session"`, and `thread: true` from a Telegram channel, the call fails with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Using `acpx` CLI directly via `exec` to drive persistent Claude Code sessions:

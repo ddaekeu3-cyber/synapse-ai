@@ -3,6 +3,7 @@ layout: solution
 title: "Expose session_id and context_window usage to the AI model"
 category: context-window
 source: https://github.com/anthropics/claude-code/issues/36678
+description: "The AI model running inside Claude Code has no way to"
 ---
 
 # Expose session_id and context_window usage to the AI model
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36678
 The AI model running inside Claude Code has no way to know:
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 1. The statusline script writes context % to a file: `~/.claude/context-usage/{session_id}`

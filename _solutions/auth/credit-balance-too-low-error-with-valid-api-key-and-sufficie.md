@@ -3,6 +3,7 @@ layout: solution
 title: "Credit balance too low error with valid API key and sufficient balance"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/36648
+description: "Credit balance too low error on every command despite having $10 balance in Console. Auth token shows \"none\" in /status. logout, login, login --api-key"
 ---
 
 # Credit balance too low error with valid API key and sufficient balance
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36648
 Credit balance too low error on every command despite having $10 balance in Console. Auth token shows "none" in /status. logout, login, login --api-key all return same error. Deleted .claude folder, restarted PC - nothing helps. Organization: Sergey's Individual Org, email: sergey.adviser@gmail.com
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -3,6 +3,7 @@ layout: solution
 title: "skill-creator: improve_description.py fails with thinking.type 'adaptive' on current SDK"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/33466
+description: "The plugin's script uses in its Anthropic API calls (lines 117-119 and 154-156). This fails with the current public Anthropic Python SDK"
 ---
 
 # skill-creator: improve_description.py fails with thinking.type 'adaptive' on current SDK
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33466
 The `skill-creator` plugin's `improve_description.py` script uses `thinking={"type": "adaptive", "budget_tokens": 10000}` in its Anthropic API calls (lines 117-119 and 154-156). This fails with the current public Anthropic Python SDK (v0.84.0):
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Change `"type": "adaptive"` to `"type": "enabled"` in both occurrences in `improve_description.py`. This uses full extended thinking instead of adaptive, which works on the current SDK.

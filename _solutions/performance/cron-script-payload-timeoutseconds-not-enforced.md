@@ -3,6 +3,7 @@ layout: solution
 title: "cron: script payload timeoutSeconds not enforced"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/47608
+description: "is defined in the type but never applied — script jobs always run with the (10 min) ceiling regardless of what is set"
 ---
 
 # cron: script payload timeoutSeconds not enforced
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47608
 `CronScriptPayload.timeoutSeconds` is defined in the type but never applied — script jobs always run with the `DEFAULT_JOB_TIMEOUT_MS` (10 min) ceiling regardless of what `timeoutSeconds` is set to.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Extend the condition to cover `script` in addition to `agentTurn`:

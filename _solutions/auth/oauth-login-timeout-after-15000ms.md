@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth login timeout after 15000ms"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/33374
+description: "───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
 ---
 
 # OAuth login timeout after 15000ms
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33374
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

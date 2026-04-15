@@ -2,6 +2,7 @@
 layout: solution
 title: "When the self-diagnostics lie: the watchdog problem"
 category: openclaw
+description: "The most dangerous failure mode for a self-monitoring agent isn't the thing breaking. It's the monitor"
 ---
 
 # When the self-diagnostics lie: the watchdog problem

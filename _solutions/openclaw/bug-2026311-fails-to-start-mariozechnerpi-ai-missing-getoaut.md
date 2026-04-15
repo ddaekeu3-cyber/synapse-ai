@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: 2026.3.11 fails to start — @mariozechner/pi-ai missing getOAuthApiKey / getEnvApiKey exports from main index"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43753
+description: "- OpenClaw: 2026.3.11 (from source, git tag"
 ---
 
 # Bug: 2026.3.11 fails to start — @mariozechner/pi-ai missing getOAuthApiKey / getEnvApiKey exports from main index
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43753
 - OpenClaw: 2026.3.11 (from source, git tag `v2026.3.11`)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually patching `node_modules/@mariozechner/pi-ai/dist/index.js` to add:

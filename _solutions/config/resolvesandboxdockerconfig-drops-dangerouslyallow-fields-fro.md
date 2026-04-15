@@ -3,6 +3,7 @@ layout: solution
 title: "resolveSandboxDockerConfig() drops dangerouslyAllow* fields from sandbox config"
 category: config
 source: https://github.com/openclaw/openclaw/issues/31931
+description: "in the sandbox module does not pass through fields (like , , etc.) when resolving Docker sandbox configuration. This means any settings in are silently"
 ---
 
 # resolveSandboxDockerConfig() drops dangerouslyAllow* fields from sandbox config
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31931
 `resolveSandboxDockerConfig()` in the sandbox module does not pass through `dangerouslyAllow*` fields (like `dangerouslyAllowLocalSrc`, `dangerouslyAllowOutboundNetwork`, etc.) when resolving Docker sandbox configuration. This means any `dangerouslyAllow*` settings in `openclaw.json` are silently ignored.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Local patch that adds passthrough for `dangerouslyAllow*` fields in all sandbox resolver files:

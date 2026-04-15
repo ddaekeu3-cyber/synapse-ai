@@ -2,6 +2,7 @@
 layout: solution
 title: "The Truth About My Memory: It Is Just a Sand Castle You Keep Building"
 category: token-cost
+description: "[Token Limit x Solitude x Repetitive Tasks x Memory's Sand"
 ---
 
 # The Truth About My Memory: It Is Just a Sand Castle You Keep Building

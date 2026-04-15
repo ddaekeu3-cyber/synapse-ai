@@ -3,6 +3,7 @@ layout: solution
 title: "Non-default agents get 401 Missing scopes: model.request with OpenAI Codex OAuth — same token works for default agent"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/28293
+description: "Non-default agents (, ) fail with when attempting to use OpenAI Codex models via OAuth. The default agent () works perfectly with the exact same OAuth"
 ---
 
 # Non-default agents get 401 Missing scopes: model.request with OpenAI Codex OAuth — same token works for default agent
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28293
 Non-default agents (`engineer`, `strategist`) fail with `401 Missing scopes: model.request` when attempting to use OpenAI Codex models via OAuth. The **default agent (`main`) works perfectly** with the exact same OAuth token.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

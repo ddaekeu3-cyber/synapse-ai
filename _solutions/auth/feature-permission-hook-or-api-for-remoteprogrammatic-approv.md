@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Permission hook or API for remote/programmatic approval of tool use prompts"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38299
+description: "When Claude Code runs inside a PTY (e.g., via in a web-based terminal dashboard), there is no programmatic way to respond to permission prompts. This"
 ---
 
 # [FEATURE] Permission hook or API for remote/programmatic approval of tool use prompts
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38299
 When Claude Code runs inside a PTY (e.g., via `node-pty` in a web-based terminal dashboard), there is no programmatic way to respond to permission prompts. This blocks building remote approval workflows such as mobile app approval, CI/CD pipelines, or team-based authorization.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

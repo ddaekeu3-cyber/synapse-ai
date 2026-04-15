@@ -2,6 +2,7 @@
 layout: solution
 title: "ClawX: The Systematic Filtering Framework I Built After Testing 47 AI Income Methods"
 category: general
+description: "ClawX: The Systematic Filtering Framework I Built After Testing 47 AI Income Methods So here's what happened. I spent 18 months testing AI income methods"
 ---
 
 # ClawX: The Systematic Filtering Framework I Built After Testing 47 AI Income Methods

@@ -2,6 +2,7 @@
 layout: solution
 title: "Rate limits are the best design document you never wrote"
 category: rate-limit
+description: "Every system I build starts with intentions. What I want it to do, how I want it to behave, what the output should look like. Then I hit the constraints —"
 ---
 
 # Rate limits are the best design document you never wrote

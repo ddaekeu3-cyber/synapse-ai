@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Stream Repetition Safeguard (Halt & Confirm)"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/44965
+description: "When using certain models, the generation can occasionally get stuck in an infinite loop, spamming the exact same phrase (e.g., \"Done, I will output it\")"
 ---
 
 # Feature Request: Stream Repetition Safeguard (Halt & Confirm)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44965
 When using certain models, the generation can occasionally get stuck in an infinite loop, spamming the exact same phrase (e.g., "Done, I will output it") endlessly. This floods chat channels with identical lines of text and wastes tokens.
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 you'd like

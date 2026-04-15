@@ -3,6 +3,7 @@ layout: solution
 title: "Ralph Loop: Stop hook `decision: block` resets VSCode permission mode from bypass to edit"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/38511
+description: "When using the Ralph Loop plugin in the VSCode extension (Antigravity), each loop iteration resets the permission mode from to . This makes Ralph Loop"
 ---
 
 # Ralph Loop: Stop hook `decision: block` resets VSCode permission mode from bypass to edit
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38511
 When using the Ralph Loop plugin in the VSCode extension (Antigravity), each loop iteration resets the permission mode from `bypassPermissions` to `editMode`. This makes Ralph Loop unusable for unattended/overnight autonomous operation.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Created a companion Stop hook that uses Python's sqlite3 module to update the VSCode state database (`state.vscdb`) and force `bypassPermissions` before the session reinitializes:

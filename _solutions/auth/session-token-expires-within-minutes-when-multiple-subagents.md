@@ -3,6 +3,7 @@ layout: solution
 title: "Session token expires within minutes when multiple subagents are spawned concurrently"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37324
+description: "When spawning multiple subagents concurrently using the tool with , some agents fail immediately with \\\"Not logged in · Please run /login\\\" even though"
 ---
 
 # Session token expires within minutes when multiple subagents are spawned concurrently
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37324
 When spawning multiple subagents concurrently using the `Agent` tool with `isolation: \"worktree\"`, some agents fail immediately with \"Not logged in · Please run /login\" even though the parent session was authenticated moments earlier.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

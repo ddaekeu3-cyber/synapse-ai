@@ -3,6 +3,7 @@ layout: solution
 title: "Slack: Thread sessions don't bootstrap with thread context"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/44638
+description: "When a user replies in a Slack thread, OpenClaw creates a new nested session for that thread. However, this session starts blank with no context of the"
 ---
 
 # Slack: Thread sessions don't bootstrap with thread context
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44638
 When a user replies in a Slack thread, OpenClaw creates a new nested session for that thread. However, this session starts blank with no context of the parent message or previous thread replies, causing the agent to respond without understanding the conversation.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Agent can manually call Slack API via curl if it detects it's in a thread session:

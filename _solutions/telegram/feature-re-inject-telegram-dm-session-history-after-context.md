@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Re-inject Telegram DM session history after context compaction"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/28911
+description: "After context compaction fires on a Telegram DM session, the recent conversation history is completely lost. The agent starts fresh with no knowledge of"
 ---
 
 # [Feature]: Re-inject Telegram DM session history after context compaction
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28911
 After context compaction fires on a Telegram DM session, the recent conversation history is completely lost. The agent starts fresh with no knowledge of what was just being discussed. The user has no warning this happened — from their side, the conversation just broke.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 is to manually call `sessions_history` after detecting context loss, but this requires the agent to know to do it and is not seamless.

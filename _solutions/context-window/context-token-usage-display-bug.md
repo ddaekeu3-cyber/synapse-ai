@@ -3,6 +3,7 @@ layout: solution
 title: "Context Token Usage Display Bug"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/45358
+description: "Component: Model configuration / Session cost"
 ---
 
 # Context Token Usage Display Bug
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45358
 **Component:** Model configuration / Session cost tracking
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Runtime patch that forces `include_usage: true` in the pi-ai library:

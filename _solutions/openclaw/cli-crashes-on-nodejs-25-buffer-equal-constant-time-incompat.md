@@ -3,6 +3,7 @@ layout: solution
 title: "CLI crashes on Node.js 25 - buffer-equal-constant-time incompatibility"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/44918
+description: "- openclaw version:"
 ---
 
 # CLI crashes on Node.js 25 - buffer-equal-constant-time incompatibility
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44918
 - **openclaw version:** 2026.3.12
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually patch the installed package:

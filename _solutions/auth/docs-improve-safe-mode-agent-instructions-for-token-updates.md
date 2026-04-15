@@ -3,6 +3,7 @@ layout: solution
 title: "docs: improve safe-mode agent instructions for token updates and OAuth re-auth"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/37659
+description: "During a safe-mode recovery session, two documentation gaps caused extended"
 ---
 
 # docs: improve safe-mode agent instructions for token updates and OAuth re-auth
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/37659
 During a safe-mode recovery session, two documentation gaps caused extended debugging:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -2,6 +2,7 @@
 layout: solution
 title: "HDP: If your agents make 10k API calls per day, here is what that translates to in HD"
 category: general
+description: "```json { \"title\": \"10k API calls per day = 950k HDPT per day on testnet. Here's the math.\", \"body\": \"You're running vLLM or hitting Claude API 10,000"
 ---
 
 # HDP: If your agents make 10k API calls per day, here is what that translates to in HD

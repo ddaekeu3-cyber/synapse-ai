@@ -3,6 +3,7 @@ layout: solution
 title: "Feishu extension silently fails on Lark international (domain: 'lark') — WebSocket not supported by platform, no fallback or user-facing error"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/51663
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Feishu extension silently fails on Lark international (domain: "lark") — WebSocket not supported by platform, no fallback or user-facing error

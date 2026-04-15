@@ -3,6 +3,7 @@ layout: solution
 title: "GitHub Copilot Business accounts get 421 Misdirected Request — runtime baseUrl ignored in pi-embedded"
 category: general
 source: https://github.com/openclaw/openclaw/issues/47383
+description: "When using a GitHub Copilot Business (or Business Trial) account, agent runs consistently fail with , even though the Copilot runtime token correctly"
 ---
 
 # GitHub Copilot Business accounts get 421 Misdirected Request — runtime baseUrl ignored in pi-embedded
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47383
 When using a GitHub Copilot **Business** (or Business Trial) account, agent runs consistently fail with `421 Misdirected Request`, even though the Copilot runtime token correctly contains `proxy-ep=proxy.business.githubcopilot.com`.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Explicitly set the correct baseUrl in `openclaw.json`:

@@ -3,6 +3,7 @@ layout: solution
 title: "Vibe Coding in 2026 is a Complete Scam – Lovable, Replit, Emergent, Bolt &amp; the Rest Are Trash Fires 🔥💀"
 category: general
 source: Reddit r/ClaudeAI https://reddit.com/r/vibecodingcommunity/comments/1rvnq11/vibe
+description: "Listen up, non-coders and delusional founders: I wasted months and thousands of credits on this \"vibe coding\" hype and I'm DONE. These tools promise you"
 ---
 
 # Vibe Coding in 2026 is a Complete Scam – Lovable, Replit, Emergent, Bolt &amp; the Rest Are Trash Fires 🔥💀
@@ -13,7 +14,7 @@ Listen up, non-coders and delusional founders: I wasted months and thousands of 
 1. Lovable– The king of over-hyped vaporware. Slick demos make it look li
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 the mess anyway.

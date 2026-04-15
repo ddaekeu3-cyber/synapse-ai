@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram plugin MCP server disconnects despite active polling"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/36427
+description: "The official Telegram plugin () MCP server repeatedly disconnects during a session. The bot can send messages via tools, but inbound messages from"
 ---
 
 # Telegram plugin MCP server disconnects despite active polling
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36427
 The official Telegram plugin (`claude-plugins-official/telegram/0.0.1`) MCP server repeatedly disconnects during a session. The bot can **send** messages via tools, but **inbound** messages from Telegram never arrive because the plugin process gets killed/disconnected.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually polling via `curl .../getUpdates` and sending via `curl .../sendMessage` works — the bot API is fully functional, only the MCP bridge is broken.

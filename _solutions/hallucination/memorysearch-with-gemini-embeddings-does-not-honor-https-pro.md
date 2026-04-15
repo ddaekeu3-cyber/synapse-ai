@@ -3,6 +3,7 @@ layout: solution
 title: "memory_search with Gemini embeddings does not honor HTTP(S) proxy in 2026.3.23-2"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/54279
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # memory_search with Gemini embeddings does not honor HTTP(S) proxy in 2026.3.23-2
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54279
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 A local patch to the memory remote HTTP helper fixes the issue.

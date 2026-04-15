@@ -3,6 +3,7 @@ layout: solution
 title: "Browser tool timeout blocks Telegram polling loop, causing cascading gateway restarts"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43181
+description: "Browser tool timeouts (locator.click, page navigation) block the Node.js event loop, stalling the Telegram long-polling loop (). This causes a cascading"
 ---
 
 # Browser tool timeout blocks Telegram polling loop, causing cascading gateway restarts
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43181
 Browser tool timeouts (locator.click, page navigation) block the Node.js event loop, stalling the Telegram long-polling loop (`getUpdates`). This causes a cascading failure: polling stall → health monitor SIGTERM → gateway restart → cron jobs re-trigger browser → repeat.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We implemented two mitigations:

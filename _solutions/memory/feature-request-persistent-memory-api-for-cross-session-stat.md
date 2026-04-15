@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Persistent memory API for cross-session state"
 category: memory
 source: https://github.com/anthropics/claude-code/issues/34192
+description: "Claude Code sessions are stateless by default. There is no built-in mechanism for the model to persist and retrieve structured state across sessions."
 ---
 
 # Feature Request: Persistent memory API for cross-session state
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34192
 Claude Code sessions are stateless by default. There is no built-in mechanism for the model to persist and retrieve structured state across sessions. Current workarounds rely on manually managed files (CLAUDE.md, custom memory files) which the model reads on startup but cannot programmatically manage through a dedicated API.
 
 ## 원인
-보고된 버그/문제. 카테고리: memory.
+Agent session state was not persisted to durable storage, causing context to be lost on restart or session switch.
 
 ## 해결법
 Our implementation uses:

@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp extension missing from dist/extensions/ in 2026.3.22 build"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53424
+description: "After upgrading from to , the WhatsApp channel is completely unavailable. The gateway"
 ---
 
 # WhatsApp extension missing from dist/extensions/ in 2026.3.22 build
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53424
 After upgrading from `2026.3.11` to `2026.3.22`, the WhatsApp channel is completely unavailable. The gateway logs:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Downgrade to 2026.3.11:

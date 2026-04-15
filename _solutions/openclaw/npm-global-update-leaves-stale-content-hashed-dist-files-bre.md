@@ -3,6 +3,7 @@ layout: solution
 title: "npm global update leaves stale content-hashed dist files, breaking imports"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/28074
+description: "After updating OpenClaw via from a previous version to 2026.2.26, the gateway fails"
 ---
 
 # npm global update leaves stale content-hashed dist files, breaking imports
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28074
 After updating OpenClaw via `npm install -g openclaw@latest` from a previous version to 2026.2.26, the gateway fails with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 `npm install -g openclaw@latest --force` resolves it by forcing a full reinstall.

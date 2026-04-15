@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram direct session can stay pinned to oversized stale session; /new does not reliably cut over"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/50465
+description: "Telegram direct chats can get stuck showing with no final reply when the direct-session mapping remains attached to a very large stale session. In this"
 ---
 
 # Telegram direct session can stay pinned to oversized stale session; /new does not reliably cut over
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50465
 Telegram direct chats can get stuck showing `typing...` with no final reply when the direct-session mapping remains attached to a very large stale session. In this state, Telegram transport may still be healthy and direct Bot API sends can still work. Running `/new` in Telegram did not reliably move the direct chat onto a fresh session. Manually removing the direct-session mapping and restarting t
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 1. Back up `~/.openclaw/agents/main/sessions/sessions.json`

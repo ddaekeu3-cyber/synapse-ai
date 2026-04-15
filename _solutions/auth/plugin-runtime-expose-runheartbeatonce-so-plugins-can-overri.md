@@ -3,6 +3,7 @@ layout: solution
 title: "Plugin runtime: expose runHeartbeatOnce so plugins can override heartbeat delivery target"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/40297
+description: "Plugins that need to trigger an agent run after an async event (e.g. OAuth callback completing) currently use + . However, does not allow overriding the"
 ---
 
 # Plugin runtime: expose runHeartbeatOnce so plugins can override heartbeat delivery target
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40297
 Plugins that need to trigger an agent run after an async event (e.g. OAuth callback completing) currently use `enqueueSystemEvent` + `requestHeartbeatNow`. However, `requestHeartbeatNow` does not allow overriding the heartbeat delivery target, so when `heartbeat.target` defaults to `"none"`, the agent runs but its reply is silently discarded — the response never reaches the originating channel.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

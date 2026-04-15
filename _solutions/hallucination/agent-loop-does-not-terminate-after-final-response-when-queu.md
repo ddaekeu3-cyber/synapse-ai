@@ -3,6 +3,7 @@ layout: solution
 title: "Agent loop does not terminate after final response when Queued messages exist in context — causes full task replay"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/50956
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Agent loop does not terminate after final response when Queued messages exist in context — causes full task replay
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50956
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 Delete session JSONL files and restart. (Restart alone is insufficient.)

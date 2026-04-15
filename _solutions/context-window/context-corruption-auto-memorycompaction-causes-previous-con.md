@@ -3,6 +3,7 @@ layout: solution
 title: "Context corruption: auto-memory/compaction causes previous conversation content to be mixed or truncated"
 category: context-window
 source: https://github.com/anthropics/claude-code/issues/29175
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Context corruption: auto-memory/compaction causes previous conversation content to be mixed or truncated
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29175
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Disabling Auto Memory via settings resolves the compaction failure:

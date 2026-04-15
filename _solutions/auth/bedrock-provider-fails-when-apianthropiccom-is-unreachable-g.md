@@ -3,6 +3,7 @@ layout: solution
 title: "Bedrock provider fails when api.anthropic.com is unreachable (geo-restriction)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/30672
+description: "When using AWS Bedrock as the model provider, OpenClaw's embedded agent still makes a direct HTTP request to . If this endpoint is unreachable (e.g. due"
 ---
 
 # Bedrock provider fails when api.anthropic.com is unreachable (geo-restriction)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30672
 When using AWS Bedrock as the model provider, OpenClaw's embedded agent still makes a direct HTTP request to `https://api.anthropic.com/api/oauth/usage`. If this endpoint is unreachable (e.g. due to Anthropic's geographic restrictions), the entire agent run fails — even though the Bedrock model inference itself would work fine.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Adding `https_proxy` to `~/.openclaw/.env` to proxy requests to `api.anthropic.com`.

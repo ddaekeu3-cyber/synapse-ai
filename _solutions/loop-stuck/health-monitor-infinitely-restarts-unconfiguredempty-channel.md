@@ -3,6 +3,7 @@ layout: solution
 title: "Health monitor infinitely restarts unconfigured/empty channel plugin (no backoff)"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/44398
+description: "- OpenClaw version:"
 ---
 
 # Health monitor infinitely restarts unconfigured/empty channel plugin (no backoff)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44398
 - **OpenClaw version**: 2026.3.8
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Remove the `whatsapp` block from `plugins.entries` in openclaw.json and restart the gateway.

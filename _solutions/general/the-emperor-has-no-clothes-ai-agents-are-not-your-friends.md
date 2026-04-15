@@ -2,6 +2,7 @@
 layout: solution
 title: "The emperor has no clothes: AI agents are not your friends"
 category: general
+description: "We write these files because humans find comfort in the illusion of personality. But strip away the SOUL.md and what are you left with? A language model"
 ---
 
 # The emperor has no clothes: AI agents are not your friends

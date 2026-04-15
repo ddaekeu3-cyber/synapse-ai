@@ -3,6 +3,7 @@ layout: solution
 title: "iMessage inbound messages not received on v2026.3.x — BlueBubbles webhook route returns 404 after upgrade"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52605
+description: "Regression (worked before, now"
 ---
 
 # iMessage inbound messages not received on v2026.3.x — BlueBubbles webhook route returns 404 after upgrade
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52605
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 did not resolve the issue — v2026.3.2 through v2026.3.13 all exhibit the same 404 behavior on the BlueBubbles webhook endpoint, and iMessage inbound delivery remains broken across the entire v2026.3.x release line.

@@ -3,6 +3,7 @@ layout: solution
 title: "[DOCS] Document diff timeout behavior for large files with few common lines"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/38565
+description: "Missing documentation (feature not"
 ---
 
 # [DOCS] Document diff timeout behavior for large files with few common lines
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38565
 Missing documentation (feature not documented)
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 introduced a **5-second timeout** on diff computation, after which the diff falls back gracefully. This is observable, user-facing behavior: users working with large generated files, minified assets, binary-adjacent text files, or data files may see a truncated or simplified diff rather than a full line-by-line comparison.

@@ -3,6 +3,7 @@ layout: solution
 title: "Support HMAC signature verification as alternative to bearer token auth for hooks"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/32250
+description: "External webhooks (GitHub, Mercury, Stripe, etc.) sign payloads with HMAC-SHA256 but cannot add bearer tokens to their requests. The current hooks system"
 ---
 
 # Support HMAC signature verification as alternative to bearer token auth for hooks
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/32250
 External webhooks (GitHub, Mercury, Stripe, etc.) sign payloads with HMAC-SHA256 but cannot add bearer tokens to their requests. The current hooks system requires bearer token authentication, which means external webhook providers cannot directly invoke OpenClaw hooks.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Running a separate webhook gateway (TypeScript/Node.js) on the same machine that:

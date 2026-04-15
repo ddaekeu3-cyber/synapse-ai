@@ -3,6 +3,7 @@ layout: solution
 title: "Feishu plugin fails to load due to /tmp/jiti permissions on Linux"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/31785
+description: "The Feishu plugin fails to load on Linux systems due to permission issues with the directory, which is used for TypeScript compilation by the"
 ---
 
 # Feishu plugin fails to load due to /tmp/jiti permissions on Linux
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31785
 The Feishu plugin fails to load on Linux systems due to permission issues with the `/tmp/jiti` directory, which is used for TypeScript compilation by the `jiti` module.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```bash

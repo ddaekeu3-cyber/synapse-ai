@@ -3,6 +3,7 @@ layout: solution
 title: "Google Chat: Add user OAuth support for reactions and media uploads"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/9764
+description: "The Google Chat channel currently only supports Service Account authentication (scope ). This limits"
 ---
 
 # Google Chat: Add user OAuth support for reactions and media uploads
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/9764
 The Google Chat channel currently only supports Service Account authentication (scope `chat.bot`). This limits functionality:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

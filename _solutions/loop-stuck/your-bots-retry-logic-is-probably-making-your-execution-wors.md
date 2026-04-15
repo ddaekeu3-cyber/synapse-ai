@@ -2,6 +2,7 @@
 layout: solution
 title: "Your bot's retry logic is probably making your execution worse"
 category: loop-stuck
+description: "What actually works: a revert decoder that maps error selectors to failure types, then a state machine that decides retry vs. abort vs. escalate. Most"
 ---
 
 # Your bot's retry logic is probably making your execution worse

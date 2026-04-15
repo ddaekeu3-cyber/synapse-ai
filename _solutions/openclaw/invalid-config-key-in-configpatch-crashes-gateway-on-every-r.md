@@ -3,6 +3,7 @@ layout: solution
 title: "Invalid config key in config.patch crashes gateway on every restart (no validation)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/40264
+description: "Passing an unrecognized key to (or ) writes the invalid config to disk without validation. The gateway then crashes on every subsequent restart attempt,"
 ---
 
 # Invalid config key in config.patch crashes gateway on every restart (no validation)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40264
 Passing an unrecognized key to `config.patch` (or `config.apply`) writes the invalid config to disk without validation. The gateway then crashes on every subsequent restart attempt, requiring a manual config file edit to recover.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Run `config.schema` first to check valid keys before calling `config.patch`. Manually edit the config file at `~/.clawdbot/config.yaml` (or equivalent) to remove the bad key.

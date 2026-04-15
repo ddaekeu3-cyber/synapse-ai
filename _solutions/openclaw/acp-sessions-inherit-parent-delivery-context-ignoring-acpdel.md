@@ -3,6 +3,7 @@ layout: solution
 title: "ACP sessions inherit parent delivery context, ignoring acp.delivery.mode"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/33859
+description: "When using with , the ACP session output is delivered to the parent session's channel (Telegram in this case) regardless of"
 ---
 
 # ACP sessions inherit parent delivery context, ignoring acp.delivery.mode
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33859
 When using `sessions_spawn` with `runtime: "acp"`, the ACP session output is delivered to the parent session's channel (Telegram in this case) regardless of `acp.delivery.mode` setting.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Run acpx directly via `exec` instead of using `sessions_spawn`:

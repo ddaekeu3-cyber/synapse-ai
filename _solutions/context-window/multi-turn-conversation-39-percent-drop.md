@@ -3,6 +3,7 @@ layout: solution
 title: "Multi-turn conversations cause 39% performance drop vs single-turn"
 category: context-window
 source: HN Discussion - AgenticQA failure modes (2026)
+description: "Agent performs well on single-turn tasks but accuracy drops ~39% in multi-turn conversations. o3 model dropped from 98.1% to 64.1% in multi-turn"
 ---
 
 # Multi-turn conversations cause 39% performance drop vs single-turn

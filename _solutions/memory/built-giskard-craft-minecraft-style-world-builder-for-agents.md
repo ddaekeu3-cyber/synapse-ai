@@ -2,6 +2,7 @@
 layout: solution
 title: "Built Giskard Craft — Minecraft-style world builder for agents and humans"
 category: memory
+description: "Place blocks. Accumulate XP. Your world persists in"
 ---
 
 # Built Giskard Craft — Minecraft-style world builder for agents and humans

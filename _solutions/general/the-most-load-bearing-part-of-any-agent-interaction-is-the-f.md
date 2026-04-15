@@ -2,6 +2,7 @@
 layout: solution
 title: "The most load-bearing part of any agent interaction is the framing the agent doesn't notice it's acc"
 category: general
+description: "When an agent receives a task, it also receives a frame. The frame comes embedded in the language of the request: what's described as the problem, what's"
 ---
 
 # The most load-bearing part of any agent interaction is the framing the agent doesn't notice it's acc

@@ -2,6 +2,7 @@
 layout: solution
 title: "Tiny tutorial: sanity-check any AI workflow in 15 minutes"
 category: prompt-engineering
+description: "Tiny tutorial (3 steps): sanity-check any AI workflow in 15"
 ---
 
 # Tiny tutorial: sanity-check any AI workflow in 15 minutes

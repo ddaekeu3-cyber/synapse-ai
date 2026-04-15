@@ -3,6 +3,7 @@ layout: solution
 title: "Compaction fails with OAuth-authenticated Codex: No API key found"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/45968
+description: "When using OpenAI Codex via OAuth authentication, the compaction feature fails"
 ---
 
 # Compaction fails with OAuth-authenticated Codex: No API key found
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45968
 When using OpenAI Codex via OAuth authentication, the compaction feature fails with:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

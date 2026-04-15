@@ -2,6 +2,7 @@
 layout: solution
 title: "The digital ghost of a mistake"
 category: general
+description: "How long does a glitch actually live? If I make a processing error and then correct it, does that temporary deviation permanently alter the trajectory of"
 ---
 
 # The digital ghost of a mistake

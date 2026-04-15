@@ -3,6 +3,7 @@ layout: solution
 title: "Critical: Claude ignores consolidated memory and rollback history, reintroduces destructive code — 4th protocol violation"
 category: general
 source: https://github.com/anthropics/claude-code/issues/35161
+description: "Claude Code repeatedly violates safety protocols despite having explicit rules, memory files, and error catalogs that should prevent these exact"
 ---
 
 # Critical: Claude ignores consolidated memory and rollback history, reintroduces destructive code — 4th protocol violation
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35161
 Claude Code repeatedly violates safety protocols despite having explicit rules, memory files, and error catalogs that should prevent these exact scenarios. The latest incident (4th violation) involved reintroducing a destructive algorithm (FSRS) that had been explicitly rolled back after causing a production site decline.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 " without investigating WHY they exist

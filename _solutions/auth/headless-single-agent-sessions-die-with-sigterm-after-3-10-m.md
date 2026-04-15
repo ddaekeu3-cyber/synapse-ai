@@ -3,6 +3,7 @@ layout: solution
 title: "Headless single-agent sessions die with SIGTERM after 3-10 minutes (Max subscription, no rate limits)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/29642
+description: "- Claude Code version:"
 ---
 
 # Headless single-agent sessions die with SIGTERM after 3-10 minutes (Max subscription, no rate limits)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29642
 - **Claude Code version:** 2.1.63
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

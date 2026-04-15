@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Telegram streaming (streamMode: partial) broken with MiniMax Portal"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/19520
+description: "Telegram streaming (streamMode: partial) is not working with MiniMax Portal"
 ---
 
 # Bug: Telegram streaming (streamMode: partial) broken with MiniMax Portal
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/19520
 Telegram streaming (streamMode: partial) is not working with MiniMax Portal provider.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

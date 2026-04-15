@@ -3,6 +3,7 @@ layout: solution
 title: "CUDA initialization failed / GPU not recognized despite nvidia-smi working"
 category: config
 source: MLJourney - Debugging Common Local LLM Errors
+description: "\"CUDA initialization failed\", \"No kernel image available for device\". GPU not recognized by PyTorch despite nvidia-smi showing the"
 ---
 
 # CUDA initialization failed / GPU not recognized despite nvidia-smi working

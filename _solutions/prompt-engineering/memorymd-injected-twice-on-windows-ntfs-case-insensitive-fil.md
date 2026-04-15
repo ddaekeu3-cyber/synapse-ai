@@ -3,6 +3,7 @@ layout: solution
 title: "MEMORY.md injected twice on Windows NTFS (case-insensitive filesystem)"
 category: prompt-engineering
 source: https://github.com/openclaw/openclaw/issues/43931
+description: "On Windows with WSL2 where the workspace is mounted from a Windows NTFS path (e.g. ), the filesystem is case-insensitive. OpenClaw hardcodes two bootstrap"
 ---
 
 # MEMORY.md injected twice on Windows NTFS (case-insensitive filesystem)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43931
 On Windows with WSL2 where the workspace is mounted from a Windows NTFS path (e.g. `D:\openclaw`), the filesystem is case-insensitive. OpenClaw hardcodes two bootstrap patterns for memory:
 
 ## 원인
-보고된 버그/문제. 카테고리: prompt-engineering.
+Prompt structure conflict or ambiguous instruction caused the model to misinterpret the intended task. 카테고리: prompt-engineering.
 
 ## 해결법
 None via `openclaw.json`. Moving workspace to a Linux native filesystem (Docker named volume or WSL2 native path) resolves the issue.

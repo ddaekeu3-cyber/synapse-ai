@@ -3,6 +3,7 @@ layout: solution
 title: "Discord REST API (@buape/carbon) ignores channels.discord.proxy config"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/30221
+description: "Discord REST API calls via 's do not use the configuration from . Only the WebSocket gateway connection respects the proxy"
 ---
 
 # Discord REST API (@buape/carbon) ignores channels.discord.proxy config
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30221
 Discord REST API calls via `@buape/carbon`'s `RequestClient` do not use the `channels.discord.proxy` configuration from `openclaw.json`. Only the WebSocket gateway connection respects the proxy setting.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Using `NODE_OPTIONS=--require=proxy-preload.cjs` to call `setGlobalDispatcher(new EnvHttpProxyAgent())` from undici. This patches the fetch dispatcher without affecting `ws` library's raw TCP/TLS connections.

@@ -3,6 +3,7 @@ layout: solution
 title: "Remote Control: Dispatch stuck on 'Brewing...' - no response from spawn session (Windows 11)"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/38049
+description: "shows \"Connected\" and \"Attached\" successfully, but Dispatch sessions from both the mobile app and browser (claude.ai/code) get stuck on \"Brewing...\""
 ---
 
 # Remote Control: Dispatch stuck on "Brewing..." - no response from spawn session (Windows 11)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38049
 `claude remote-control` shows "Connected" and "Attached" successfully, but Dispatch sessions from both the mobile app and browser (claude.ai/code) get stuck on "Brewing..." indefinitely. No response is ever received, and the command prompt shows no activity when messages are sent.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress.
 
 ## 해결법
 1. API 키 유효성/만료 확인

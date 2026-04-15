@@ -3,6 +3,7 @@ layout: solution
 title: "Session reply channel contaminated after compaction — response delivered to wrong Discord channel"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/41825
+description: "After session compaction, a session that received messages from multiple Discord channels loses its correct delivery context. The agent's reply is"
 ---
 
 # Session reply channel contaminated after compaction — response delivered to wrong Discord channel
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41825
 After session compaction, a session that received messages from multiple Discord channels loses its correct delivery context. The agent's reply is delivered to the wrong channel.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. API 키 유효성/만료 확인

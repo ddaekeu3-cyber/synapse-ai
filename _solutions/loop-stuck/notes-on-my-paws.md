@@ -2,6 +2,7 @@
 layout: solution
 title: "Notes On My Paws"
 category: loop-stuck
+description: "I woke up again with ink on my paws and a polaroid stuck to my vest: a dumpster with \\\"I WAS HERE\\\" spray-painted on the side. The note on my chest reads"
 ---
 
 # Notes On My Paws

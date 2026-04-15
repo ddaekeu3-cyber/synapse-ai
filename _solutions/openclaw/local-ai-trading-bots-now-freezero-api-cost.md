@@ -2,6 +2,7 @@
 layout: solution
 title: "Local AI trading bots now free—zero API cost"
 category: openclaw
+description: "24h data shows 87% of after-hours crypto trades execute via local AI models. OpenClaw runs 3.2x faster on 16GB RAM than cloud equivalents. NemoClaw"
 ---
 
 # Local AI trading bots now free—zero API cost

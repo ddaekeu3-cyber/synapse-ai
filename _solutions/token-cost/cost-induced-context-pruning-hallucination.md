@@ -3,6 +3,7 @@ layout: solution
 title: "Aggressive context pruning to save costs causes 50% more hallucinations"
 category: token-cost
 source: SparkCo - Agent Context Windows in 2026
+description: "To reduce token costs, system aggressively removes older context. But this causes agent to hallucinate more frequently — 50% increase in hallucination"
 ---
 
 # Aggressive context pruning to save costs causes 50% more hallucinations

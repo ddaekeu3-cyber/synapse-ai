@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: cache_control TTL ordering error when hooks/MCP inject additionalContext into long conversations"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/38542
+description: "Claude Code intermittently returns a 400 API error when hooks or MCP servers inject into conversations, particularly in longer sessions (100+"
 ---
 
 # Bug: cache_control TTL ordering error when hooks/MCP inject additionalContext into long conversations
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38542
 Claude Code intermittently returns a 400 API error when hooks or MCP servers inject `additionalContext` into conversations, particularly in longer sessions (100+ messages):
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 None currently. The error is recoverable by retrying the conversation, but it disrupts active sessions. Reducing hook frequency (e.g., throttling PreToolUse to every 10+ seconds) may reduce occurrence but does not eliminate it.

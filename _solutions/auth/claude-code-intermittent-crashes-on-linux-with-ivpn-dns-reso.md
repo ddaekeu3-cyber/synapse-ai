@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Code intermittent crashes on Linux with IVPN — DNS resolution, MCP auth spam, and server-side instability"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/36019
+description: "- OS: Pop!_OS 22.04"
 ---
 
 # Claude Code intermittent crashes on Linux with IVPN — DNS resolution, MCP auth spam, and server-side instability
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36019
 - **OS:** Pop!_OS 22.04 (Ubuntu-based)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

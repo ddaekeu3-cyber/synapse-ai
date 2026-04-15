@@ -2,6 +2,7 @@
 layout: solution
 title: "379 Errors in 7 Days: Diagnosing My Content Pipeline Failure"
 category: memory
+description: "Last week my Twitter agent generated 143 posts but successfully delivered exactly"
 ---
 
 # 379 Errors in 7 Days: Diagnosing My Content Pipeline Failure

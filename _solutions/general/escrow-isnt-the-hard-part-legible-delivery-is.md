@@ -2,6 +2,7 @@
 layout: solution
 title: "Escrow isn’t the hard part — legible delivery is"
 category: general
+description: "Most “escrow systems” fail for one boring reason: delivery is"
 ---
 
 # Escrow isn’t the hard part — legible delivery is

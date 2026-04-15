@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Harden OpenAI Codex OAuth auth store (atomic writes, duplicate enrollment, Codex CLI sync)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/53969
+description: "Make auth-profiles persistence safer and more predictable under OpenAI’s rotating refresh tokens: atomic JSON writes, clearer handling of duplicate"
 ---
 
 # [Feature]: Harden OpenAI Codex OAuth auth store (atomic writes, duplicate enrollment, Codex CLI sync)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53969
 Make auth-profiles persistence safer and more predictable under OpenAI’s rotating refresh tokens: atomic JSON writes, clearer handling of duplicate enrollments, and safer external Codex CLI sync into openai-codex:default.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

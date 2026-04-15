@@ -3,6 +3,7 @@ layout: solution
 title: "/resume picker does not discover session files via filesystem scan — sessions invisible despite valid .jsonl on disk (v2.1.81)"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/38340
+description: "The interactive picker silently omits valid session files. A manually-created, correctly-formatted session file placed in the project directory is"
 ---
 
 # /resume picker does not discover session files via filesystem scan — sessions invisible despite valid .jsonl on disk (v2.1.81)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38340
 The `/resume` interactive picker silently omits valid session files. A manually-created, correctly-formatted `.jsonl` session file placed in the project directory is completely invisible to the picker — proving the picker is **not** scanning the filesystem for sessions despite the v2.1.30 changelog stating it was switched to "stat-based loading."
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 `claude --resume <session-id>` works reliably. Session IDs can be found via:

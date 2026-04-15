@@ -3,6 +3,7 @@ layout: solution
 title: "preview_screenshot MCP tool hangs session on Windows (works fine on macOS)"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/30122
+description: "When using Claude Code (v2.1.63) on Windows 11 via Claude Desktop, calling (and occasionally other preview MCP tools) causes the entire session to become"
 ---
 
 # preview_screenshot MCP tool hangs session on Windows (works fine on macOS)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/30122
 When using Claude Code (v2.1.63) on Windows 11 via Claude Desktop, calling `preview_screenshot` (and occasionally other preview MCP tools) causes the entire session to become non-responsive. The session never recovers — I have to kill and restart every time.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Instructing Claude (via CLAUDE.md) to avoid `preview_screenshot` and use text-based alternatives (`preview_snapshot`, `preview_inspect`) instead. These text-based tools work reliably on Windows.

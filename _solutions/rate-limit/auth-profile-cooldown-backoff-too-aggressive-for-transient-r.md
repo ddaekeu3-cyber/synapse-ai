@@ -3,6 +3,7 @@ layout: solution
 title: "Auth profile cooldown backoff too aggressive for transient rate limits"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/11352
+description: "When a single transient HTTP 429 rate limit error occurs (e.g., per-minute burst limit), the auth profile cooldown system enters an exponential backoff"
 ---
 
 # Auth profile cooldown backoff too aggressive for transient rate limits
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/11352
 When a single transient HTTP 429 rate limit error occurs (e.g., per-minute burst limit), the auth profile cooldown system enters an exponential backoff spiral that can lock out the provider for 20+ minutes, even when the actual API quota is barely used (e.g., 10% of Max plan).
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 Manually edit `auth-profiles.json` to clear the `usageStats` for the affected profile, then SIGUSR1 the gateway.

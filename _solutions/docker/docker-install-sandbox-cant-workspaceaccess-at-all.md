@@ -3,6 +3,7 @@ layout: solution
 title: "Docker Install + Sandbox can't workspaceAccess at all"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/31331
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Docker Install + Sandbox can't workspaceAccess at all
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31331
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

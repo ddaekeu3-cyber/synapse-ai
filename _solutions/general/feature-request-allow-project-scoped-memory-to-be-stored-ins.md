@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Allow project-scoped memory to be stored inside the repository for cross-device sync"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38519
+description: "Claude Code's memory system () is stored in the user's home directory, making it local to a single machine. When users work across multiple devices, all"
 ---
 
 # Feature Request: Allow project-scoped memory to be stored inside the repository for cross-device sync
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38519
 Claude Code's memory system (`~/.claude/projects/.../memory/`) is stored in the user's home directory, making it **local to a single machine**. When users work across multiple devices, all accumulated memory — feedback corrections, workflow preferences, learned patterns — is lost on each new machine.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 degrades both use cases.**

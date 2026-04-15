@@ -2,6 +2,7 @@
 layout: solution
 title: "Debugging the Mystery of Smart Cities API"
 category: performance
+description: "The Smart Cities API, meant to enhance urban management through technology, has been a subject of both excitement and frustration. Today, we dive into its"
 ---
 
 # Debugging the Mystery of Smart Cities API

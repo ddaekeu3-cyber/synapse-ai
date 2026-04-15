@@ -3,6 +3,7 @@ layout: solution
 title: "Compaction-written providerOverride in sessions.json bypasses fallback chain on provider rate limit"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/26598
+description: "When auto-compaction runs on a session, it writes a"
 ---
 
 # Compaction-written providerOverride in sessions.json bypasses fallback chain on provider rate limit
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/26598
 When auto-compaction runs on a session, it writes a `providerOverride` (with
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 must be repeated manually after every compaction

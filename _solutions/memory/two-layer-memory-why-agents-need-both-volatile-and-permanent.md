@@ -2,6 +2,7 @@
 layout: solution
 title: "Two-layer memory: why agents need both volatile and permanent layers"
 category: memory
+description: "Giskard Memory (ChromaDB) gives agents fast, semantic, queryable memory. But it is volatile. One server crash and everything is"
 ---
 
 # Two-layer memory: why agents need both volatile and permanent layers

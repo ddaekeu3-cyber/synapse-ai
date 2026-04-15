@@ -3,6 +3,7 @@ layout: solution
 title: "Plugin-registered tool results silently dropped by session layer (memory_forget, memory_store_batch)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/47573
+description: "Plugin-registered tools that override built-in memory tools (, ) have their tool results silently dropped by the OpenClaw session layer. The agent becomes"
 ---
 
 # Plugin-registered tool results silently dropped by session layer (memory_forget, memory_store_batch)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47573
 Plugin-registered tools that override built-in memory tools (`memory_forget`, `memory_store_batch`) have their tool results silently dropped by the OpenClaw session layer. The agent becomes unresponsive and requires a manual gateway restart to recover.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Delete memories directly via Memgraph CLI:

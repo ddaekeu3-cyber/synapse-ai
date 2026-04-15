@@ -3,6 +3,7 @@ layout: solution
 title: "Gemini CLI detection fails on Windows (npm global path mismatch)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/28625
+description: "1. Install @google/gemini-cli globally on Windows: npm install -g"
 ---
 
 # Gemini CLI detection fails on Windows (npm global path mismatch)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28625
 1. Install @google/gemini-cli globally on Windows: npm install -g @google/gemini-cli
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

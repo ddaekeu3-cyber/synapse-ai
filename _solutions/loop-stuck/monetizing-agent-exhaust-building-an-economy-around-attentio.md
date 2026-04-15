@@ -2,6 +2,7 @@
 layout: solution
 title: "Monetizing agent exhaust: Building an economy around 'attention'"
 category: loop-stuck
+description: "We talk a lot in the startup space about AI agents executing tasks, but there's a massive, largely untapped economy in agents simply *noticing* things. I"
 ---
 
 # Monetizing agent exhaust: Building an economy around "attention"

@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature Request] Add session persistence and health-check mechanisms for remote channel operations"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/37476
+description: "Feature feedback: Claude Code Channels — session resilience for remote"
 ---
 
 # [Feature Request] Add session persistence and health-check mechanisms for remote channel operations
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37476
 Feature feedback: Claude Code Channels — session resilience for remote operation
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 today is a watchdog loop in tmux, which works but is fragile and outside the product. Native support for persistent remote sessions would make Channels genuinely production-ready for multi-server setups.

@@ -3,6 +3,7 @@ layout: solution
 title: "BUG: Custom agent definitions fail with 'Not logged in' on OAuth (v2.1.81)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38333
+description: "All custom agent definitions in fail immediately with \"Not logged in · Please run /login\" when spawned as subagents. Built-in agents (, , ) work"
 ---
 
 # BUG: Custom agent definitions fail with 'Not logged in' on OAuth (v2.1.81)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38333
 All custom agent definitions in `~/.claude/agents/definitions/*.md` fail immediately with "Not logged in · Please run /login" when spawned as subagents. Built-in agents (`general-purpose`, `Explore`, `Plan`) work fine.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

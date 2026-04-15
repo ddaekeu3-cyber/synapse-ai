@@ -3,6 +3,7 @@ layout: solution
 title: "Local CLI operator commands intermittently fail with 'connect challenge timeout' / 'handshake timeout' (code 1000/1008) under gateway load"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49726
+description: "Local CLI commands requiring a full authenticated operator WebSocket session (, , ) intermittently fail"
 ---
 
 # Local CLI operator commands intermittently fail with "connect challenge timeout" / "handshake timeout" (code 1000/1008) under gateway load
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49726
 Local CLI commands requiring a full authenticated operator WebSocket session (`openclaw devices list`, `openclaw devices approve`, `openclaw nodes status`) intermittently fail with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ~2x memory regression` (#45426) — changed internal chunk structure and memory footprint

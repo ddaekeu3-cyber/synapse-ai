@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram channel can be wedged by bad persisted session JSON; status should detect and offer recovery"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43549
+description: "Telegram stopped working because the persisted Telegram session JSON had become effectively unusable (\"full\" / oversized / likely corrupted enough to"
 ---
 
 # Telegram channel can be wedged by bad persisted session JSON; status should detect and offer recovery
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43549
 Telegram stopped working because the persisted Telegram session JSON had become effectively unusable ("full" / oversized / likely corrupted enough to wedge normal operation). Running `openclaw status telegram` exposed the clue, but the troubleshooting flow did not guide toward inspecting or remediating the session state file.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Delete the problematic Telegram session JSON file, then restart the gateway.

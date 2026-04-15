@@ -3,6 +3,7 @@ layout: solution
 title: "Cron systemEvent job times out after ~960s even though agent runs in main session"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/50621
+description: "When a cron job is configured with and , the cron scheduler enforces a timeout on the agent turn. If the turn takes too long, the job is marked as"
 ---
 
 # Cron systemEvent job times out after ~960s even though agent runs in main session
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50621
 When a cron job is configured with `sessionTarget: "main"` and `payload.kind: "systemEvent"`, the cron scheduler enforces a timeout on the agent turn. If the turn takes too long, the job is marked as `error: "cron: job execution timed out"`.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 - For `systemEvent` jobs targeting `main`, either remove the timeout entirely or make it configurable (similar to `timeoutSeconds` that exists for `agentTurn` payloads).

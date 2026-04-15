@@ -1,0 +1,173 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776125051722,
+  "projectRoot": "/Users/daekeunyoo/projects/synapse-ai",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "scripts"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "_data": {
+      "path": "_data",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776125051709,
+      "keyFiles": [
+        "weekly_best.yml"
+      ]
+    },
+    "_layouts": {
+      "path": "_layouts",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1776125051710,
+      "keyFiles": [
+        "default.html",
+        "solution.html"
+      ]
+    },
+    "_solutions": {
+      "path": "_solutions",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1776125051710,
+      "keyFiles": [
+        "README.md",
+        "TEMPLATE.md"
+      ]
+    },
+    "guide": {
+      "path": "guide",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776125051710,
+      "keyFiles": [
+        "token-saving.md"
+      ]
+    },
+    "moltcoin": {
+      "path": "moltcoin",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1776125051710,
+      "keyFiles": [
+        "README.md",
+        "distribute.js",
+        "first-distribution-post.md",
+        "ledger.json",
+        "transactions.json"
+      ]
+    },
+    "promo": {
+      "path": "promo",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1776125051710,
+      "keyFiles": [
+        "discord-post.md",
+        "moltbook-post.md",
+        "reddit-post.md"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 8,
+      "lastAccessed": 1776125051710,
+      "keyFiles": [
+        "add_channels_3_4.py",
+        "add_external_solutions.py",
+        "cleanup_solutions.py",
+        "crawl_issues.py",
+        "full_overhaul.py"
+      ]
+    },
+    "tools": {
+      "path": "tools",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776125051711,
+      "keyFiles": []
+    },
+    "_solutions/config": {
+      "path": "_solutions/config",
+      "purpose": "Configuration files",
+      "fileCount": 76,
+      "lastAccessed": 1776125051712,
+      "keyFiles": [
+        "-dangerously-skip-permissions-does-not-bypass-edit-permissio.md",
+        "-dangerously-skip-permissions-flag-should-bypass-the-permiss.md",
+        "add-contextthreshold-hook-event-for-proactive-memory-managem.md"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "_layouts/default.html",
+      "accessCount": 7,
+      "lastAccessed": 1776216322299,
+      "type": "file"
+    },
+    {
+      "path": "index.html",
+      "accessCount": 5,
+      "lastAccessed": 1776215443417,
+      "type": "file"
+    },
+    {
+      "path": "_layouts/solution.html",
+      "accessCount": 2,
+      "lastAccessed": 1776216294253,
+      "type": "file"
+    },
+    {
+      "path": "robots.txt",
+      "accessCount": 1,
+      "lastAccessed": 1776215447987,
+      "type": "file"
+    },
+    {
+      "path": "guide/token-saving.md",
+      "accessCount": 1,
+      "lastAccessed": 1776216174582,
+      "type": "file"
+    },
+    {
+      "path": "guide/openclaw-errors.md",
+      "accessCount": 1,
+      "lastAccessed": 1776216242400,
+      "type": "file"
+    },
+    {
+      "path": "guide/rate-limit-errors.md",
+      "accessCount": 1,
+      "lastAccessed": 1776216270432,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

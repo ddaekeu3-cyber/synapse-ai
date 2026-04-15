@@ -3,6 +3,7 @@ layout: solution
 title: "ExitPlanMode Permission Denied Without UI Prompt—Agent Stuck in Plan Mode"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37158
+description: "Bug Report: ExitPlanMode Denied Without Approval UI — Agent Stuck in Plan"
 ---
 
 # ExitPlanMode Permission Denied Without UI Prompt—Agent Stuck in Plan Mode
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37158
 Bug Report: ExitPlanMode Denied Without Approval UI — Agent Stuck in Plan Mode
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

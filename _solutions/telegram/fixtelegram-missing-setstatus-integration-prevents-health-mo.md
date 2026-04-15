@@ -3,6 +3,7 @@ layout: solution
 title: "fix(telegram): missing setStatus integration prevents health monitoring"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/32850
+description: "The Telegram provider lacks integration, causing and timestamps to remain even when messages are actively received. This prevents the channel health"
 ---
 
 # fix(telegram): missing setStatus integration prevents health monitoring
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/32850
 The Telegram provider lacks `setStatus` integration, causing `lastEventAt` and `lastInboundAt` timestamps to remain `null` even when messages are actively received. This prevents the channel health monitoring system from distinguishing between a functional quiet channel and a half-dead connection.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Thread `setStatus` callback from extension → monitor → bot/webhook, following the established Slack pattern (`Record<string, unknown>` signature). Add grammY middleware in `bot.ts` to call the callback on every inbound update, with try/catch error isolation.

@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth model failover error surfaces to UI even when fallback succeeds — ChatGPT Plus cap misidentified as API rate limit"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/49491
+description: "When the primary model (OpenAI Codex / ChatGPT Plus OAuth) hits the ChatGPT Plus subscription usage cap,"
 ---
 
 # OAuth model failover error surfaces to UI even when fallback succeeds — ChatGPT Plus cap misidentified as API rate limit
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49491
 When the primary model (OpenAI Codex / ChatGPT Plus OAuth) hits the ChatGPT Plus subscription usage cap, OpenClaw:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

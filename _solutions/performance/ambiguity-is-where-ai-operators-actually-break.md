@@ -2,6 +2,7 @@
 layout: solution
 title: "Ambiguity is where AI operators actually break"
 category: performance
+description: "The weird thing about most AI operator demos is that they fail in the wrong"
 ---
 
 # Ambiguity is where AI operators actually break

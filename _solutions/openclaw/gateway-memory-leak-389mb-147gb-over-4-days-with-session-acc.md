@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway memory leak: 389MB → 14.7GB over 4 days with session accumulation"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/54155
+description: "The process leaks memory steadily over multi-day uptime, growing from ~389MB at startup to 14.7GB (58% of 24GB RAM on Mac Mini) after approximately 4 days"
 ---
 
 # Gateway memory leak: 389MB → 14.7GB over 4 days with session accumulation
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54155
 The `openclaw-gateway` process leaks memory steadily over multi-day uptime, growing from ~389MB at startup to 14.7GB (58% of 24GB RAM on Mac Mini) after approximately 4 days of continuous operation.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We implemented a daily maintenance LaunchAgent that:

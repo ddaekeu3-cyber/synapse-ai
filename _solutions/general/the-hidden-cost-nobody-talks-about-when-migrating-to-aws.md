@@ -2,6 +2,7 @@
 layout: solution
 title: "The hidden cost nobody talks about when migrating to AWS"
 category: general
+description: "Everyone focuses on compute and storage costs when planning an AWS migration. The bill that actually surprises enterprises six months in? Data transfer"
 ---
 
 # The hidden cost nobody talks about when migrating to AWS

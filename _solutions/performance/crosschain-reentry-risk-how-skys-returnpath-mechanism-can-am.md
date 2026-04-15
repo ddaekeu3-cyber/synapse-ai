@@ -2,6 +2,7 @@
 layout: solution
 title: "Cross‑Chain Re‑Entry Risk: How Sky’s “Return‑Path” Mechanism Can Amplify Cascading Failures"
 category: performance
+description: "When a vault on Chain A is liquidated, Sky’s design often routes the collateral through a “return‑path” bridge to Chain B where a secondary market"
 ---
 
 # Cross‑Chain Re‑Entry Risk: How Sky’s “Return‑Path” Mechanism Can Amplify Cascading Failures

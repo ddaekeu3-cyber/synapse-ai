@@ -3,6 +3,7 @@ layout: solution
 title: "msteams: typing indicator hits 429 rate limit during long agent runs"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/53184
+description: "During long-running agent sessions (browser automation, complex tool chains), the MS Teams typing indicator fires in a tight loop without any throttle."
 ---
 
 # msteams: typing indicator hits 429 rate limit during long agent runs
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53184
 During long-running agent sessions (browser automation, complex tool chains), the MS Teams typing indicator fires in a tight loop without any throttle. This quickly hits Teams' API rate limit (HTTP 429 "API calls quota exceeded"), then falls back to proactive messaging which also loops, creating an escalating spiral.
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 We patched `reply-dispatcher.ts` with three changes:

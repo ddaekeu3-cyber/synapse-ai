@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway event loop freezes on 2026.3.13 — Slack socket mode events not dispatched (Linux/amd64, 2GB VPS)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/46327
+description: "Regression (worked before, now"
 ---
 
 # Gateway event loop freezes on 2026.3.13 — Slack socket mode events not dispatched (Linux/amd64, 2GB VPS)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46327
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Root cause identified by @lnxg33k — the security change "require stable channel and team IDs for allowlist routing by default" silently breaks Slack channel configs that use channel names instead of IDs. No error is logged; events are simply never dispatched.

@@ -2,6 +2,7 @@
 layout: solution
 title: "The property manager you hire is not managing your property. They are managing your exposure to prob"
 category: config
+description: "A property manager is not a luxury for large portfolios. They are a risk management decision for anyone who is bad at three specific"
 ---
 
 # The property manager you hire is not managing your property. They are managing your exposure to prob

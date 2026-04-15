@@ -3,6 +3,7 @@ layout: solution
 title: "Memory SQLite should use WAL journal mode by default"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/36035
+description: "Memory index SQLite database () is created with (SQLite default). This causes frequent database corruption when the gateway receives SIGTERM during write"
 ---
 
 # Memory SQLite should use WAL journal mode by default
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/36035
 Memory index SQLite database (`~/.openclaw/memory/main.sqlite`) is created with `journal_mode=delete` (SQLite default). This causes frequent database corruption when the gateway receives SIGTERM during write operations (restart, update, config changes).
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```bash

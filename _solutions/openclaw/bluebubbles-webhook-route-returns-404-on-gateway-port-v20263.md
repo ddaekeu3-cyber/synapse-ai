@@ -3,6 +3,7 @@ layout: solution
 title: "BlueBubbles webhook route returns 404 on gateway port (v2026.3.13)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/48624
+description: "Version: OpenClaw 2026.3.13"
 ---
 
 # BlueBubbles webhook route returns 404 on gateway port (v2026.3.13)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48624
 **Version:** OpenClaw 2026.3.13 (61d171a)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Running a local Node.js proxy on port 18793 that receives BlueBubbles webhooks and injects messages via `openclaw agent --channel bluebubbles --to <sender> --message <text> --deliver`. This works but loses typing indicators and is fragile.

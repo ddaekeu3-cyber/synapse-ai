@@ -3,6 +3,7 @@ layout: solution
 title: "Nostr plugin accepts and decrypts DMs but never creates an agent session"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/48332
+description: "Crash (process/app exits or"
 ---
 
 # Nostr plugin accepts and decrypts DMs but never creates an agent session
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48332
 Crash (process/app exits or hangs)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manual decryption/reply via Node.js scripts works. The relay accepts writes and the bus decrypts reads. Only the gateway session dispatch is broken.

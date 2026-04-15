@@ -3,6 +3,7 @@ layout: solution
 title: "macOS app crash-loops when Talk mode enabled (TalkOverlayView Swift exclusivity error)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/37114
+description: "- OpenClaw version: 2026.3.2"
 ---
 
 # macOS app crash-loops when Talk mode enabled (TalkOverlayView Swift exclusivity error)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/37114
 - **OpenClaw version**: 2026.3.2 (85377a2)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Reset the pref to recover:

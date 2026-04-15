@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Support for sandbox Docker parameters (--gpus all, --ipc=host)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/29384
+description: "Allow passing custom Docker parameters like and to the sandbox"
 ---
 
 # [Feature]: Support for sandbox Docker parameters (--gpus all, --ipc=host)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/29384
 Allow passing custom Docker parameters like `--gpus all` and `--ipc=host` to the sandbox environment.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

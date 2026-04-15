@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI context-notice SVG icon overflows and covers entire chat window"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/47924
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Control UI context-notice SVG icon overflows and covers entire chat window

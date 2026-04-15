@@ -3,6 +3,7 @@ layout: solution
 title: "Background process termination crashes Claude Code in Docker containers"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/16135
+description: "When running Claude Code inside a Docker container, killing background processes (either manually with or when Claude autonomously decides to kill them)"
 ---
 
 # Background process termination crashes Claude Code in Docker containers
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/16135
 When running Claude Code inside a Docker container, killing background processes (either manually with `k` or when Claude autonomously decides to kill them) causes Claude Code itself to crash with exit code 137 (SIGKILL).
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 Manually using `setsid` to isolate background processes works:

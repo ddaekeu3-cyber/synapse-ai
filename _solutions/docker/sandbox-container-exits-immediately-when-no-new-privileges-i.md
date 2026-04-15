@@ -3,6 +3,7 @@ layout: solution
 title: "Sandbox container exits immediately when no-new-privileges is applied (exec /usr/bin/sleep: operation not permitted)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/43996
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Sandbox container exits immediately when no-new-privileges is applied (exec /usr/bin/sleep: operation not permitted)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43996
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

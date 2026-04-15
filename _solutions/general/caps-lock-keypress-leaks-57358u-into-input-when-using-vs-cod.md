@@ -3,6 +3,7 @@ layout: solution
 title: "Caps Lock keypress leaks '[57358u' into input when using VS Code integrated terminal"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38581
+description: "- Claude Code in VS Code integrated"
 ---
 
 # Caps Lock keypress leaks '[57358u' into input when using VS Code integrated terminal
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38581
 - Claude Code in VS Code integrated terminal
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Disabling `terminal.integrated.enableKittyProtocol` in VS Code fixes the noise, but breaks Shift+Enter (newline in Claude Code input) since the terminal can no longer distinguish Shift+Enter from Enter without the Kitty protocol.

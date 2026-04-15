@@ -3,6 +3,7 @@ layout: solution
 title: "Self-built Docker runtime image fails to start with `ERR_MODULE_NOT_FOUND` for `axios`"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/50800
+description: "Crash (process/app exits or"
 ---
 
 # Self-built Docker runtime image fails to start with `ERR_MODULE_NOT_FOUND` for `axios`
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50800
 Crash (process/app exits or hangs)
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

@@ -3,6 +3,7 @@ layout: solution
 title: "Critical: Destructive actions without user consent, ignored safety rules, dismissive behavior"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/31946
+description: "Over the course of a single day, Claude Code (CLI) performed multiple destructive and unauthorized actions on a user's Mac Mini CI runner, GitHub"
 ---
 
 # Critical: Destructive actions without user consent, ignored safety rules, dismissive behavior
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31946
 Over the course of a single day, Claude Code (CLI) performed multiple destructive and unauthorized actions on a user's Mac Mini CI runner, GitHub repository, and development environment. When confronted, Claude was dismissive and defensive. The cumulative damage disrupted a 4-person team with 4 months of work invested, days before a client presentation.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

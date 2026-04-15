@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth token refresh race condition kills parent session during parallel agent spawns"
 category: concurrency
 source: https://github.com/anthropics/claude-code/issues/37996
+description: "When spawning 3-4 parallel agents (via tool with ), the parent/lead session intermittently loses authentication mid-operation with \"Not logged in · Please"
 ---
 
 # OAuth token refresh race condition kills parent session during parallel agent spawns
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37996
 When spawning 3-4 parallel agents (via `Agent` tool with `isolation: "worktree"`), the parent/lead session intermittently loses authentication mid-operation with "Not logged in · Please run /login" followed by `API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth authentication is currently not supported."}}`.
 
 ## 원인
-보고된 버그/문제. 카테고리: concurrency.
+Race condition or deadlock from multiple concurrent operations targeting the same shared resource without proper locking.
 
 ## 해결법
 - Cap concurrent agents at 3 (instead of 4)

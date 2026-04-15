@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crash-loops when gateway.tailscale.mode=serve but gateway.bind != loopback"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/35113
+description: "- OpenClaw version:"
 ---
 
 # Gateway crash-loops when gateway.tailscale.mode=serve but gateway.bind != loopback
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/35113
 - **OpenClaw version:** 2026.2.25
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```sh

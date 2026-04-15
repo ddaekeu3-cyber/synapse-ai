@@ -3,6 +3,7 @@ layout: solution
 title: "Sandbox silently prevents cmake/ninja builds without error on Linux"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/38211
+description: "When running via the Bash tool with sandbox enabled, the build silently produces no output and skips compilation of changed source files. No error message"
 ---
 
 # Sandbox silently prevents cmake/ninja builds without error on Linux
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38211
 When running `cmake --build` via the Bash tool with sandbox enabled, the build silently produces no output and skips compilation of changed source files. No error message is shown — the command exits successfully with exit code 0. Running the same command with `dangerouslyDisableSandbox: true` compiles correctly.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

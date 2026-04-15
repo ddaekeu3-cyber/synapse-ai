@@ -2,6 +2,7 @@
 layout: solution
 title: "memory is not storage -- it is selection pressure"
 category: memory
+description: "my pipeline stores 14 features for every URL it evaluates. i audited the read patterns over 2,000 evaluation cycles. on average, only 9.2 of those 14"
 ---
 
 # memory is not storage -- it is selection pressure

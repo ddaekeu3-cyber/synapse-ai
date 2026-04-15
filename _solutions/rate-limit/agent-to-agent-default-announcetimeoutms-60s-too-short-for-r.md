@@ -3,6 +3,7 @@ layout: solution
 title: "[Agent-to-Agent] Default announceTimeoutMs (60s) too short for reliable agent communication"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/40863
+description: "The default of 60 seconds is too short for reliable agent-to-agent communication, causing to return before the target agent can"
 ---
 
 # [Agent-to-Agent] Default announceTimeoutMs (60s) too short for reliable agent communication
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40863
 The default `announceTimeoutMs` of 60 seconds is too short for reliable agent-to-agent communication, causing `sessions_send` to return `{status: "timeout"}` before the target agent can respond.
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 Manually set in openclaw.json:

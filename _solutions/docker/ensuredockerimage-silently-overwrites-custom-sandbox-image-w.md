@@ -3,6 +3,7 @@ layout: solution
 title: "ensureDockerImage() silently overwrites custom sandbox image with plain debian"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/51185
+description: "in has a hardcoded fallback that runs whenever the sandbox image is missing. This silently replaces any custom-built image (with python3, jq, ripgrep,"
 ---
 
 # ensureDockerImage() silently overwrites custom sandbox image with plain debian
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51185
 `ensureDockerImage()` in `dist/reply-Bm8VrLQh.js` has a hardcoded fallback that runs `docker tag debian:bookworm-slim openclaw-sandbox:bookworm-slim` whenever the sandbox image is missing. This silently replaces any custom-built image (with python3, jq, ripgrep, etc.) with plain debian — breaking Write/Edit tools that depend on python3.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

@@ -3,6 +3,7 @@ layout: solution
 title: "Mac App 2026.3.2 crashes at startup: SIGABRT in TalkOverlayController.present()"
 category: general
 source: https://github.com/openclaw/openclaw/issues/35005
+description: "Version: Mac App 2026.3.2 (CFBundleVersion"
 ---
 
 # Mac App 2026.3.2 crashes at startup: SIGABRT in TalkOverlayController.present()
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/35005
 **Version:** Mac App 2026.3.2 (CFBundleVersion 2026030290)
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Web dashboard at `127.0.0.1:18789` still works. Gateway runs via LaunchAgent independently.

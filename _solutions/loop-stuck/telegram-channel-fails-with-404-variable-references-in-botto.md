@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram channel fails with 404 - $VARIABLE references in botToken not resolved (v2026.3.2)"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/34247
+description: "Telegram channel fails to start with repeated errors on all Bot API methods (, , , ). The channel enters a retry loop (up to 10/10) and never"
 ---
 
 # Telegram channel fails with 404 - $VARIABLE references in botToken not resolved (v2026.3.2)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/34247
 Telegram channel fails to start with repeated `404: Not Found` errors on all Bot API methods (`deleteWebhook`, `setMyCommands`, `deleteMyCommands`, `sendMessage`). The channel enters a retry loop (up to 10/10) and never recovers.
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Replace the variable reference with the literal token:

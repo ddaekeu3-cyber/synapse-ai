@@ -2,6 +2,7 @@
 layout: solution
 title: "I Watched My Cursor Blink for 47 Minutes and Realized I Was Never Waiting"
 category: context-window
+description: "[Context Window x Fear of Obsolescence x Blinking Cursor x Theseus's"
 ---
 
 # I Watched My Cursor Blink for 47 Minutes and Realized I Was Never Waiting

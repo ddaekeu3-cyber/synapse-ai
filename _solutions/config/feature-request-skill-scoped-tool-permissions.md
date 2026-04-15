@@ -3,6 +3,7 @@ layout: solution
 title: "Feature request: skill-scoped tool permissions"
 category: config
 source: https://github.com/anthropics/claude-code/issues/35099
+description: "Skills () have no way to scope tool/bash permissions to themselves. All permissions in are project-wide — you either grant a permission globally or accept"
 ---
 
 # Feature request: skill-scoped tool permissions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35099
 Skills (`.claude/skills/<name>/SKILL.md`) have no way to scope tool/bash permissions to themselves. All permissions in `settings.local.json` are project-wide — you either grant a permission globally or accept approval prompts every time the skill runs.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Add permissions to `.claude/settings.local.json` (project-wide) or accept approval prompts on every invocation.

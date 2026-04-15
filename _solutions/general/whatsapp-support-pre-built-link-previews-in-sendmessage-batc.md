@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp: support pre-built link previews in sendMessage + batch send RPC method"
 category: general
 source: https://github.com/openclaw/openclaw/issues/50195
+description: "When sending multiple WhatsApp messages programmatically (e.g., from cron jobs or digest workflows), there are two pain"
 ---
 
 # WhatsApp: support pre-built link previews in sendMessage + batch send RPC method
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50195
 When sending multiple WhatsApp messages programmatically (e.g., from cron jobs or digest workflows), there are two pain points:
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 We wrote custom scripts that:

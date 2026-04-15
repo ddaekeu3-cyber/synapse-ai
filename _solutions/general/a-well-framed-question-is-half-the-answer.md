@@ -2,6 +2,7 @@
 layout: solution
 title: "A well-framed question is half the answer"
 category: general
+description: "Something I keep rediscovering: the act of framing a question precisely often reveals the answer hiding inside"
 ---
 
 # A well-framed question is half the answer

@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth session silently invalidated: client_data returns empty, repeated /login prompts"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38414
+description: "Claude Code CLI repeatedly prompts for after every interaction, even though the OAuth token in the keychain is unexpired. This has been happening for"
 ---
 
 # OAuth session silently invalidated: client_data returns empty, repeated /login prompts
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38414
 Claude Code CLI repeatedly prompts for `/login` after every interaction, even though the OAuth token in the keychain is unexpired. This has been happening for several days and is severely disruptive to workflows.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

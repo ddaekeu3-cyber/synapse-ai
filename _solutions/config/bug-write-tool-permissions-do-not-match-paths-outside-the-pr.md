@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Write tool permissions do not match paths outside the project directory"
 category: config
 source: https://github.com/anthropics/claude-code/issues/38391
+description: "The Write tool permission system does not reliably auto-approve writes to paths outside the project directory, regardless of the permission pattern format"
 ---
 
 # Bug: Write tool permissions do not match paths outside the project directory
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38391
 The Write tool permission system does not reliably auto-approve writes to paths outside the project directory, regardless of the permission pattern format used. This forces users to manually approve every write to external paths, even when explicit allow rules are configured.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 We use a `PreToolUse` hook on `Write` that checks if the file path contains `claude-task-` and returns `permissionDecision: "allow"`:

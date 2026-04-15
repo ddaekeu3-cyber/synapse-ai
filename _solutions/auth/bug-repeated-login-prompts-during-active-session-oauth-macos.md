@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Repeated /login prompts during active session (OAuth, macOS)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38544
+description: "- Claude Code 2.1.81 (native"
 ---
 
 # Bug: Repeated /login prompts during active session (OAuth, macOS)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38544
 - Claude Code 2.1.81 (native install)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

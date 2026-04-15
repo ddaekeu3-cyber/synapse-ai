@@ -3,6 +3,7 @@ layout: solution
 title: "Opus 4.6 1M context: is context1m auto-applied in v2026.3.8, and does it work with Claude Max OAuth?"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/41683
+description: "Follow-up to #19849 (locked, can't"
 ---
 
 # Opus 4.6 1M context: is context1m auto-applied in v2026.3.8, and does it work with Claude Max OAuth?
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41683
 **Follow-up to #19849** (locked, can't comment)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 in PR #19789, we've been testing Opus 4.6 1M context on a Claude Max 5x subscription (token auth via Claude Code OAuth, v2026.3.8 on Windows 10).

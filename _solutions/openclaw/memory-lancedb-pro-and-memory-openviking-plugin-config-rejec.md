@@ -3,6 +3,7 @@ layout: solution
 title: "memory-lancedb-pro and memory-openviking plugin config rejected by gateway validator"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49495
+description: "The and plugins' fields are rejected by OpenClaw's gateway-level config validator with \"must NOT have additional properties\" error, preventing the gateway"
 ---
 
 # memory-lancedb-pro and memory-openviking plugin config rejected by gateway validator
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49495
 The `memory-lancedb-pro` and `memory-openviking` plugins' `config` fields are rejected by OpenClaw's gateway-level config validator with "must NOT have additional properties" error, preventing the gateway from starting when these configs are present in `openclaw.json`.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 **Current workaround** (loses all custom configuration):

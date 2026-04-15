@@ -3,6 +3,7 @@ layout: solution
 title: "Alibaba Model Studio: Context tokens show 0 (prompt_tokens not recognized)"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/52981
+description: "When using Alibaba Model Studio models (e.g., , ), OpenClaw displays 0 context tokens used even during active conversations. The context window size shows"
 ---
 
 # Alibaba Model Studio: Context tokens show 0 (prompt_tokens not recognized)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52981
 When using Alibaba Model Studio models (e.g., `modelstudio/qwen3.5-plus`, `modelstudio/glm-5`), OpenClaw displays **0 context tokens used** even during active conversations. The context window size shows correctly, but "used" is always 0.
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 The `normalizeUsage()` function (lines 9750-9770) **already handles this**:

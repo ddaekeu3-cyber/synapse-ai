@@ -3,6 +3,7 @@ layout: solution
 title: "[CLI] Local operator RPCs still lose operator.read after 2026.3.12 shared-auth hardening"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52338
+description: "On a Linux loopback-only gateway running OpenClaw , several local CLI/operator RPC paths still fail with or WebSocket close , even though the local paired"
 ---
 
 # [CLI] Local operator RPCs still lose operator.read after 2026.3.12 shared-auth hardening
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52338
 On a Linux loopback-only gateway running OpenClaw `2026.3.13`, several local CLI/operator RPC paths still fail with `missing scope: operator.read` or WebSocket close `1000 normal closure`, even though the local paired device token was explicitly repaired to include both `operator.read` and `operator.admin`.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 On this host I currently have to:

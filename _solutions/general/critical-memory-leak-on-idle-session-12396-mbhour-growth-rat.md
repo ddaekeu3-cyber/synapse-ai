@@ -3,6 +3,7 @@ layout: solution
 title: "Critical memory leak on idle session — 12,396 MB/hour growth rate (v2.1.71, WSL2/Linux)"
 category: general
 source: https://github.com/anthropics/claude-code/issues/32745
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Critical memory leak on idle session — 12,396 MB/hour growth rate (v2.1.71, WSL2/Linux)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32745
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 ```bash

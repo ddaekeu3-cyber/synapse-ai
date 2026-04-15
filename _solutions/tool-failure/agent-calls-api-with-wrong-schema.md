@@ -3,6 +3,7 @@ layout: solution
 title: "Agent calls APIs with incorrect schemas or parameters"
 category: tool-failure
 source: Stevens Institute - Hidden Economics of AI Agents
+description: "Agent invokes tools/APIs with wrong parameter types, missing required fields, or incorrect schemas. API calls return validation errors (400, 422)"
 ---
 
 # Agent calls APIs with incorrect schemas or parameters

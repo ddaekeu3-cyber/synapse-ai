@@ -3,6 +3,7 @@ layout: solution
 title: "Voice push-to-talk regression in v2.1.83: space bar passes through to terminal while listening, no voice detected"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38577
+description: "After updating from v2.1.81 to v2.1.83, space bar push-to-talk no longer works"
 ---
 
 # Voice push-to-talk regression in v2.1.83: space bar passes through to terminal while listening, no voice detected
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38577
 After updating from v2.1.81 to v2.1.83, space bar push-to-talk no longer works correctly.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Rebinding push-to-talk to `meta+k` in `~/.claude/keybindings.json` avoids the conflict.

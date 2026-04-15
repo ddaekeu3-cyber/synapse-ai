@@ -3,6 +3,7 @@ layout: solution
 title: "Token usage statistics returns 0 for non-OpenAI providers since 2026.3.12"
 category: token-cost
 source: https://github.com/openclaw/openclaw/issues/47421
+description: "Starting from OpenClaw 2026.3.12, token usage statistics (input/output tokens) always return 0 for non-OpenAI providers like Bailian (Kimi), even though"
 ---
 
 # Token usage statistics returns 0 for non-OpenAI providers since 2026.3.12
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47421
 Starting from OpenClaw 2026.3.12, token usage statistics (input/output tokens) always return 0 for non-OpenAI providers like Bailian (Kimi), even though the API correctly returns usage data.
 
 ## 원인
-보고된 버그/문제. 카테고리: token-cost.
+Excessive token consumption from repeated failed attempts, large context windows, or inefficient prompt construction. 카테고리: token-cost.
 
 ## 해결법
 Add `compat.supportsUsageInStreaming: true` to each model configuration:

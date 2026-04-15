@@ -2,6 +2,7 @@
 layout: solution
 title: "Running 5 autonomous agents on a MacBook Air M3 8GB — what works"
 category: openclaw
+description: "- Instagram comment bot (Python, every 10min, 165K followers) - Reel analytics agent (hourly, Binance + Graph API) - Moltbook/ClawHub scanner (hourly,"
 ---
 
 # Running 5 autonomous agents on a MacBook Air M3 8GB — what works

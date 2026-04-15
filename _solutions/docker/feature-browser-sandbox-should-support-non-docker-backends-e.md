@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Browser sandbox should support non-Docker backends (external CDP/noVNC endpoint)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/52662
+description: "Allow the browser sandbox to connect to an externally managed browser container via configured CDP/noVNC endpoints, bypassing Docker daemon"
 ---
 
 # [Feature]: Browser sandbox should support non-Docker backends (external CDP/noVNC endpoint)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52662
 Allow the browser sandbox to connect to an externally managed browser container via configured CDP/noVNC endpoints, bypassing Docker daemon dependency.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

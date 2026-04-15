@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Code hangs indefinitely in epoll_pwait loop on gVisor ARM64 (macOS Docker Desktop - OrbStack)"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/35454
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Claude Code hangs indefinitely in epoll_pwait loop on gVisor ARM64 (macOS Docker Desktop - OrbStack)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35454
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 Running with standard Docker (no gVisor) works perfectly:

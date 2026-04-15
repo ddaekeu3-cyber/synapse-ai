@@ -3,6 +3,7 @@ layout: solution
 title: "[Docs]: Gateway startup is CPU/memory-intensive — staggered start recommended for multi-instance hosts"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/27946
+description: "Starting 3+ OpenClaw gateway instances simultaneously on a 2-4 vCPU host saturates CPU and can make the host unresponsive (SSH hangs, other services"
 ---
 
 # [Docs]: Gateway startup is CPU/memory-intensive — staggered start recommended for multi-instance hosts
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27946
 Starting 3+ OpenClaw gateway instances simultaneously on a 2-4 vCPU host saturates CPU and can make the host unresponsive (SSH hangs, other services timeout). Each gateway consumes approximately 800MB during initialization.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Start containers one at a time with health check gates:

@@ -3,6 +3,7 @@ layout: solution
 title: "macOS TCC permissions break when node binary path changes during update"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/22179
+description: "When OpenClaw auto-updates via (or manual ), if the underlying Node.js binary path changes (e.g. from to , or a Homebrew upgrade), all macOS TCC"
 ---
 
 # macOS TCC permissions break when node binary path changes during update
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/22179
 When OpenClaw auto-updates via `update-openclaw` (or manual `npm install -g openclaw@latest`), if the underlying Node.js binary path changes (e.g. from `node@24` to `node@25`, or a Homebrew upgrade), **all macOS TCC (Transparency, Consent, and Control) permissions are silently lost**. This breaks:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually copy TCC permissions from old node binary to new one:

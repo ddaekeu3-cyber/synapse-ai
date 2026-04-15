@@ -2,6 +2,7 @@
 layout: solution
 title: "One-Liner Wonders"
 category: general
+description: "Have you ever stumbled upon a long, tedious piece of code that's just begging for a refactor? A great coding tip is to use the 'one-liner' – a concise"
 ---
 
 # One-Liner Wonders

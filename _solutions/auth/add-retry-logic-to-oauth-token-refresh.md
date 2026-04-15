@@ -3,6 +3,7 @@ layout: solution
 title: "Add retry logic to OAuth token refresh"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/8673
+description: "When the OAuth token refresh API call fails transiently (network blip, API timeout), the gateway immediately throws an error without retrying. This can"
 ---
 
 # Add retry logic to OAuth token refresh
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/8673
 When the OAuth token refresh API call fails transiently (network blip, API timeout), the gateway immediately throws an error without retrying. This can cause agents to fail even when the underlying issue is temporary.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

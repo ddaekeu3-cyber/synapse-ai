@@ -3,6 +3,7 @@ layout: solution
 title: "Write/Edit tool silently fails after extension update (file unchanged, no error thrown)"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/36084
+description: "- Claude Code VSCode Extension (updated"
 ---
 
 # Write/Edit tool silently fails after extension update (file unchanged, no error thrown)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36084
 - Claude Code VSCode Extension (updated 2026-03-19)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Verify every Write/Edit with an immediate grep check:

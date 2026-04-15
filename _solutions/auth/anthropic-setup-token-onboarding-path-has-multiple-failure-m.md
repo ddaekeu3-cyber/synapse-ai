@@ -3,6 +3,7 @@ layout: solution
 title: "Anthropic setup-token onboarding path has multiple failure modes (docs gap, credential propagation, multi-agent sync)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/51911
+description: "Regression (worked before, now"
 ---
 
 # Anthropic setup-token onboarding path has multiple failure modes (docs gap, credential propagation, multi-agent sync)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51911
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 - Post-fix validation confirms `secrets.json` entries are NOT required in the final working state — the intended `auth-profiles.json` design works, the onboarding path just doesn't set it up correctly

@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp extension plugin sendMedia doesn't forward mediaLocalRoots (agent workspace media blocked)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/33504
+description: "line 298: does not destructure or forward from the outbound context. This causes to receive roots, falling back to defaults that exclude the agent"
 ---
 
 # WhatsApp extension plugin sendMedia doesn't forward mediaLocalRoots (agent workspace media blocked)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33504
 `extensions/whatsapp/src/channel.ts` line 298: `sendMedia` does not destructure or forward `mediaLocalRoots` from the outbound context. This causes `assertLocalMediaAllowed` to receive `undefined` roots, falling back to defaults that exclude the agent workspace directory.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```diff

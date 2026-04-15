@@ -3,6 +3,7 @@ layout: solution
 title: "Discord account-to-agent routing falls back to default agent instead of matching by account name"
 category: config
 source: https://github.com/openclaw/openclaw/issues/39428
+description: "When a Discord channel account name matches an agent ID, inbound messages should automatically route to that agent. Instead, they fall back to the default"
 ---
 
 # Discord account-to-agent routing falls back to default agent instead of matching by account name
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/39428
 When a Discord channel account name matches an agent ID, inbound messages should automatically route to that agent. Instead, they fall back to the default (main) agent, requiring explicit `bindings` config to fix.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Adding explicit bindings resolves the issue:

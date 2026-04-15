@@ -3,6 +3,7 @@ layout: solution
 title: "GitHub App can create issues but cannot edit, close, or comment on them"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/22289
+description: "The OpenClaw GitHub App (used for git operations via the credential helper) can create issues on the repo but"
 ---
 
 # GitHub App can create issues but cannot edit, close, or comment on them
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/22289
 The OpenClaw GitHub App (used for git operations via the credential helper) can create issues on the `openclaw/openclaw` repo but cannot:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

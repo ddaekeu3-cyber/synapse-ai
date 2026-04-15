@@ -3,6 +3,7 @@ layout: solution
 title: "fix(discord): voice manager .js import crashes channel provider on startup"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/50047
+description: "The Discord channel provider crashes in a restart loop on every startup"
 ---
 
 # fix(discord): voice manager .js import crashes channel provider on startup
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50047
 The Discord channel provider crashes in a restart loop on every startup with:
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Change `.js` → `.ts` in the import specifiers of `*.runtime.ts` files that are loaded via jiti at runtime (not compiled to JS). These files are always executed as TypeScript source through the plugin loader.

@@ -3,6 +3,7 @@ layout: solution
 title: "Skill eligibility checks run on gateway host, not sandbox container — skills blocked despite binaries existing in sandbox`"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/29254
+description: "When the gateway runs inside a Docker container and agents execute in a separate sandbox container, eligibility checks evaluate against the gateway"
 ---
 
 # Skill eligibility checks run on gateway host, not sandbox container — skills blocked despite binaries existing in sandbox`
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/29254
 When the gateway runs inside a Docker container and agents execute in a separate sandbox container, `requires.bins` eligibility checks evaluate against the **gateway container's** `$PATH` instead of the **sandbox container** where skills actually execute. Skills whose required binaries exist in the sandbox image but not in the gateway image are incorrectly marked as blocked and excluded from the a
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

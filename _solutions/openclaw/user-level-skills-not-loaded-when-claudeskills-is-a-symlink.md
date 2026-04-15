@@ -3,6 +3,7 @@ layout: solution
 title: "User-level skills not loaded when ~/.claude/skills is a symlink (regression since ~v2.1.69)"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/38051
+description: "User-level skills defined in are no longer discovered/loaded when that directory is a symlink. This was working in earlier versions and appears to be a"
 ---
 
 # User-level skills not loaded when ~/.claude/skills is a symlink (regression since ~v2.1.69)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38051
 User-level skills defined in `~/.claude/skills/` are no longer discovered/loaded when that directory is a symlink. This was working in earlier versions and appears to be a regression likely introduced around v2.1.69 (which included symlink-related security fixes).
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Replacing the symlink with a real directory and symlinking individual skill subdirectories inside it may work, but defeats the purpose of symlinking the entire skills directory for dotfiles management.

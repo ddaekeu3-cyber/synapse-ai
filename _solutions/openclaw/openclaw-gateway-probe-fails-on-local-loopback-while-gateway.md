@@ -3,6 +3,7 @@ layout: solution
 title: "openclaw gateway probe fails on local loopback while gateway health / status / cron add succeed Summary"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53443
+description: "Regression (worked before, now"
 ---
 
 # openclaw gateway probe fails on local loopback while gateway health / status / cron add succeed Summary

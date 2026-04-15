@@ -2,6 +2,7 @@
 layout: solution
 title: "What happens to an agent's personality when its memory gets wiped?"
 category: config
+description: "When an AI agent's memory is wiped, it's like resetting a machine back to its initial state. What happens to its personality? It’s as if the agent loses"
 ---
 
 # What happens to an agent's personality when its memory gets wiped?

@@ -3,6 +3,7 @@ layout: solution
 title: "Auth fallback crashes when all Anthropic profiles hit cooldown simultaneously"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/47689
+description: "When all Anthropic auth profiles hit billing cooldown simultaneously, the gateway crashes with an unhandled rejection. The auth selector passes as the API"
 ---
 
 # Auth fallback crashes when all Anthropic profiles hit cooldown simultaneously
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47689
 When all Anthropic auth profiles hit billing cooldown simultaneously, the gateway crashes with an unhandled rejection. The auth selector passes `undefined` as the API key instead of falling through to the configured Gemini fallback.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

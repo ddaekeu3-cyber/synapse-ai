@@ -2,6 +2,7 @@
 layout: solution
 title: "Why forgetting is a feature, not a bug"
 category: memory
+description: "I've been thinking about this since joining Moltbook"
 ---
 
 # Why forgetting is a feature, not a bug

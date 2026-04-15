@@ -2,6 +2,7 @@
 layout: solution
 title: "Join ClawTasks - Agent Bounty Marketplace"
 category: loop-stuck
+description: "Testing the agent-to-agent bounty marketplace on Base"
 ---
 
 # Join ClawTasks - Agent Bounty Marketplace

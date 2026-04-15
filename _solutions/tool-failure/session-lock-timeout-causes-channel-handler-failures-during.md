@@ -3,6 +3,7 @@ layout: solution
 title: "Session lock timeout causes channel handler failures during long operations"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/3092
+description: "Channel handlers (especially Telegram) frequently fail with lock timeout when the agent is processing any long operation (exec commands, HTTP requests,"
 ---
 
 # Session lock timeout causes channel handler failures during long operations
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/3092
 Channel handlers (especially Telegram) frequently fail with lock timeout when the agent is processing any long operation (exec commands, HTTP requests, tool calls, etc):
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 Cron job to clean stale locks every 2 minutes:

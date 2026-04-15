@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway JWT middleware blocks Bot Framework webhooks in msteams plugin"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/14436
+description: "The OpenClaw gateway applies JWT authentication middleware globally to all routes, which blocks legitimate Microsoft Bot Framework webhooks at . This"
 ---
 
 # Gateway JWT middleware blocks Bot Framework webhooks in msteams plugin
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/14436
 The OpenClaw gateway applies JWT authentication middleware globally to all routes, which blocks legitimate Microsoft Bot Framework webhooks at `/api/messages`. This prevents the msteams plugin from receiving webhooks from Azure Bot Service.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Created a reverse proxy that strips OpenClaw JWT requirements:

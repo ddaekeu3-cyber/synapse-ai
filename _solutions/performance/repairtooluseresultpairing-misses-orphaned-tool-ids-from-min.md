@@ -3,6 +3,7 @@ layout: solution
 title: "repairToolUseResultPairing misses orphaned tool IDs from MiniMax/OpenAI-compat models — underscore-stripping creates ID mismatch between JSONL and Anthropic API payload"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/52604
+description: "Crash (process/app exits or"
 ---
 
 # repairToolUseResultPairing misses orphaned tool IDs from MiniMax/OpenAI-compat models — underscore-stripping creates ID mismatch between JSONL and Anthropic API payload
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52604
 Crash (process/app exits or hangs)
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 in #13799 (`sanitizeToolCallIds`). That fix sanitizes IDs at serialization time, but `repairToolUseResultPairing` runs on the pre-sanitization JSONL and does its pairing check against the original IDs — so it never sees the mismatch.

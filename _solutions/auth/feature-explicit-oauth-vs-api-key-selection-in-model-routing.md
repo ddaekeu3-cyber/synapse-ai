@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Explicit OAuth vs API key selection in model routing + fallback chain"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/30055
+description: "Allow explicit selection of auth method (OAuth vs API key) per model in the primary model config and fallback chain, with visibility into which auth"
 ---
 
 # Feature: Explicit OAuth vs API key selection in model routing + fallback chain
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30055
 Allow explicit selection of auth method (OAuth vs API key) per model in the primary model config and fallback chain, with visibility into which auth method was used per request.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -3,6 +3,7 @@ layout: solution
 title: "Low-risk: Docker Go template injection, thread-ownership URL path injection, TLS env bypass"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/54300
+description: "Three low-severity findings grouped"
 ---
 
 # Low-risk: Docker Go template injection, thread-ownership URL path injection, TLS env bypass
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54300
 Three low-severity findings grouped together:
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

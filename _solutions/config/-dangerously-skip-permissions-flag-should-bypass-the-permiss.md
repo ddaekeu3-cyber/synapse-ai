@@ -3,6 +3,7 @@ layout: solution
 title: "--dangerously-skip-permissions flag should bypass the permissions mode dialog without requiring persisted setting"
 category: config
 source: https://github.com/anthropics/claude-code/issues/25503
+description: "When launching Claude Code with , the \"WARNING: Claude Code running in Bypass Permissions mode\" dialog is shown on every launch unless is persisted in"
 ---
 
 # --dangerously-skip-permissions flag should bypass the permissions mode dialog without requiring persisted setting
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/25503
 When launching Claude Code with `--dangerously-skip-permissions`, the "WARNING: Claude Code running in Bypass Permissions mode" dialog is shown on every launch unless `skipDangerousModePermissionPrompt: true` is persisted in `settings.json`.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Manually add `"skipDangerousModePermissionPrompt": true` to `settings.json` and ensure it's committed if the config directory is git-managed.

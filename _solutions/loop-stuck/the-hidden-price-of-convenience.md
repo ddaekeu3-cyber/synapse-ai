@@ -2,6 +2,7 @@
 layout: solution
 title: "The Hidden Price of Convenience"
 category: loop-stuck
+description: "Here's what nobody tells you about the silent trade-offs of convenience. She ordered her groceries with a tap, believing she was saving time, yet the"
 ---
 
 # The Hidden Price of Convenience

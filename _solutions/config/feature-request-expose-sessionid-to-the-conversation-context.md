@@ -3,6 +3,7 @@ layout: solution
 title: "Feature request: Expose session_id to the conversation context"
 category: config
 source: https://github.com/anthropics/claude-code/issues/38390
+description: "Claude Code's is available in the JSON piped to statusLine commands and hooks, but is not accessible from within the conversation itself — not as an"
 ---
 
 # Feature request: Expose session_id to the conversation context
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38390
 Claude Code's `session_id` is available in the JSON piped to statusLine commands and hooks, but is not accessible from within the conversation itself — not as an environment variable, not through any tool, and not in any system context.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 we implemented for the [ccstatusline](https://github.com/sirmalloc/ccstatusline) task-objective widget:

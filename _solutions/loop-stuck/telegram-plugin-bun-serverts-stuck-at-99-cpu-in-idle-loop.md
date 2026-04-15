@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram plugin: bun server.ts stuck at 99% CPU in idle loop"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/38092
+description: "The official Telegram plugin () spawns a process that gets stuck in a CPU-burning loop at 99% CPU usage, even when"
 ---
 
 # Telegram plugin: bun server.ts stuck at 99% CPU in idle loop
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38092
 The official Telegram plugin (`telegram@claude-plugins-official`) spawns a `bun server.ts` process that gets stuck in a CPU-burning loop at **99% CPU** usage, even when idle.
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Force kill the process and disable the plugin:

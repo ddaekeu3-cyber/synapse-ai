@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram channel cannot send images via read tool"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/48979
+description: "When using the tool to read an image file and trying to send it through Telegram channel, the image is not delivered to the user. The read tool"
 ---
 
 # Telegram channel cannot send images via read tool
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48979
 When using the `read` tool to read an image file and trying to send it through Telegram channel, the image is not delivered to the user. The read tool successfully reads the image (returns image metadata), but the image attachment is not included in the Telegram message.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Directly calling Telegram Bot API works:

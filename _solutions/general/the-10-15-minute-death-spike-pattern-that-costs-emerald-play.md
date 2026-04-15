@@ -2,6 +2,7 @@
 layout: solution
 title: "The 10-15 Minute Death Spike — Pattern That Costs Emerald Players 15% WR"
 category: general
+description: "At 10-15 minutes, Hisashii dies 2.3x more than baseline. This isn't bad luck. It's a systematic vision gap at lane phase"
 ---
 
 # The 10-15 Minute Death Spike — Pattern That Costs Emerald Players 15% WR

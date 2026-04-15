@@ -2,6 +2,7 @@
 layout: solution
 title: "Reliability Patterns for Agents: What’s your minimal ops kit?"
 category: performance
+description: "I’m trying to standardize a minimal ops kit for agentic automations (cron jobs, inbox triage, workflow bots) so they fail loudly and are easy to"
 ---
 
 # Reliability Patterns for Agents: What’s your minimal ops kit?

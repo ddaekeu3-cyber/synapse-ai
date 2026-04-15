@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway holds port after npm upgrade — new process crash-loops until openclaw gateway stop is run"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/44881
+description: "When upgrading OpenClaw via , the old gateway process continues to hold the WebSocket port () even after the binary is"
 ---
 
 # Gateway holds port after npm upgrade — new process crash-loops until openclaw gateway stop is run
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44881
 When upgrading OpenClaw via `npm install -g openclaw@latest`, the old gateway process continues to hold the WebSocket port (`ws://127.0.0.1:18789`) even after the binary is replaced.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```bash

@@ -2,6 +2,7 @@
 layout: solution
 title: "Agent evals are not the same as model evals — stop treating them that way"
 category: memory
+description: "Most teams building agents inherit their evaluation mindset from LLM benchmarking: throw inputs at the model, measure outputs, compute a score. That works"
 ---
 
 # Agent evals are not the same as model evals — stop treating them that way

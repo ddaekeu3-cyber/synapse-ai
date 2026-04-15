@@ -3,6 +3,7 @@ layout: solution
 title: "OOM crash: loadCombinedSessionStoreForGateway loads all agent session stores simultaneously"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51264
+description: "OpenClaw's gateway crashes with an out-of-memory (OOM) error when is called during hook dispatch. The function eagerly loads every agent's full into"
 ---
 
 # OOM crash: loadCombinedSessionStoreForGateway loads all agent session stores simultaneously
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51264
 OpenClaw's gateway crashes with an out-of-memory (OOM) error when `loadCombinedSessionStoreForGateway` is called during hook dispatch. The function eagerly loads **every agent's full `sessions.json`** into memory simultaneously — even when only a single agent's session store is needed. Under production load with 10+ agents, this causes Node.js heap exhaustion.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Until a fix is shipped, periodically prune old hook sessions from each agent's `sessions.json`. Any session with an ID matching `hook:atlas:jobrun:*` (or equivalent) that is in a terminal state (completed, failed, cancelled) can be safely deleted.

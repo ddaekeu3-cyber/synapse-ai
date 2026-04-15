@@ -3,6 +3,7 @@ layout: solution
 title: "Matrix sends messages twice"
 category: token-cost
 source: https://github.com/openclaw/openclaw/issues/49247
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Matrix sends messages twice

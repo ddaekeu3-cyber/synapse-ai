@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE]  Hook event or callback when context window is near capacity"
 category: context-window
 source: https://github.com/anthropics/claude-code/issues/33698
+description: "- [x] I have searched existing requests and this feature hasn't been requested"
 ---
 
 # [FEATURE]  Hook event or callback when context window is near capacity
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33698
 - [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn't been requested yet
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 - Runs on every tool call, adding overhead throughout the session

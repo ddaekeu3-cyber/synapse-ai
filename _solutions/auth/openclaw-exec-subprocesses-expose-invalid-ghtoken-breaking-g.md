@@ -3,6 +3,7 @@ layout: solution
 title: "OpenClaw exec subprocesses expose invalid GH_TOKEN, breaking gh even when gh auth login is valid"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/53709
+description: "Regression (worked before, now"
 ---
 
 # OpenClaw exec subprocesses expose invalid GH_TOKEN, breaking gh even when gh auth login is valid
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53709
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Use:                                                                                                                       

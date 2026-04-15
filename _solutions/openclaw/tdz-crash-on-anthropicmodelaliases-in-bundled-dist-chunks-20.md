@@ -3,6 +3,7 @@ layout: solution
 title: "TDZ crash on ANTHROPIC_MODEL_ALIASES in bundled dist chunks (2026.3.12 regression)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/45006
+description: "After upgrading from 2026.3.11 to 2026.3.12, throws a (TDZ / temporal dead zone) in several bundled dist chunks. The constant is defined at module scope"
 ---
 
 # TDZ crash on ANTHROPIC_MODEL_ALIASES in bundled dist chunks (2026.3.12 regression)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45006
 After upgrading from 2026.3.11 to 2026.3.12, `ANTHROPIC_MODEL_ALIASES` throws a `ReferenceError` (TDZ / temporal dead zone) in several bundled dist chunks. The constant is defined at module scope in `src/agents/model-selection.ts`, but the Rollup code-splitting in 2026.3.12 reorders the emitted chunks so that `normalizeAnthropicModelId()` executes before `ANTHROPIC_MODEL_ALIASES` is initialized in
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Wrap the access in a try/catch in each affected dist chunk:

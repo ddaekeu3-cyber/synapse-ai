@@ -3,6 +3,7 @@ layout: solution
 title: "clawdock-helpers.sh silently ignores docker-compose.override.yml on clawdock-start"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/49909
+description: "\\ uses explicit \\ flags in \\, which disables Docker Compose's auto-merge of \\. The wrapper only"
 ---
 
 # clawdock-helpers.sh silently ignores docker-compose.override.yml on clawdock-start
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49909
 \`clawdock-helpers.sh\` uses explicit \`-f\` flags in \`_clawdock_compose()\`, which disables Docker Compose's auto-merge of \`docker-compose.override.yml\`. The wrapper only includes:
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 Add the same conditional check already used for \`docker-compose.extra.yml\`:

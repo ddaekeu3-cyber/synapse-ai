@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Native session persistence and context continuity"
 category: config
 source: https://github.com/anthropics/claude-code/issues/18417
+description: "Claude Code excels at complex, multi-session projects—but the infrastructure for maintaining continuity across those sessions remains a DIY exercise that"
 ---
 
 # Feature Request: Native session persistence and context continuity
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/18417
 Claude Code excels at complex, multi-session projects—but the infrastructure for maintaining continuity across those sessions remains a DIY exercise that most users discover only after experiencing painful context loss.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 ### Tier 1: Automatic (No Configuration)

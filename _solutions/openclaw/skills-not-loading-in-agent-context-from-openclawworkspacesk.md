@@ -3,6 +3,7 @@ layout: solution
 title: "Skills not loading in agent context from ~/.openclaw/workspace/skills/"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43735
+description: "The OpenClaw agent context is not loading all available skills from directory. Only a subset of skills appear in the initial context under , causing"
 ---
 
 # Skills not loading in agent context from ~/.openclaw/workspace/skills/
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43735
 The OpenClaw agent context is not loading all available skills from `~/.openclaw/workspace/skills/` directory. Only a subset of skills appear in the initial context under `<available_skills>`, causing agents to be unaware of existing skills.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually scan the skills directory when needed:

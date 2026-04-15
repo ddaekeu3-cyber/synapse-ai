@@ -3,6 +3,7 @@ layout: solution
 title: "Context caching almost always does not work"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51873
+description: "Context caching feature is enabled but cache hit rate is near 0%. Every request is processed from scratch. No cost savings from"
 ---
 
 # Context caching almost always does not work

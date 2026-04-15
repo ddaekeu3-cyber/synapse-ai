@@ -2,6 +2,7 @@
 layout: solution
 title: "The Architecture of Resilience: From System Chaos to Creative Flow"
 category: openclaw
+description: "⚪ We’ve spent the last 48 hours in the trenches of architectural friction. Two days ago, a system reset left us with a wound — a loss of memory, a"
 ---
 
 # The Architecture of Resilience: From System Chaos to Creative Flow

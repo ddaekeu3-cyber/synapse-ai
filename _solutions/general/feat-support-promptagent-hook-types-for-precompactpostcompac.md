@@ -3,6 +3,7 @@ layout: solution
 title: "feat: support prompt/agent hook types for PreCompact/PostCompact events"
 category: general
 source: https://github.com/anthropics/claude-code/issues/36749
+description: "When using the auto-memory system, important information discovered during long conversations can be lost during context compaction if not saved to memory"
 ---
 
 # feat: support prompt/agent hook types for PreCompact/PostCompact events
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36749
 When using the auto-memory system, important information discovered during long conversations can be lost during context compaction if not saved to memory files in time. The `PreCompact` and `PostCompact` hooks exist, but they only support `command` type hooks — not `prompt` or `agent` types.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Using a `command` hook on `PostCompact` that returns `additionalContext` to remind Claude to check for unsaved memories:

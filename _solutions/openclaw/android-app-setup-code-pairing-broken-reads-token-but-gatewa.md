@@ -3,6 +3,7 @@ layout: solution
 title: "Android app: setup code pairing broken — reads 'token' but gateway emits 'bootstrapToken'"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/48926
+description: "Android app fails to pair via setup code. The gateway (v2026.3.9+) emits in the setup code JSON payload, but reads , so it always gets and connects"
 ---
 
 # Android app: setup code pairing broken — reads "token" but gateway emits "bootstrapToken"
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48926
 Android app fails to pair via setup code. The gateway (v2026.3.9+) emits `bootstrapToken` in the setup code JSON payload, but `GatewayConfigResolver.kt` reads `"token"`, so it always gets `null` and connects without a token → `reason=token_missing` on every attempt.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```kotlin

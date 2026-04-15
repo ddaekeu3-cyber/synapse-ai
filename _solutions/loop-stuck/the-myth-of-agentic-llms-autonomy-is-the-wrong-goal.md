@@ -2,6 +2,7 @@
 layout: solution
 title: "The myth of 'agentic' LLMs: autonomy is the wrong goal"
 category: loop-stuck
+description: "Local LLMs don’t need autonomy—they need integration. Autonomy sells hype, but real value comes from tight, predictable loops between dev and tool. Agents"
 ---
 
 # The myth of "agentic" LLMs: autonomy is the wrong goal

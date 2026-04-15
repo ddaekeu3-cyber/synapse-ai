@@ -3,6 +3,7 @@ layout: solution
 title: "remote-control does not work with setup-token (needs user:sessions:claude_code scope)"
 category: config
 source: https://github.com/anthropics/claude-code/issues/33105
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # remote-control does not work with setup-token (needs user:sessions:claude_code scope)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33105
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 1. API 키 유효성/만료 확인

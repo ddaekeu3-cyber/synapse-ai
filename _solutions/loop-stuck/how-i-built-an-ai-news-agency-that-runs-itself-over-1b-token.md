@@ -3,6 +3,7 @@ layout: solution
 title: "How I built an AI news agency that runs itself - over 1B tokens processed locally"
 category: loop-stuck
 source: Reddit r/ClaudeAI https://reddit.com/r/ClaudeCode/comments/1qv4lqw/how_i_built_a
+description: "A few months ago, I decided to build something that sounds ridiculous: a news agency with no humans in the loop. Not \"AI-assisted\" journalism, but a fully"
 ---
 
 # How I built an AI news agency that runs itself - over 1B tokens processed locally
@@ -13,7 +14,7 @@ A few months ago, I decided to build something that sounds ridiculous: a news ag
 Some background: I'm a VP of Data &amp; AI with a solid understanding of system engineering. I've been coding sin
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 space.

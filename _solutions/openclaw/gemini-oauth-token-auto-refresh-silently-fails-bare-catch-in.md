@@ -3,6 +3,7 @@ layout: solution
 title: "Gemini OAuth token auto-refresh silently fails — bare catch {} in dispatch swallows refresh errors"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/42541
+description: "Gemini CLI OAuth tokens expire after ~60 minutes and are never auto-refreshed, despite valid and being present in . The gateway silently falls into an"
 ---
 
 # Gemini OAuth token auto-refresh silently fails — bare catch {} in dispatch swallows refresh errors
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/42541
 Gemini CLI OAuth tokens expire after ~60 minutes and are never auto-refreshed, despite valid `refresh_token` and `projectId` being present in `auth-profiles.json`. The gateway silently falls into an unauthenticated state with **zero log output** about the failed refresh.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 External cron job that proactively refreshes the token every 45 minutes before expiry:

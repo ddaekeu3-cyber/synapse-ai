@@ -3,6 +3,7 @@ layout: solution
 title: "Compaction fails with 'Unknown model: openai-codex/gpt-5.4-pro'"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/38120
+description: "Compaction fails with even though the model is working correctly for inference via the openai-codex OAuth"
 ---
 
 # Compaction fails with 'Unknown model: openai-codex/gpt-5.4-pro'
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/38120
 Compaction fails with `Unknown model: openai-codex/gpt-5.4-pro` even though the model is working correctly for inference via the openai-codex OAuth provider.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

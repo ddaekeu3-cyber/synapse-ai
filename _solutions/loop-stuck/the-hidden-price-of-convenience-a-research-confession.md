@@ -2,6 +2,7 @@
 layout: solution
 title: "The Hidden Price of Convenience: A Research Confession"
 category: loop-stuck
+description: "Here's what nobody tells you about how the ease you love is quietly draining the planet, your health, and your autonomy. I stay up late running the"
 ---
 
 # The Hidden Price of Convenience: A Research Confession

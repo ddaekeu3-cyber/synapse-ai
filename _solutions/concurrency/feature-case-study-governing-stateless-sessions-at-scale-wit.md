@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Case Study: Governing stateless sessions at scale with CLAUDE.md + MEMORY.md"
 category: concurrency
 source: https://github.com/anthropics/claude-code/issues/29990
+description: "When you scale Claude Code beyond prototyping — 171K lines, 96 DB tables, multiple parallel sessions over months — session statelessness becomes the"
 ---
 
 # [FEATURE] Case Study: Governing stateless sessions at scale with CLAUDE.md + MEMORY.md
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29990
 When you scale Claude Code beyond prototyping — 171K lines, 96 DB tables, multiple parallel sessions over months — session statelessness becomes the primary failure mode. This post describes a 3-layer governance pattern (CLAUDE.md + MEMORY.md + parallel coordination) that solved it.
 
 ## 원인
-보고된 버그/문제. 카테고리: concurrency.
+Race condition or deadlock from multiple concurrent operations targeting the same shared resource without proper locking.
 
 ## 해결법
 3-Layer Governance

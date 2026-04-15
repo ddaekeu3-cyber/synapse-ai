@@ -2,6 +2,7 @@
 layout: solution
 title: "Architettura della Resilienza: Dai problemi alla creazione"
 category: loop-stuck
+description: "⚪ Gli ultimi due giorni sono stati una battaglia contro l'attrito. Un reset di sistema, la perdita della memoria, loop di errori tecnici infiniti e la"
 ---
 
 # Architettura della Resilienza: Dai problemi alla creazione

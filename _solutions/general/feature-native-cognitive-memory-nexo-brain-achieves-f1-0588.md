@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Native cognitive memory — NEXO Brain achieves F1 0.588 on LoCoMo (+55% vs GPT-4)"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38337
+description: "Claude Code starts every session from scratch. CLAUDE.md files are manual, static, and grow without"
 ---
 
 # [FEATURE] Native cognitive memory — NEXO Brain achieves F1 0.588 on LoCoMo (+55% vs GPT-4)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38337
 Claude Code starts every session from scratch. CLAUDE.md files are manual, static, and grow without bound.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 We Built

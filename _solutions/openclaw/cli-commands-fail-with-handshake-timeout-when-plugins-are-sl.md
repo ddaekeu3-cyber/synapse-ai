@@ -3,6 +3,7 @@ layout: solution
 title: "CLI commands fail with handshake timeout when plugins are slow to load"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49118
+description: ", , , and other CLI commands that connect to the Gateway via WebSocket consistently fail with when non-bundled plugins (e.g. ) are auto-discovered and"
 ---
 
 # CLI commands fail with handshake timeout when plugins are slow to load
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49118
 `openclaw cron add`, `openclaw cron list`, `openclaw devices list`, and other CLI commands that connect to the Gateway via WebSocket consistently fail with `connect challenge timeout` when non-bundled plugins (e.g. `chorus-openclaw-plugin`) are auto-discovered and loaded.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Setting `OPENCLAW_SKIP_PLUGINS=1` allows CLI commands to connect successfully:

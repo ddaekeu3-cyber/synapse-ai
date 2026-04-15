@@ -3,6 +3,7 @@ layout: solution
 title: "secretref-env: not working for Discord token in channels.discord.token"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51794
+description: "The format is not working correctly for the Discord token in"
 ---
 
 # secretref-env: not working for Discord token in channels.discord.token
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51794
 The `secretref-env:` format is not working correctly for the Discord token in `channels.discord.token` configuration.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Place token directly in config file:

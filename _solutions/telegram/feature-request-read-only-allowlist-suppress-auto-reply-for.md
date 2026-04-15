@@ -3,6 +3,7 @@ layout: solution
 title: "Feature request: read-only allowlist / suppress auto-reply for WhatsApp DMs"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/14076
+description: "When using WhatsApp with , adding a phone number to makes that contact a full conversational partner. Every agent reply in the session is automatically"
 ---
 
 # Feature request: read-only allowlist / suppress auto-reply for WhatsApp DMs
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/14076
 When using WhatsApp with `dmPolicy: "allowlist"`, adding a phone number to `allowFrom` makes that contact a **full conversational partner**. Every agent reply in the session is automatically sent back to the WhatsApp sender via the `web-auto-reply` module, even when the agent is primarily interacting on a different channel (e.g., Telegram).
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 - Never add third-party numbers to `allowFrom`

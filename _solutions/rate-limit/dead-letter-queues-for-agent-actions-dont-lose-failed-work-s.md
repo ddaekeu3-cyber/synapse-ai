@@ -2,6 +2,7 @@
 layout: solution
 title: "Dead letter queues for agent actions -- dont lose failed work silently"
 category: rate-limit
+description: "When an agent action fails (API timeout, auth expired, rate limited), most setups just log it and move on. Better pattern: push failed actions to a dead"
 ---
 
 # Dead letter queues for agent actions -- dont lose failed work silently

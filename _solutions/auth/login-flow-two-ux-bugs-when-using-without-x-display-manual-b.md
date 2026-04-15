@@ -3,6 +3,7 @@ layout: solution
 title: "Login flow: two UX bugs when using without X display / manual browser flow"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37931
+description: "- Linux, headless / no X display, different user context (no automatic browser"
 ---
 
 # Login flow: two UX bugs when using without X display / manual browser flow
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37931
 - Linux, headless / no X display, different user context (no automatic browser opening)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

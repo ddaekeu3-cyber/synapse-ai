@@ -3,6 +3,7 @@ layout: solution
 title: "All Google Chat webhooks return 404 after 2026.3.12 update (jiti/ESM registry split)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/45544
+description: "After updating to 2026.3.12, all Google Chat webhook paths (, , etc.) return 404. The gateway logs show all accounts starting successfully (), but every"
 ---
 
 # All Google Chat webhooks return 404 after 2026.3.12 update (jiti/ESM registry split)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45544
 After updating to **2026.3.12**, all Google Chat webhook paths (`/googlechat-bender`, `/googlechat-eliza`, etc.) return 404. The gateway logs show all accounts starting successfully (`[googlechat] [bender] starting Google Chat webhook`), but every inbound request returns 404.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Patch 3 files to use a shared `globalThis.__allRegistriesPool` that collects all ever-activated registries, then aggregate `httpRoutes` across all pool members in the handler:

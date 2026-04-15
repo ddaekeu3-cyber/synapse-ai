@@ -3,6 +3,7 @@ layout: solution
 title: "[macOS Node] Missing system.run.prepare command prevents system.run execution"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/37591
+description: "The macOS/iOS node software (version 2026.3.2) does not implement the command, which causes to fail even when explicitly added to in the node"
 ---
 
 # [macOS Node] Missing system.run.prepare command prevents system.run execution
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/37591
 The macOS/iOS node software (version 2026.3.2) does not implement the `system.run.prepare` command, which causes `system.run` to fail even when explicitly added to `allowCommands` in the node configuration.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Currently using screen recording + ffmpeg frame extraction for screenshots instead of `peekaboo`:

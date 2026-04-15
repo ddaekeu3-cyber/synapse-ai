@@ -3,6 +3,7 @@ layout: solution
 title: "Nextcloud Talk bot needs --feature response to send messages (undocumented)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53982
+description: "When setting up a Nextcloud Talk bot via , the flag is required for the bot to send messages back to conversations. Without it, the bot receives webhooks"
 ---
 
 # Nextcloud Talk bot needs --feature response to send messages (undocumented)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53982
 When setting up a Nextcloud Talk bot via `occ talk:bot:install`, the `--feature response` flag is required for the bot to send messages back to conversations. Without it, the bot receives webhooks correctly but all replies fail with HTTP 401 ("authentication failed - check bot secret").
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Register the bot with all three features:

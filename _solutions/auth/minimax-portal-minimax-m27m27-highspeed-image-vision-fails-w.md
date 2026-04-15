@@ -3,6 +3,7 @@ layout: solution
 title: "minimax-portal: MiniMax-M2.7/M2.7-highspeed image vision fails with Unknown model"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/53575
+description: "- Provider: （MiniMax"
 ---
 
 # minimax-portal: MiniMax-M2.7/M2.7-highspeed image vision fails with Unknown model
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53575
 - **Provider**: `minimax-portal`（MiniMax OAuth）
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

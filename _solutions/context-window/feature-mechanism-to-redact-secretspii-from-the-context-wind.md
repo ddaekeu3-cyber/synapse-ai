@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Mechanism to redact secrets/PII from the context window"
 category: context-window
 source: https://github.com/anthropics/claude-code/issues/29434
+description: "- [x] I have searched existing requests and this feature hasn't been requested"
 ---
 
 # [FEATURE] Mechanism to redact secrets/PII from the context window
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29434
 - [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue+label%3Aenhancement) and this feature hasn't been requested yet
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 from 3rd party tools.

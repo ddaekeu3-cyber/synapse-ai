@@ -3,6 +3,7 @@ layout: solution
 title: "Sandbox write/edit fails on openclaw-sandbox:bookworm-slim with 'moltbot-sandbox-fs: 2: python3: not found'"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/45108
+description: "Regression (worked before, now"
 ---
 
 # Sandbox write/edit fails on openclaw-sandbox:bookworm-slim with "moltbot-sandbox-fs: 2: python3: not found"
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45108
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 Writing files on the gateway host via exec works.

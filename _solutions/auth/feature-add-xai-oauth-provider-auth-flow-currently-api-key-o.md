@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Add xAI OAuth provider auth flow (currently API-key only)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/11634
+description: "OpenClaw currently supports xAI via API key ( / ), but there is no provider OAuth login flow for xAI in"
 ---
 
 # Feature: Add xAI OAuth provider auth flow (currently API-key only)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/11634
 OpenClaw currently supports xAI via API key (`xai-api-key` / `XAI_API_KEY`), but there is no provider OAuth login flow for xAI in `openclaw models auth login`.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

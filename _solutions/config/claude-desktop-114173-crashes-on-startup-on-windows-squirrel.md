@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Desktop 1.1.4173 crashes on startup on Windows (Squirrel install, sv-SE locale)"
 category: config
 source: https://github.com/anthropics/claude-code/issues/28470
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Claude Desktop 1.1.4173 crashes on startup on Windows (Squirrel install, sv-SE locale)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/28470
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Add an `id` field to all `formatMessage()` calls in `WOt()` in the main process bundle, e.g.:

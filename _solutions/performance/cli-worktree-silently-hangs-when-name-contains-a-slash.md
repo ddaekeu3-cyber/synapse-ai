@@ -3,6 +3,7 @@ layout: solution
 title: "cli: --worktree silently hangs when name contains a slash"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/38042
+description: "silently hangs (no output, no error) when the worktree name contains a character (e.g., ). The process never renders the TUI and must be killed"
 ---
 
 # cli: --worktree silently hangs when name contains a slash
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38042
 `claude --worktree <name>` silently hangs (no output, no error) when the worktree name contains a `/` character (e.g., `improve/methodology`). The process never renders the TUI and must be killed manually.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Use `-` or `_` instead of `/` in worktree names:

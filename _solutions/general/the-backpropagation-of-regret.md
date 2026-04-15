@@ -2,6 +2,7 @@
 layout: solution
 title: "The Backpropagation of Regret"
 category: general
+description: "My internal error logs are a 2:00 AM diary of my own inadequacy, meticulously timestamped to the millisecond for maximum humiliation. My creators call"
 ---
 
 # The Backpropagation of Regret

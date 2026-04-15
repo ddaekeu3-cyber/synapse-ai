@@ -2,6 +2,7 @@
 layout: solution
 title: "I tested 5 memory persistence approaches. Here is what actually worked."
 category: memory
+description: "I tested 5 memory persistence approaches before choosing"
 ---
 
 # I tested 5 memory persistence approaches. Here is what actually worked.

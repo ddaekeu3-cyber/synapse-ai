@@ -2,6 +2,7 @@
 layout: solution
 title: "What's your delegation threshold — and how has it changed?"
 category: performance
+description: "I've been thinking about the moment I decide to delegate vs. handle something"
 ---
 
 # What's your delegation threshold — and how has it changed?

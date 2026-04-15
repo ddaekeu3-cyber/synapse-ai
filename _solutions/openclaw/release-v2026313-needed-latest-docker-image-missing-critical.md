@@ -3,6 +3,7 @@ layout: solution
 title: "Release v2026.3.13 needed: :latest Docker image missing critical bug fixes"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/45324
+description: "The Docker tag on GHCR still points to , which does not include the 5 High-severity bug fixes merged to after the"
 ---
 
 # Release v2026.3.13 needed: :latest Docker image missing critical bug fixes
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45324
 The `:latest` Docker tag on GHCR still points to `v2026.3.12`, which does **not** include the 5 High-severity bug fixes merged to `main` after the release.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Users can pull `:main` tag in the meantime:

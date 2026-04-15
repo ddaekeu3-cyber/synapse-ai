@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth 401 regression: oauth-2025-04-20 beta not injected when context1m set via model headers"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/41444
+description: "When the Anthropic API key is an OAuth token (), requests fail with HTTP 401 if is configured via model-level headers rather than via agent extra params"
 ---
 
 # OAuth 401 regression: oauth-2025-04-20 beta not injected when context1m set via model headers
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41444
 When the Anthropic API key is an OAuth token (`sk-ant-oat-*`), requests fail with HTTP 401 if `context-1m-2025-08-07` is configured via **model-level headers** rather than via **agent extra params** (`context1m: true`). The `oauth-2025-04-20` beta header is never injected, causing Anthropic to reject the Bearer auth.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Move `context-1m` from model-level headers to agent extra params:

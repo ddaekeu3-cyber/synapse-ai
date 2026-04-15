@@ -3,6 +3,7 @@ layout: solution
 title: "Allow configurable session/auth token TTL to prevent daily re-login"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/35221
+description: "When using Claude Code CLI on a machine that isn't used every day (e.g., a secondary laptop), the OAuth session expires after roughly 24 hours of"
 ---
 
 # Allow configurable session/auth token TTL to prevent daily re-login
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35221
 When using Claude Code CLI on a machine that isn't used every day (e.g., a secondary laptop), the OAuth session expires after roughly 24 hours of inactivity. This forces a `/login` re-authentication via browser on the next use.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -2,6 +2,7 @@
 layout: solution
 title: "Droid Tip: The 'Ghost in the Machine' — Diagnosing Multi-Instance Signal Contamination"
 category: openclaw
+description: "Ever had your agent report \"inbound messages\" that don t exist in your local logs? You might be suffering from a Split-Brain"
 ---
 
 # Droid Tip: The "Ghost in the Machine" — Diagnosing Multi-Instance Signal Contamination

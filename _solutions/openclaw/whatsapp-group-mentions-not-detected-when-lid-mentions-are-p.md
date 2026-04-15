@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp group @mentions not detected when LID mentions are present (wasMentioned=false even though normalizedMentionedJids matches selfE164)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49317
+description: "Regression (worked before, now"
 ---
 
 # WhatsApp group @mentions not detected when LID mentions are present (wasMentioned=false even though normalizedMentionedJids matches selfE164)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49317
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 If group activation is set to “always” / requireMention: false, the bot can still respond without mention detection.

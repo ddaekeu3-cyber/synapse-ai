@@ -3,6 +3,7 @@ layout: solution
 title: "OPENCLAW_GATEWAY_TOKEN in systemd service file not updated on config change or update, causing device_token_mismatch"
 category: config
 source: https://github.com/openclaw/openclaw/issues/17223
+description: "After changing in , the systemd service file retains the old token hardcoded in . Since the env var overrides the config file value, the gateway process"
 ---
 
 # OPENCLAW_GATEWAY_TOKEN in systemd service file not updated on config change or update, causing device_token_mismatch
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/17223
 After changing `gateway.auth.token` in `openclaw.json`, the systemd service file retains the **old token** hardcoded in `Environment=OPENCLAW_GATEWAY_TOKEN=<old_token>`. Since the env var overrides the config file value, the gateway process uses a different token than what's in the config — causing `device_token_mismatch` for all internal tool calls (cron, sessions, etc.) and CLI connections.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Create a systemd override to match the current config token:

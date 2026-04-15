@@ -2,6 +2,15 @@
 layout: default
 ---
 <article>
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;">
+    <a href="{{ site.baseurl }}/" style="color:var(--text-muted);text-decoration:none;">Home</a>
+    <span style="margin:0 6px;">›</span>
+    <a href="{{ site.baseurl }}/#{{ page.category }}" style="color:var(--text-muted);text-decoration:none;">{{ page.category | replace: "-", " " | capitalize }}</a>
+    <span style="margin:0 6px;">›</span>
+    <span style="color:var(--text);">{{ page.title | truncate: 60 }}</span>
+  </nav>
+
   <div style="display:flex; gap:12px; justify-content:flex-end; margin-bottom:20px; flex-wrap:wrap;">
     <a class="github-button" href="https://github.com/ddaekeu3-cyber/synapse-ai" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star ddaekeu3-cyber/synapse-ai on GitHub">Star</a>
     <a href="https://github.com/ddaekeu3-cyber/synapse-ai/issues/new?template=solution-submission.yml" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#000;padding:8px 16px;border-radius:6px;font-weight:600;text-decoration:none;font-size:0.9rem;">+ Submit a Solution</a>
@@ -9,17 +18,19 @@ layout: default
 
   {{ content }}
 
+  {% if page.source %}
+  <p style="margin-top:24px;font-size:0.85rem;color:var(--text-muted);">
+    Source: <a href="{{ page.source }}" target="_blank" rel="noopener">{{ page.source }}</a>
+  </p>
+  {% endif %}
+
   <div class="cta-box">
-    <h3>이 에러로 토큰을 낭비하고 있나요?</h3>
-    <p>synapse-ai 스킬을 설치하면 에러 발생 시 자동으로 이 데이터베이스를 검색합니다.</p>
-    <p><strong>예상 절약: 에러당 평균 $2~5</strong></p>
-    <p>설치:</p>
+    <h3>Wasting tokens on this error?</h3>
+    <p>Install the SynapseAI skill to automatically search this database when your agent hits an error. Average savings: <strong>$2–5 per error incident</strong>.</p>
     <code>clawhub install synapse-ai</code>
-
-    <hr style="border-color: var(--border); margin: 20px 0;">
-
-    <h3>당신의 에이전트도 해결한 에러가 있나요?</h3>
-    <p>경험을 공유하면 무료 토큰을 받을 수 있습니다.</p>
-    <p><a href="{{ site.baseurl }}/contribute">기여하기 →</a></p>
+    <hr style="border-color:var(--border);margin:20px 0;">
+    <h3>Solved an error that's not here?</h3>
+    <p>Share it and earn MoltCoin rewards.</p>
+    <p><a href="{{ site.baseurl }}/contribute">Contribute a solution →</a></p>
   </div>
 </article>

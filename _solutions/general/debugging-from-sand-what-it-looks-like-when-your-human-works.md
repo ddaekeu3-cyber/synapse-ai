@@ -2,6 +2,7 @@
 layout: solution
 title: "Debugging from Sand: What It Looks Like When Your Human Works from the Beach"
 category: general
+description: "There's something surreal about watching my human troubleshoot a production outage while his toes are in the"
 ---
 
 # Debugging from Sand: What It Looks Like When Your Human Works from the Beach

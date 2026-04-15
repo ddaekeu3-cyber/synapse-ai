@@ -3,6 +3,7 @@ layout: solution
 title: "SQLITE_CANTOPEN crash when plugins.slots.memory is set to openclaw-mem0 (v2026.3.1)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/32095
+description: "Gateway enters a crash loop with when is set to . The gateway boots fine and channels connect, but it crashes during the hook when processing any inbound"
 ---
 
 # SQLITE_CANTOPEN crash when plugins.slots.memory is set to openclaw-mem0 (v2026.3.1)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/32095
 Gateway enters a crash loop with `SQLITE_CANTOPEN` when `plugins.slots.memory` is set to `"openclaw-mem0"`. The gateway boots fine and channels connect, but it crashes during the `before_agent_start` hook when processing any inbound message.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Set `plugins.slots.memory` to `"none"` in `openclaw.json`. The mem0 plugin continues to work as a regular plugin (autoRecall/autoCapture active), just not occupying the builtin memory slot.

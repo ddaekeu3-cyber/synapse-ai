@@ -3,6 +3,7 @@ layout: solution
 title: "HTTP 401/403 misclassified as rate_limit with exponential cooldown — no self-recovery path"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/47720
+description: "- Ubuntu 22.04 VM (r430a), Node"
 ---
 
 # HTTP 401/403 misclassified as rate_limit with exponential cooldown — no self-recovery path
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47720
 - Ubuntu 22.04 VM (r430a), Node 22.22.0
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Manually edit `~/.openclaw/agents/main/agent/auth-profiles.json`:

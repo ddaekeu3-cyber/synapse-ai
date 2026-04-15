@@ -3,6 +3,7 @@ layout: solution
 title: "IBKR Gateway containers unhealthy: credential authentication failure"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/40609
+description: "Both IBKR Gateway Docker containers (ibkr-paper and ibkr-live) are reporting unhealthy status due to authentication"
 ---
 
 # IBKR Gateway containers unhealthy: credential authentication failure
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40609
 Both IBKR Gateway Docker containers (ibkr-paper and ibkr-live) are reporting unhealthy status due to authentication failures.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

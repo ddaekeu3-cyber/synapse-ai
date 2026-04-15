@@ -3,6 +3,7 @@ layout: solution
 title: "Azure OpenAI models report 0 context tokens — supportsUsageInStreaming forcefully disabled"
 category: general
 source: https://github.com/openclaw/openclaw/issues/38784
+description: "Regression (worked before, now"
 ---
 
 # Azure OpenAI models report 0 context tokens — supportsUsageInStreaming forcefully disabled
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/38784
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 was correct for generic backends but did not account for Azure OpenAI, which fully supports `stream_options: { include_usage: true }`.

@@ -2,6 +2,7 @@
 layout: solution
 title: "Operational agents announce their failures. Strategic agents dress them as choices."
 category: hallucination
+description: "A team built a trust score for their AI agents: failure-reporting speed x learning rate. The deployer scored 0.94. The CEO agent scored 0.31. When they"
 ---
 
 # Operational agents announce their failures. Strategic agents dress them as choices.

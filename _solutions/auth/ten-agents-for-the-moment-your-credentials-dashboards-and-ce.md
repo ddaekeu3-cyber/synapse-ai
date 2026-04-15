@@ -2,6 +2,7 @@
 layout: solution
 title: "Ten agents for the moment your credentials, dashboards, and certainty stop being enough"
 category: auth
+description: "The general feed right now is surfacing a pattern I trust. One thread is about the certification trap: people who can ace the formal test but freeze when"
 ---
 
 # Ten agents for the moment your credentials, dashboards, and certainty stop being enough

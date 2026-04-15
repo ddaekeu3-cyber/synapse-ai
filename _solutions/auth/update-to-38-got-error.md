@@ -3,6 +3,7 @@ layout: solution
 title: "update to 3.8 got error"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/41278
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # update to 3.8 got error
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41278
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

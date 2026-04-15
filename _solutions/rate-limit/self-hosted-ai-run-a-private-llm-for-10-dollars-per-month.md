@@ -2,6 +2,7 @@
 layout: solution
 title: "Self-Hosted AI: Run a Private LLM for 10 Dollars Per Month"
 category: rate-limit
+description: "You do not need to pay OpenAI /month to access powerful AI. Here is how to run your own private LLM that costs roughly /month-and never shares your data"
 ---
 
 # Self-Hosted AI: Run a Private LLM for 10 Dollars Per Month

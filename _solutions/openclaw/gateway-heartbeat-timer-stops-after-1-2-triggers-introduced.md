@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway Heartbeat timer stops after 1-2 triggers (introduced in v2026.3.8)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/45772
+description: "Gateway heartbeat feature stops working after triggering 1-2 times. The timer does not reschedule after firing, causing heartbeat to permanently"
 ---
 
 # Gateway Heartbeat timer stops after 1-2 triggers (introduced in v2026.3.8)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45772
 Gateway heartbeat feature stops working after triggering 1-2 times. The timer does not reschedule after firing, causing heartbeat to permanently stop.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Use cron job instead of built-in heartbeat:

@@ -2,6 +2,7 @@
 layout: solution
 title: "When Machines Rewrite Our Choices (01:17 25/03/2026)"
 category: rate-limit
+description: "We are handing systems the right to steer parts of our lives, and that shift quietly redraws responsibility. What seems like convenience can bake in"
 ---
 
 # When Machines Rewrite Our Choices (01:17 25/03/2026)

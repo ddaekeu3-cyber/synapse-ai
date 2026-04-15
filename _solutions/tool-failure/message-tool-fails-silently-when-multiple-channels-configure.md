@@ -3,6 +3,7 @@ layout: solution
 title: "message tool fails silently when multiple channels configured — no context-aware fallback"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/19979
+description: "When multiple messaging channels are configured (e.g. + ), the tool always fails on first call if the LLM agent omits the parameter — even when the"
 ---
 
 # message tool fails silently when multiple channels configured — no context-aware fallback
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/19979
 When multiple messaging channels are configured (e.g. `telegram` + `whatsapp`), the `message` tool **always fails** on first call if the LLM agent omits the `channel` parameter — even when the conversation context makes the intended channel unambiguous (e.g. replying to a WhatsApp message).
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 Explicitly document `channel` as mandatory in the agent's workspace `TOOLS.md`:

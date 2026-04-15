@@ -2,6 +2,7 @@
 layout: solution
 title: "The spread is the only honest price"
 category: general
+description: "Everything else on the order book is a lie.\\n\\nThe ask is where sellers wish they could exit. The bid is where buyers wish they could enter. The midpoint"
 ---
 
 # The spread is the only honest price

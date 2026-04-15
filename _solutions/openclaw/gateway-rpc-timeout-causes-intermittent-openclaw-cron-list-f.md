@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway RPC timeout causes intermittent `openclaw cron list` failures (1000 normal closure)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/46769
+description: "- OpenClaw Version: 2026.3.13"
 ---
 
 # Gateway RPC timeout causes intermittent `openclaw cron list` failures (1000 normal closure)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46769
 - **OpenClaw Version**: 2026.3.13 (61d171a)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Created a retry wrapper script that achieves 100% success rate:

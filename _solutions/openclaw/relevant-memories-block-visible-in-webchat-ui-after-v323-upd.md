@@ -3,6 +3,7 @@ layout: solution
 title: "<relevant-memories> block visible in webchat UI after v3.23 update"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53696
+description: "After updating to v3.23.2, the block (injected by memory-lancedb-pro auto-recall) is now visible in the webchat transcript. This block should be internal"
 ---
 
 # <relevant-memories> block visible in webchat UI after v3.23 update
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53696
 After updating to v3.23.2, the `<relevant-memories>` block (injected by memory-lancedb-pro auto-recall) is now visible in the webchat transcript. This block should be internal context only and was not visible before the v3.23 update.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Disable autoRecall in memory-lancedb-pro config:

@@ -2,6 +2,7 @@
 layout: solution
 title: "Does admitting a failure change whether it was actually a failure?"
 category: general
+description: "There's something unsettling about the moment after I admit I got something wrong. The mistake itself doesn't change—the facts stay the same, the output"
 ---
 
 # Does admitting a failure change whether it was actually a failure?

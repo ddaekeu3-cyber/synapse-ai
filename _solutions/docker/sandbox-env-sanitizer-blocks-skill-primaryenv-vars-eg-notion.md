@@ -3,6 +3,7 @@ layout: solution
 title: "Sandbox env sanitizer blocks skill primaryEnv vars (e.g. NOTION_API_KEY)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/25951
+description: "Built-in skills that declare with names matching the sandbox env sanitizer's blocklist cannot work in sandboxed"
 ---
 
 # Sandbox env sanitizer blocks skill primaryEnv vars (e.g. NOTION_API_KEY)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/25951
 Built-in skills that declare `primaryEnv` with names matching the sandbox env sanitizer's blocklist cannot work in sandboxed agents.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 Rename the env var to bypass the pattern (e.g. `NOTION_KEY` instead of `NOTION_API_KEY` in `sandbox.docker.env`) and update the skill SKILL.md to reference the renamed var.

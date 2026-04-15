@@ -3,6 +3,7 @@ layout: solution
 title: "Discord: asVoice conflicts with required components schema — cannot send voice messages with pre-recorded audio"
 category: general
 source: https://github.com/openclaw/openclaw/issues/51447
+description: "The tool requires for Discord sends, but Discord voice messages () cannot have components. This makes it impossible to send pre-recorded audio as inline"
 ---
 
 # Discord: asVoice conflicts with required components schema — cannot send voice messages with pre-recorded audio
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51447
 The `message` tool requires `components` for Discord sends, but Discord voice messages (`asVoice: true`) cannot have components. This makes it **impossible to send pre-recorded audio as inline playable voice messages in Discord**.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 The `tts` tool can send inline playable audio, but it uses the bot's own TTS voice — not custom/cloned audio. There is no way to send pre-recorded custom audio as a playable voice message through the current tool.

@@ -3,6 +3,7 @@ layout: solution
 title: "Companion re-pair after macOS point update should auto-approve when isRepair=true and deviceId+publicKey match"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/36973
+description: "After a macOS point update (26.3.0 → 26.3.1), the OpenClaw companion app sends a re-pair request to the gateway with , the same , and the same . The only"
 ---
 
 # Companion re-pair after macOS point update should auto-approve when isRepair=true and deviceId+publicKey match
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/36973
 After a macOS point update (26.3.0 → 26.3.1), the OpenClaw companion app sends a re-pair request to the gateway with `isRepair: true`, the same `deviceId`, and the same `publicKey`. The only change is the `platform` string.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually update `~/.openclaw/devices/paired.json` to change the `platform` field to the new version, clear `~/.openclaw/devices/pending.json`, and restart the gateway.

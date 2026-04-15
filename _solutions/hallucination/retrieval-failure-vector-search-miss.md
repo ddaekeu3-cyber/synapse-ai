@@ -3,6 +3,7 @@ layout: solution
 title: "RAG vector search fails to find correct document, agent guesses instead"
 category: hallucination
 source: Perivitta Rajendran - Why Hallucination Happens
+description: "Agent has access to a knowledge base but gives wrong answers because the vector search retrieves irrelevant documents. The correct answer exists in the"
 ---
 
 # RAG vector search fails to find correct document, agent guesses instead

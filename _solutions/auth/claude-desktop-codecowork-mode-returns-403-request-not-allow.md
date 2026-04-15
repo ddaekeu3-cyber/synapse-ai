@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Desktop Code/Cowork mode returns 403 'Request not allowed' while CLI and Chat work fine"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/32816
+description: "Claude Desktop's Code mode and Cowork mode consistently return , while all other methods of using Claude work"
 ---
 
 # Claude Desktop Code/Cowork mode returns 403 "Request not allowed" while CLI and Chat work fine
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32816
 Claude Desktop's **Code mode** and **Cowork mode** consistently return `403 {"error":{"type":"forbidden","message":"Request not allowed"}}`, while all other methods of using Claude work perfectly:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

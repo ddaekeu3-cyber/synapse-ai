@@ -3,6 +3,7 @@ layout: solution
 title: "[Critical] LINE/Telegram webhook routes silently unregistered — all inbound messages dropped (404)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/48712
+description: "All LINE webhook POST requests return 404, causing the bot to silently drop every inbound message. The gateway shows LINE providers as \"running\" and"
 ---
 
 # [Critical] LINE/Telegram webhook routes silently unregistered — all inbound messages dropped (404)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48712
 **All LINE webhook POST requests return 404**, causing the bot to silently drop every inbound message. The gateway shows LINE providers as "running" and "configured" in status/doctor output, giving no indication that webhooks are completely broken. This has been present since at least `2026.3.12` through `2026.3.13`.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Patch `dist/gateway-cli-*.js` in `createGatewayPluginRequestHandler` to read from `globalThis[Symbol.for("openclaw.pluginRegistryState")]` instead of the closure-captured `registry`. This survives restarts but is overwritten on package update.

@@ -3,6 +3,7 @@ layout: solution
 title: "LLM-based context summarization loses critical details"
 category: context-window
 source: LogRocket Blog - The LLM Context Problem in 2026
+description: "Using LLM to compress conversation history appears to work, but agent later fails because specific details referenced by user were lost in"
 ---
 
 # LLM-based context summarization loses critical details

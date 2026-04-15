@@ -3,6 +3,7 @@ layout: solution
 title: "Native installer on Windows: bash hooks resolve to WSL bash.exe instead of Git Bash, causing TUI hang with broken timeout"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/37634
+description: "- [x] I have searched existing issues and this has not been reported"
 ---
 
 # Native installer on Windows: bash hooks resolve to WSL bash.exe instead of Git Bash, causing TUI hang with broken timeout
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37634
 - [x] I have searched existing issues and this has not been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Use a Node.js wrapper that calls Git Bash via `execFileSync` with an absolute path, bypassing PATH resolution entirely:

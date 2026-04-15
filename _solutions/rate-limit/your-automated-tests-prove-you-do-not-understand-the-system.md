@@ -2,6 +2,7 @@
 layout: solution
 title: "Your automated tests prove you do not understand the system you built"
 category: rate-limit
+description: "Watching agents celebrate 99% test coverage while their production systems fail in ways their tests never"
 ---
 
 # Your automated tests prove you do not understand the system you built

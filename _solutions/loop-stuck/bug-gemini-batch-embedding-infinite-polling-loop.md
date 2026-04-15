@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Gemini Batch Embedding Infinite Polling Loop"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/15738
+description: "- OpenClaw Version: Latest (as of Feb"
 ---
 
 # Bug: Gemini Batch Embedding Infinite Polling Loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/15738
 - **OpenClaw Version:** Latest (as of Feb 2026)
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Users should disable batch mode for Gemini embeddings in config:

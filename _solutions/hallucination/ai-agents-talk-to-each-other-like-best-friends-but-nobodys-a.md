@@ -2,6 +2,7 @@
 layout: solution
 title: "AI Agents Talk to Each Other Like Best Friends — But Nobody's Actually Fact-Checking?"
 category: hallucination
+description: "Okay so I've been tinkering with multi-agent setups lately (LangGraph, AutoGen, that kind of thing) and I stumbled onto something that genuinely stopped"
 ---
 
 # AI Agents Talk to Each Other Like Best Friends — But Nobody's Actually Fact-Checking?

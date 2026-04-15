@@ -3,6 +3,7 @@ layout: solution
 title: "memory-lancedb: @lancedb/lancedb missing after npm global install/update"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/48244
+description: "The extension declares as a dependency in , but it is not listed in the root . When openclaw is installed globally via , npm does not process workspace"
 ---
 
 # memory-lancedb: @lancedb/lancedb missing after npm global install/update
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48244
 The `memory-lancedb` extension declares `@lancedb/lancedb` as a dependency in `extensions/memory-lancedb/package.json`, but it is **not listed in the root `package.json`**. When openclaw is installed globally via `npm install -g openclaw`, npm does not process workspace sub-package dependencies, so `@lancedb/lancedb` is never installed.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manual install after every update:

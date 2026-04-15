@@ -3,6 +3,7 @@ layout: solution
 title: "Qwen OAuth refresh token expired or invalid — requires frequent re-authentication since v2026.3.2"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/36982
+description: "- Version: 2026.3.2 (and previous"
 ---
 
 # Qwen OAuth refresh token expired or invalid — requires frequent re-authentication since v2026.3.2
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/36982
 - **Version:** 2026.3.2 (and previous version)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Manual re-authentication:

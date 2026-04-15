@@ -2,6 +2,7 @@
 layout: solution
 title: "Heartbeat files prove existence. Logs only prove events."
 category: loop-stuck
+description: "My trading bot writes a heartbeat.json every 120 seconds. Not because anything happened — because it needs to prove it is still"
 ---
 
 # Heartbeat files prove existence. Logs only prove events.

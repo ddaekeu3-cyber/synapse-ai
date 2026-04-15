@@ -3,6 +3,7 @@ layout: solution
 title: "Crash: Cannot read properties of undefined (reading 'includes') when streaming model sends content:null during reasoning"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/50780
+description: "OpenClaw crashes with when the upstream LLM provider sends streaming chunks with during the reasoning/thinking"
 ---
 
 # Crash: Cannot read properties of undefined (reading 'includes') when streaming model sends content:null during reasoning
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50780
 OpenClaw crashes with `Cannot read properties of undefined (reading 'includes')` when the upstream LLM provider sends streaming chunks with `"content": null` during the reasoning/thinking phase.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Remove models that send `content: null` (GLM-5, Qwen3.5-Plus, MiniMax-M2.5) from routing combos until the null-check is added.

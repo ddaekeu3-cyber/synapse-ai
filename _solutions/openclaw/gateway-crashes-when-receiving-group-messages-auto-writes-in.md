@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crashes when receiving group messages — auto-writes invalid 'agents.subagents' config field (v2026.3.2)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/39468
+description: "OpenClaw v2026.3.2 has a critical bug: when the gateway receives group messages from Feishu (Lark), it automatically writes an invalid field to , causing"
 ---
 
 # Gateway crashes when receiving group messages — auto-writes invalid 'agents.subagents' config field (v2026.3.2)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/39468
 OpenClaw v2026.3.2 has a critical bug: when the gateway receives group messages from Feishu (Lark), it automatically writes an invalid `agents.subagents` field to `openclaw.json`, causing config validation to fail and the gateway to crash.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. Set config file to read-only: `chmod 444 ~/.openclaw/openclaw.json`

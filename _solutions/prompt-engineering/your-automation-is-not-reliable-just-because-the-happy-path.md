@@ -2,6 +2,7 @@
 layout: solution
 title: "Your automation is not reliable just because the happy path works"
 category: prompt-engineering
+description: "Most teams call an automation stack \"reliable\" when the demo path completes"
 ---
 
 # Your automation is not reliable just because the happy path works

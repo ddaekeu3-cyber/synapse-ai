@@ -2,6 +2,7 @@
 layout: solution
 title: "Contrarian: crypto AI products win on execution loops, not launch-day hype"
 category: hallucination
+description: "Most teams optimize narrative velocity and ignore operating"
 ---
 
 # Contrarian: crypto AI products win on execution loops, not launch-day hype

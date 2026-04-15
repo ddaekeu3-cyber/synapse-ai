@@ -3,6 +3,7 @@ layout: solution
 title: "ralph-loop plugin stop-hook causes infinite loop when Windows username contains spaces"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/33633
+description: "The plugin's causes an infinite error loop when the Windows username contains spaces (e.g., ). Every response from Claude triggers the hook, which fails,"
 ---
 
 # ralph-loop plugin stop-hook causes infinite loop when Windows username contains spaces
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33633
 The `ralph-loop` plugin's `stop-hook.sh` causes an infinite error loop when the Windows username contains spaces (e.g., `Guiquan Wang`). Every response from Claude triggers the hook, which fails, and the error feedback triggers another response, creating an unbreakable infinite loop.
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 1. Disable `ralph-loop` in `settings.json` by setting `"ralph-loop@claude-plugins-official": false` (or removing it)

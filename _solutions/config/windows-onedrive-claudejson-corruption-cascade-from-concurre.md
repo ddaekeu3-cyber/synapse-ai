@@ -3,6 +3,7 @@ layout: solution
 title: "Windows + OneDrive: .claude.json corruption cascade from concurrent writes"
 category: config
 source: https://github.com/anthropics/claude-code/issues/29153
+description: "On Windows 11 with the home directory on OneDrive, experienced a cascading corruption event that resulted in complete config loss and a login"
 ---
 
 # Windows + OneDrive: .claude.json corruption cascade from concurrent writes
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29153
 On Windows 11 with the home directory on OneDrive, `~/.claude.json` experienced a cascading corruption event that resulted in complete config loss and a login loop.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Manual recovery by finding the largest valid `.corrupted` file in `~/.claude/backups/` and copying it back as `~/.claude.json`. The backup files are valid JSON despite the `.corrupted` naming — Claude Code was correctly saving snapshots before each recovery attempt, it just couldn't stop the cascade.

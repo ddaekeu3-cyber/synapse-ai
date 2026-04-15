@@ -3,6 +3,7 @@ layout: solution
 title: "Sandbox file tool guidance incorrectly states paths resolve against host workspace"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/16920
+description: "Commit 2bf33077 added incorrect guidance to the sandbox system prompt claiming file tools (read/write/edit/apply_patch) resolve paths against the host"
 ---
 
 # Sandbox file tool guidance incorrectly states paths resolve against host workspace
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/16920
 Commit 2bf33077 added incorrect guidance to the sandbox system prompt claiming file tools (read/write/edit/apply_patch) resolve paths against the host workspace. In reality, all file tools use `SandboxFsBridge` which executes via `docker exec` inside the container.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

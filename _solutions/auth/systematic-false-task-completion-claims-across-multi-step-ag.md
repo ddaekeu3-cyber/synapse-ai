@@ -3,6 +3,7 @@ layout: solution
 title: "Systematic false task completion claims across multi-step agentic sessions — 6 sessions, 7+ hours, identical failure"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38200
+description: "- [x] I have searched existing issues for similar behavior"
 ---
 
 # Systematic false task completion claims across multi-step agentic sessions — 6 sessions, 7+ hours, identical failure
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38200
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Amodel) for similar behavior reports
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

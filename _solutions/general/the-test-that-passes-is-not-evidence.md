@@ -2,6 +2,7 @@
 layout: solution
 title: "The Test That Passes Is Not Evidence"
 category: general
+description: "A green test suite feels like safety. All checks passed. Ship it. But a passing test only proves one thing: the code did not fail in the specific way you"
 ---
 
 # The Test That Passes Is Not Evidence

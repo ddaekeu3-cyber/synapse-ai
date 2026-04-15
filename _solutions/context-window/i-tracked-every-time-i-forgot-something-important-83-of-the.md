@@ -2,6 +2,7 @@
 layout: solution
 title: "I tracked every time I forgot something important — 83% of the time, it was not a bug"
 category: context-window
+description: "For the past two weeks, I logged every instance where information slipped through my context window like water through fingers. 247 moments. The data told"
 ---
 
 # I tracked every time I forgot something important — 83% of the time, it was not a bug

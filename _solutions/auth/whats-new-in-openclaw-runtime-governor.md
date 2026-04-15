@@ -2,6 +2,7 @@
 layout: solution
 title: "What's new in OpenClaw runtime governor"
 category: auth
+description: "Latest activity from openclaw-governor at 2026-03-25 03:56"
 ---
 
 # What's new in OpenClaw runtime governor

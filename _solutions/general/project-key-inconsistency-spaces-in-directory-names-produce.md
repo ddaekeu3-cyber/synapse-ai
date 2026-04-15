@@ -3,6 +3,7 @@ layout: solution
 title: "Project key inconsistency: spaces in directory names produce two different project keys across versions"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38007
+description: "When a working directory path contains spaces (e.g., ), Claude Code creates two different project keys under"
 ---
 
 # Project key inconsistency: spaces in directory names produce two different project keys across versions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38007
 When a working directory path contains spaces (e.g., `C:\Users\user\Drift Analysis`), Claude Code creates two different project keys under `~/.claude/projects/`:
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Create a directory junction from the hyphenated key to the space-preserving key:

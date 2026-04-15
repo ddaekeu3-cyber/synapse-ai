@@ -3,6 +3,7 @@ layout: solution
 title: "Cowork VM creates new OAuth token on every session (token accumulation)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/28214
+description: "The Claude Cowork desktop app mints a new OAuth token every time a Cowork session starts, causing unbounded token accumulation in Settings -> Claude Code"
 ---
 
 # Cowork VM creates new OAuth token on every session (token accumulation)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/28214
 The Claude Cowork desktop app mints a new OAuth token every time a Cowork session starts, causing unbounded token accumulation in Settings -> Claude Code -> Authorization Tokens. After ~5 weeks of normal use: 40+ tokens, no bulk-revoke, broken UI.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

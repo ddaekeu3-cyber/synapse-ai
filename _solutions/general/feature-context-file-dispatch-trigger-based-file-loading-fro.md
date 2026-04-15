@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: context file dispatch — trigger-based file loading from CLAUDE.md"
 category: general
 source: https://github.com/anthropics/claude-code/issues/31575
+description: "Claude Code's auto-memory () has a 200-line cap, and only and are auto-loaded into context. Other memory files persist on disk but are invisible unless"
 ---
 
 # Feature: context file dispatch — trigger-based file loading from CLAUDE.md
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31575
 Claude Code's auto-memory (`MEMORY.md`) has a 200-line cap, and only `MEMORY.md` and `CLAUDE.md` are auto-loaded into context. Other memory files persist on disk but are invisible unless Claude happens to read them.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 is adding a manual index to `MEMORY.md`:

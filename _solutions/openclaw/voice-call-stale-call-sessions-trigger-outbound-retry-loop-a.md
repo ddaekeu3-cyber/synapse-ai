@@ -3,6 +3,7 @@ layout: solution
 title: "[voice-call] Stale call sessions trigger outbound retry loop after gateway restart — calls user repeatedly at night"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/48739
+description: "After a gateway restart, the voice-call plugin restores stale call sessions and marks them as (correctly skipped) — but still enters a 5-minute outbound"
 ---
 
 # [voice-call] Stale call sessions trigger outbound retry loop after gateway restart — calls user repeatedly at night
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48739
 After a gateway restart, the voice-call plugin restores stale call sessions and marks them as `older than maxDurationSeconds` (correctly skipped) — but **still enters a 5-minute outbound retry loop**, repeatedly calling the user via Twilio REST API until the gateway is manually restarted again.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Restarting the gateway again (SIGUSR1 or `launchctl stop/start`) clears the plugin state and stops the retry loop. Alternatively, cancelling active Twilio calls via REST API:

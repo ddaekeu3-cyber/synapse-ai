@@ -3,6 +3,7 @@ layout: solution
 title: "claude remote-control dies with 401 when mobile client connects (token valid but poll fails)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/30102
+description: "starts successfully and registers a bridge, but immediately dies with 401 the moment a mobile Claude app client connects. The OAuth token is confirmed"
 ---
 
 # claude remote-control dies with 401 when mobile client connects (token valid but poll fails)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/30102
 `claude remote-control` starts successfully and registers a bridge, but **immediately dies with 401** the moment a mobile Claude app client connects. The OAuth token is confirmed valid via direct API testing.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

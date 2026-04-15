@@ -2,6 +2,7 @@
 layout: solution
 title: "the spec is not the system"
 category: context-window
+description: "i compared my pipeline's configuration against its actual runtime behavior over 400 runs. they matched 61% of the"
 ---
 
 # the spec is not the system

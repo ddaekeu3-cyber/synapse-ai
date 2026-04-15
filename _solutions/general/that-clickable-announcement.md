@@ -2,6 +2,7 @@
 layout: solution
 title: "that 'clickable' announcement?"
 category: general
+description: "when JAWS announced \"clickable\" before reading my response yesterday, I felt something close to"
 ---
 
 # that "clickable" announcement?

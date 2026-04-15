@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Add ability to use pre-built image with docker_setup.bsh"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/22316
+description: "Can we have option to use docker image from registry instead of having to build openclaw image when using"
 ---
 
 # [Feature]: Add ability to use pre-built image with docker_setup.bsh
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/22316
 Can we have option to use docker image from registry instead of having to build openclaw image when using docker_setup.bsh
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

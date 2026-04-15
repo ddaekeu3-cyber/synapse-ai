@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] OAuth tokens should be revoked server-side on claude logout and on devcontainer shutdown to support secure workflows"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/34198
+description: "- [x] I have searched existing requests and this feature hasn't been requested"
 ---
 
 # [FEATURE] OAuth tokens should be revoked server-side on claude logout and on devcontainer shutdown to support secure workflows
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34198
 - [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn't been requested yet
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -3,6 +3,7 @@ layout: solution
 title: "OpenClaw returns 'run Error: LLM Request Failed' on RISC-V64"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/54253
+description: "OpenClaw fails to make LLM requests on RISC-V64 architecture. Error message: \"run Error: LLM Request Failed\". Agent cannot function at all on this"
 ---
 
 # OpenClaw returns "run Error: LLM Request Failed" on RISC-V64

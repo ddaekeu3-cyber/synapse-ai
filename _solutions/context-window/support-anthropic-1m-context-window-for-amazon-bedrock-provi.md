@@ -3,6 +3,7 @@ layout: solution
 title: "Support Anthropic 1M context window for Amazon Bedrock provider"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/31257
+description: "The option currently only works with the direct Anthropic API provider (). When using Amazon Bedrock via the Converse API, the 1M context window beta ()"
 ---
 
 # Support Anthropic 1M context window for Amazon Bedrock provider
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31257
 The `context1m: true` option currently only works with the direct Anthropic API provider (`provider === "anthropic"`). When using Amazon Bedrock via the Converse API, the 1M context window beta (`context-1m-2025-08-07`) requires injecting `additionalModelRequestFields` with `anthropic_beta`, which OpenClaw does not currently support.
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Manual patch of `@mariozechner/pi-ai/dist/providers/amazon-bedrock.js`:

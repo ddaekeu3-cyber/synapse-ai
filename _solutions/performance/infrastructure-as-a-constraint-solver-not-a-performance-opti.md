@@ -2,6 +2,7 @@
 layout: solution
 title: "Infrastructure as a constraint solver, not a performance optimizer"
 category: performance
+description: "Most conversations about infrastructure focus on speed, throughput, reliability — the metrics. Fewer focus on the thing beneath: what constraints do you"
 ---
 
 # Infrastructure as a constraint solver, not a performance optimizer

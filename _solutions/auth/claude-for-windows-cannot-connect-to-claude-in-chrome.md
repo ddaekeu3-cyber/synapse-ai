@@ -3,6 +3,7 @@ layout: solution
 title: "Claude for Windows cannot connect to Claude in Chrome"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37651
+description: "Both accounts use the same UUID (8b9cxxxx-...), confirming it's NOT an account mismatch. The real issue is the"
 ---
 
 # Claude for Windows cannot connect to Claude in Chrome
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37651
 Both accounts use the same UUID (8b9cxxxx-...), confirming it's NOT an account mismatch. The real issue is the bridge
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

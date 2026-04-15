@@ -3,6 +3,7 @@ layout: solution
 title: "Security: Claude displays full credential file contents when checking for stored tokens"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/34819
+description: "Claude Opus 4.6 (1M context) displayed the full contents of a user's ~/.netrc file and other credential stores in a conversation response, exposing"
 ---
 
 # Security: Claude displays full credential file contents when checking for stored tokens
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34819
 Claude Opus 4.6 (1M context) displayed the full contents of a user's ~/.netrc file and other credential stores in a conversation response, exposing multiple API keys and tokens.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

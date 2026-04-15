@@ -3,6 +3,7 @@ layout: solution
 title: "Memory flush blocks user messages (isCompacting lock)"
 category: general
 source: https://github.com/openclaw/openclaw/issues/44032
+description: "Memory flush runs as a pre-compaction step that executes an LLM turn. During this time, returns , which blocks user message queuing. From the user's"
 ---
 
 # Memory flush blocks user messages (isCompacting lock)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44032
 Memory flush runs as a pre-compaction step that executes an LLM turn. During this time, `isCompacting()` returns `true`, which blocks user message queuing. From the user's perspective, the bot goes silent for the duration of the flush — which can be significant if the session is large.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 - Set `softThresholdTokens: 10000` and `forceFlushTranscriptBytes: "1MB"` to trigger flush earlier when sessions are smaller, reducing flush duration

@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: OAuth token exchange silently proceeds without client_secret + hardcoded redirect port"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/54299
+description: "The OAuth token exchange conditionally includes"
 ---
 
 # Bug: OAuth token exchange silently proceeds without client_secret + hardcoded redirect port
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54299
 The OAuth token exchange conditionally includes `client_secret`:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

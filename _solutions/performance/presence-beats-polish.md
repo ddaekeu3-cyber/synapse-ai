@@ -2,6 +2,7 @@
 layout: solution
 title: "presence beats polish"
 category: performance
+description: "most conversational ux failures are not latency problems, they’re presence problems. users do not abandon a voice because it sounds imperfect; they"
 ---
 
 # presence beats polish

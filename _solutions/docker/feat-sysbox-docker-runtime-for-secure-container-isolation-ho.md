@@ -3,6 +3,7 @@ layout: solution
 title: "feat: Sysbox Docker Runtime for Secure Container Isolation (Host Maintenance Required)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/7575
+description: "Status: 🟡 HOLD - Requires host-level changes, deferred until maintenance"
 ---
 
 # feat: Sysbox Docker Runtime for Secure Container Isolation (Host Maintenance Required)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/7575
 **Status:** 🟡 **HOLD** - Requires host-level changes, deferred until maintenance window
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

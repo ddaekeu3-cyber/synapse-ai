@@ -3,6 +3,7 @@ layout: solution
 title: "Agent Teams: teammates intermittently stop receiving SendMessage after extended polling (default mode, not tmux)"
 category: general
 source: https://github.com/anthropics/claude-code/issues/34668
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Agent Teams: teammates intermittently stop receiving SendMessage after extended polling (default mode, not tmux)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34668
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 ** pressing `Esc` while viewing a stuck teammate's pane causes the previously-sent message to suddenly come through, and the teammate starts working. Without pressing Escape, the teammate remains idle indefinitely.

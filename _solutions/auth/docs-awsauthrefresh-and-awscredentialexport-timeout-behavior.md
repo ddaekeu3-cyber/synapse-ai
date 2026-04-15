@@ -3,6 +3,7 @@ layout: solution
 title: "[DOCS] `awsAuthRefresh` and `awsCredentialExport` timeout behavior is undocumented"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/25457
+description: "Missing documentation (feature not"
 ---
 
 # [DOCS] `awsAuthRefresh` and `awsCredentialExport` timeout behavior is undocumented
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/25457
 Missing documentation (feature not documented)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

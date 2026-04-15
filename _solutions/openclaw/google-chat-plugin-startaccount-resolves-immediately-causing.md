@@ -3,6 +3,7 @@ layout: solution
 title: "Google Chat plugin: startAccount resolves immediately, causing infinite restart loop"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/20502
+description: "The Google Chat plugin's function in resolves immediately after registering the webhook handler via . Since Google Chat is webhook-based (no persistent"
 ---
 
 # Google Chat plugin: startAccount resolves immediately, causing infinite restart loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/20502
 The Google Chat plugin's `startAccount` function in `extensions/googlechat/src/channel.ts` resolves immediately after registering the webhook handler via `startGoogleChatMonitor()`. Since Google Chat is webhook-based (no persistent connection like WhatsApp's WebSocket), the async function returns right away.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 The `startAccount` function should await the abort signal before returning, keeping the promise pending:

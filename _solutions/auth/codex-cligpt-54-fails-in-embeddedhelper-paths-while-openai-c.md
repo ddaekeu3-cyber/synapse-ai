@@ -3,6 +3,7 @@ layout: solution
 title: "codex-cli/gpt-5.4 fails in embedded/helper paths while openai-codex/gpt-5.4 works"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/38212
+description: "On OpenClaw , helper paths that use the embedded runner can still fail when the configured primary model is , even though the equivalent Codex"
 ---
 
 # codex-cli/gpt-5.4 fails in embedded/helper paths while openai-codex/gpt-5.4 works
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/38212
 On OpenClaw `2026.3.2`, helper paths that use the embedded runner can still fail when the configured primary model is `codex-cli/gpt-5.4`, even though the equivalent Codex OAuth-backed ref `openai-codex/gpt-5.4` already has forward-compat support.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

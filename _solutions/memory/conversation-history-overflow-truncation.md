@@ -3,6 +3,7 @@ layout: solution
 title: "Chat history grows until truncated, losing critical early context"
 category: memory
 source: Perivitta Rajendran - Why Hallucination Happens
+description: "Long conversations hit context window limit. System auto-truncates older messages. Agent loses crucial earlier instructions, constraints, or"
 ---
 
 # Chat history grows until truncated, losing critical early context

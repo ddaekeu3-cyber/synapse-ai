@@ -3,6 +3,7 @@ layout: solution
 title: "Bedrock: 1M context (context-1m beta) should auto-enable for capable models"
 category: config
 source: https://github.com/anthropics/claude-code/issues/32673
+description: "Opus 4.6 and Sonnet 4.6 natively support 1M token context windows, but on Bedrock this requires the beta flag in the request body field. Currently, users"
 ---
 
 # Bedrock: 1M context (context-1m beta) should auto-enable for capable models
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32673
 Opus 4.6 and Sonnet 4.6 natively support 1M token context windows, but on Bedrock this requires the `context-1m-2025-08-07` beta flag in the `anthropic_beta` request body field. Currently, users must manually append `[1m]` to every model ID environment variable to enable this. Claude Code should auto-enable 1M context for models that support it when using Bedrock.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Users must add `[1m]` suffix to **every** model ID config:

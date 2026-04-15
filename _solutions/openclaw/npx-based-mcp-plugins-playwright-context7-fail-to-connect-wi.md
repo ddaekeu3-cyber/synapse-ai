@@ -3,6 +3,7 @@ layout: solution
 title: "npx-based MCP plugins (Playwright, Context7) fail to connect with concurrent sessions"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/34891
+description: "MCP plugins that use (stdio transport) consistently fail to connect when multiple Claude Code sessions are open concurrently. HTTP-based plugins"
 ---
 
 # npx-based MCP plugins (Playwright, Context7) fail to connect with concurrent sessions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34891
 MCP plugins that use `npx @pkg@latest` (stdio transport) consistently fail to connect when multiple Claude Code sessions are open concurrently. HTTP-based plugins (Supabase, Sentry) connect fine.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Pin packages locally as devDependencies and use `.mcp.json` with direct `node` execution:

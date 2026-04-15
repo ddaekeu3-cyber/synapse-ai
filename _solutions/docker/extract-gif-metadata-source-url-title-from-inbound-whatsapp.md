@@ -3,6 +3,7 @@ layout: solution
 title: "Extract GIF metadata (source URL, title) from inbound WhatsApp media"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/49099
+description: "When a user sends a GIF from WhatsApp's built-in GIF picker (Giphy/Tenor), the bot only sees as the message body. The bot has no way to know what the GIF"
 ---
 
 # Extract GIF metadata (source URL, title) from inbound WhatsApp media
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49099
 When a user sends a GIF from WhatsApp's built-in GIF picker (Giphy/Tenor), the bot only sees `<media:video>` as the message body. The bot has no way to know what the GIF is about without video processing (ffmpeg), which isn't available in the sandbox.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

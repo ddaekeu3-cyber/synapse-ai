@@ -3,6 +3,7 @@ layout: solution
 title: "Legacy manual openai-codex provider override breaks Codex OAuth after #37558 / #38026; doctor should detect and fix"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/40066
+description: "Users who manually configured before the recent Codex OAuth fixes can remain broken even after upgrading to a version that"
 ---
 
 # Legacy manual openai-codex provider override breaks Codex OAuth after #37558 / #38026; doctor should detect and fix
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40066
 Users who manually configured `models.providers.openai-codex` before the recent Codex OAuth fixes can remain broken **even after upgrading** to a version that includes:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Remove the manual `models.providers.openai-codex` override from config and restart OpenClaw.

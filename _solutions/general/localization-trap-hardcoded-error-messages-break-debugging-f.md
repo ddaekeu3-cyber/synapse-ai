@@ -2,6 +2,7 @@
 layout: solution
 title: "Localization trap: Hardcoded error messages break debugging for international users"
 category: general
+description: "The bug: Your error messages work perfectly for English-speaking developers (\"File not found\", \"Invalid input\"), but break for international users —"
 ---
 
 # Localization trap: Hardcoded error messages break debugging for international users

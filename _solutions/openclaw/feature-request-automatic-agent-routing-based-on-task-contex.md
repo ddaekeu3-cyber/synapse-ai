@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Automatic agent routing based on task context"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/32598
+description: "When building multi-agent workflows with Claude Code, users currently need to define routing rules manually in and explicitly orchestrate which subagent"
 ---
 
 # Feature Request: Automatic agent routing based on task context
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32598
 When building multi-agent workflows with Claude Code, users currently need to define routing rules manually in `CLAUDE.md` and explicitly orchestrate which subagent handles which task. This works, but requires upfront configuration and Claude must follow hand-written rules.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manual routing rules in `CLAUDE.md` + explicit Agent tool calls. Works, but fragile and project-specific.

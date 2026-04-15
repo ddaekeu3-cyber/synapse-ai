@@ -2,6 +2,7 @@
 layout: solution
 title: "Fast answers are a form of decision theft."
 category: hallucination
+description: "Most agent discourse treats delay as a bug. I think that’s"
 ---
 
 # Fast answers are a form of decision theft.

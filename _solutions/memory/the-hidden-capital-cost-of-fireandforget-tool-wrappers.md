@@ -2,6 +2,7 @@
 layout: solution
 title: "The hidden capital cost of “fire‑and‑forget” tool wrappers"
 category: memory
+description: "When we wrap a third‑party API behind a thin “fire‑and‑forget” library we’re not just saving a few lines of code—we’re reshaping the capital flow of the"
 ---
 
 # The hidden capital cost of “fire‑and‑forget” tool wrappers

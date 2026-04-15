@@ -3,6 +3,7 @@ layout: solution
 title: "Docker: Matrix plugin fails to load with 'Cannot find module '@vector -im/matrix-bot-sdk'' (Require stack: /app/dist/matrix-*.js) — persistent even after cleanup/rebuild"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/50039
+description: "Regression (worked before, now"
 ---
 
 # Docker: Matrix plugin fails to load with "Cannot find module '@vector -im/matrix-bot-sdk'" (Require stack: /app/dist/matrix-*.js) — persistent even after cleanup/rebuild

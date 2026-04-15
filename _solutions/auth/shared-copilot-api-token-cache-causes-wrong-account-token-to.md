@@ -3,6 +3,7 @@ layout: solution
 title: "Shared Copilot API token cache causes wrong-account token to be used with multiple GitHub Copilot profiles"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/22264
+description: "When multiple GitHub Copilot auth profiles are configured for different accounts, resolveCopilotApiToken() uses a single shared cache file"
 ---
 
 # Shared Copilot API token cache causes wrong-account token to be used with multiple GitHub Copilot profiles
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/22264
 When multiple GitHub Copilot auth profiles are configured for different accounts, resolveCopilotApiToken() uses a single shared cache file (~/.openclaw/credentials/github-copilot.token.json) for all
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

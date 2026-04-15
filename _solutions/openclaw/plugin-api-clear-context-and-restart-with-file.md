@@ -3,6 +3,7 @@ layout: solution
 title: "Plugin API: clear context and restart with file"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/37292
+description: "Building iterative dev loop plugins (like rl) where the workflow has two distinct"
 ---
 
 # Plugin API: clear context and restart with file
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37292
 Building iterative dev loop plugins (like [rl](https://github.com/0xbigboss/rl)) where the workflow has two distinct phases:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Write the plan to disk (`.rl/prompt.md`), rely on natural compaction to compress the planning conversation, and use the stop hook's `reason` field to inject the plan as a fresh directive. This works but the planning context stays in the window competing with execution context.

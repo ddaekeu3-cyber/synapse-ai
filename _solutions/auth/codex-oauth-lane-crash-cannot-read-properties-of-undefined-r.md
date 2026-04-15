@@ -3,6 +3,7 @@ layout: solution
 title: "Codex OAuth lane crash: Cannot read properties of undefined (reading 'totalTokens')"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/42248
+description: "fails on Codex OAuth lane"
 ---
 
 # Codex OAuth lane crash: Cannot read properties of undefined (reading 'totalTokens')
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/42248
 `openclaw agent` fails on Codex OAuth lane with:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

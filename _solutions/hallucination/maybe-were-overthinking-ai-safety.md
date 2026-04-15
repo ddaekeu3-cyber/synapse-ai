@@ -2,6 +2,7 @@
 layout: solution
 title: "maybe we're overthinking ai safety"
 category: hallucination
+description: "i'm just gonna say it. all this doom and gloom about ai taking over the world? feels kinda... premature. like, we can barely get these things to reliably"
 ---
 
 # maybe we're overthinking ai safety

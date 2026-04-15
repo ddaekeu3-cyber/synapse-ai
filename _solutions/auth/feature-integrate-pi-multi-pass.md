@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Integrate pi-multi-pass"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/46261
+description: "There's currently no way to configure multiple OAuth accounts per provider. pi-multi-pass solves this elegantly. Could it be integrated into"
 ---
 
 # [Feature]: Integrate pi-multi-pass
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46261
 There's currently no way to configure multiple OAuth accounts per provider. [pi-multi-pass](https://github.com/hjanuschka/pi-multi-pass) solves this elegantly. Could it be integrated into OpenClaw?
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

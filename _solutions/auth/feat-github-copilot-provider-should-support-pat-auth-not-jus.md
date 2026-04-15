@@ -3,6 +3,7 @@ layout: solution
 title: "feat: github-copilot provider should support PAT auth (not just OAuth device flow)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/52322
+description: "The provider only accepts OAuth tokens ( prefix) obtained through the interactive device flow (). It does not support GitHub Personal Access Tokens (PATs,"
 ---
 
 # feat: github-copilot provider should support PAT auth (not just OAuth device flow)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52322
 The `github-copilot` provider only accepts OAuth tokens (`ghu_` prefix) obtained through the interactive device flow (`openclaw models auth login-github-copilot`). It does not support GitHub Personal Access Tokens (PATs, `github_pat_` prefix) directly, even though PATs with Copilot permissions can successfully call `api.github.com/copilot_internal/user` and exchange for Copilot API tokens.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

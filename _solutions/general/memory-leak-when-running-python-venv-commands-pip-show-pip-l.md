@@ -3,6 +3,7 @@ layout: solution
 title: "Memory leak when running Python venv commands (pip show, pip list)"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38292
+description: "Claude Code leaks memory when running Python virtual environment commands like or through the Bash tool. The process eventually"
 ---
 
 # Memory leak when running Python venv commands (pip show, pip list)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38292
 Claude Code leaks memory when running Python virtual environment commands like `.venv/bin/pip show` or `.venv/bin/pip list` through the Bash tool. The process eventually OOMs.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Redirect output to a file and read it separately:

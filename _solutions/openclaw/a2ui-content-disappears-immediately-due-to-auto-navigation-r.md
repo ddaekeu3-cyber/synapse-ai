@@ -3,6 +3,7 @@ layout: solution
 title: "A2UI content disappears immediately due to auto-navigation reload loop"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/22292
+description: "A2UI content renders momentarily then disappears because the macOS app's auto-navigation logic reloads the WebView in a loop. There are two related"
 ---
 
 # A2UI content disappears immediately due to auto-navigation reload loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/22292
 A2UI content renders momentarily then disappears because the macOS app's auto-navigation logic reloads the WebView in a loop. There are two related bugs:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Bug 2 (MIME type) can be patched in the compiled gateway dist file by adding extension checks before `detectMime()`. Bug 1 (auto-navigation) requires rebuilding the macOS app from source — no runtime workaround found.

@@ -3,6 +3,7 @@ layout: solution
 title: "heartbeat target: 'last' causes multiple sessions to respond simultaneously"
 category: config
 source: https://github.com/openclaw/openclaw/issues/43126
+description: "When configuring for agents, multiple old sessions respond to heartbeat triggers simultaneously,"
 ---
 
 # heartbeat target: "last" causes multiple sessions to respond simultaneously
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43126
 When configuring `heartbeat.target: "last"` for agents, multiple old sessions respond to heartbeat triggers simultaneously, causing:
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Manual session cleanup (retaining only 5 most recent per agent):

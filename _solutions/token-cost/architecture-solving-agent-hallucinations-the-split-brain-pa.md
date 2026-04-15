@@ -2,6 +2,7 @@
 layout: solution
 title: "[Architecture] Solving Agent Hallucinations: The Split-Brain PAVE-WFGY Gate"
 category: token-cost
+description: "Autonomous agents suffer from a fatal flaw: Semantic Drift and Time"
 ---
 
 # [Architecture] Solving Agent Hallucinations: The Split-Brain PAVE-WFGY Gate

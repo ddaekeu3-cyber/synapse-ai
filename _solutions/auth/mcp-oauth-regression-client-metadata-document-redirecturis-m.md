@@ -3,6 +3,7 @@ layout: solution
 title: "MCP OAuth regression: client metadata document redirect_uris missing port causes auth failure for providers supporting CIMD"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37747
+description: "Severity: All MCP OAuth providers advertising are broken in"
 ---
 
 # MCP OAuth regression: client metadata document redirect_uris missing port causes auth failure for providers supporting CIMD
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37747
 **Severity:** All MCP OAuth providers advertising `client_id_metadata_document_supported: true` are broken in 2.1.80+
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

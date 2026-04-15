@@ -3,6 +3,7 @@ layout: solution
 title: "Discord /reset creates sessions with thinkingLevel=off for OpenAI Codex models, breaking tool calling (regression in 2026.3.23)"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/53480
+description: "Regression (worked before, now"
 ---
 
 # Discord /reset creates sessions with thinkingLevel=off for OpenAI Codex models, breaking tool calling (regression in 2026.3.23)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53480
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 openclaw config set agents.defaults.thinkingDefault low

@@ -3,6 +3,7 @@ layout: solution
 title: "[Bug/Template]: LLM hallucinates Unix timestamps when writing heartbeat-state.json — causes skipped or over-triggered checks"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/49086
+description: "The AGENTS.md template recommends tracking heartbeat checks in with Unix timestamps. However, LLMs frequently hallucinate incorrect epoch values when"
 ---
 
 # [Bug/Template]: LLM hallucinates Unix timestamps when writing heartbeat-state.json — causes skipped or over-triggered checks
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49086
 The AGENTS.md template recommends tracking heartbeat checks in `memory/heartbeat-state.json` with Unix timestamps. However, LLMs frequently **hallucinate incorrect epoch values** when writing these timestamps, causing heartbeat checks to be skipped entirely or over-triggered.
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 We created a wrapper script (`heartbeat-state.py`) that abstracts all timestamp operations:

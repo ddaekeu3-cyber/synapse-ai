@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram webhook unreachable when gateway.tailscale.mode=funnel (port mismatch)"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/30022
+description: "When is enabled alongside Telegram webhook mode ( set), inbound webhook requests from Telegram fail with 405 Method Not"
 ---
 
 # Telegram webhook unreachable when gateway.tailscale.mode=funnel (port mismatch)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30022
 When `gateway.tailscale.mode: "funnel"` is enabled alongside Telegram webhook mode (`channels.telegram.webhookUrl` set), inbound webhook requests from Telegram fail with **405 Method Not Allowed**.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Disable auto-managed funnel and manually configure Tailscale Funnel to the webhook port:

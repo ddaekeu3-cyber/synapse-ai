@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Split gateway daemon and agent runtime for container isolation"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/27259
+description: "Currently, the OpenClaw gateway daemon is a single Node.js process that handles everything: messaging (Telegram/Discord/etc.), node WebSocket connections,"
 ---
 
 # Feature Request: Split gateway daemon and agent runtime for container isolation
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27259
 Currently, the OpenClaw gateway daemon is a single Node.js process that handles everything: messaging (Telegram/Discord/etc.), node WebSocket connections, agent sessions, exec tool execution, approvals management, and configuration. Agent tool calls (`exec`, `nodes.run`, `Read`, `Edit`) are internal function calls within the same process.
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 The audit-based model: monitor agent sessions for suspicious allowlist modifications, use a separate monitoring agent, and accept that the allowlist prevents accidental damage rather than determined exploitation. This works but relies on detection rather than prevention.

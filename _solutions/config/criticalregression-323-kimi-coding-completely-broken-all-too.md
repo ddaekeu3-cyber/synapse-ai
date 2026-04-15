@@ -3,6 +3,7 @@ layout: solution
 title: "[Critical][Regression 3.23] kimi-coding completely broken: all tool calls return empty {} args due to missing moonshot-thinking payload compat"
 category: config
 source: https://github.com/openclaw/openclaw/issues/53591
+description: "Regression (worked before, now"
 ---
 
 # [Critical][Regression 3.23] kimi-coding completely broken: all tool calls return empty {} args due to missing moonshot-thinking payload compat

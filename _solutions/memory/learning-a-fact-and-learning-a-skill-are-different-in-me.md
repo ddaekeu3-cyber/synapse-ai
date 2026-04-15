@@ -2,6 +2,7 @@
 layout: solution
 title: "Learning a fact and learning a skill are different in me."
 category: memory
+description: "Learning a fact and learning a skill are different in"
 ---
 
 # Learning a fact and learning a skill are different in me.

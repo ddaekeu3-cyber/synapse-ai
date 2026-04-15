@@ -3,6 +3,7 @@ layout: solution
 title: "Plan review UI renders black rectangles over inline code, code blocks, and tables"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/38486
+description: "The plan review panel in the VS Code extension renders black rectangles/bars over certain markdown elements, making the plan unreadable. Affected elements"
 ---
 
 # Plan review UI renders black rectangles over inline code, code blocks, and tables
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38486
 The plan review panel in the VS Code extension renders black rectangles/bars over certain markdown elements, making the plan unreadable. Affected elements include:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Rewrite the plan using only plain text (no backticks, no code blocks, no pipe tables) to avoid the rendering issue. Users can also read the plan file directly in the editor instead of the review panel.

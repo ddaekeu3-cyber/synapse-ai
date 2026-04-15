@@ -3,6 +3,7 @@ layout: solution
 title: "CLAUDE_CODE_OAUTH_TOKEN breaks Chrome extension (--chrome)"
 category: config
 source: https://github.com/anthropics/claude-code/issues/29924
+description: "Setting the environment variable causes the Chrome extension ( / Claude in Chrome) to stop working. The extension reports \"browser extension is not"
 ---
 
 # CLAUDE_CODE_OAUTH_TOKEN breaks Chrome extension (--chrome)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29924
 Setting the `CLAUDE_CODE_OAUTH_TOKEN` environment variable causes the Chrome extension (`--chrome` / Claude in Chrome) to stop working. The extension reports "browser extension is not connected" even though it shows "Connected" in Chrome toolbar.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Don't set `CLAUDE_CODE_OAUTH_TOKEN` when using `--chrome`. Use browser login only (`~/.claude/.credentials.json`).

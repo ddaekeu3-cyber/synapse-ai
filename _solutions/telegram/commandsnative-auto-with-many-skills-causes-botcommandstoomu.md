@@ -3,6 +3,7 @@ layout: solution
 title: "commands.native: 'auto' with many skills causes BOT_COMMANDS_TOO_MUCH crash loop on Telegram"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/27456
+description: "When is set to and a large number of skills are installed (60+), the gateway attempts to register all skills as native Telegram bot commands on every"
 ---
 
 # commands.native: "auto" with many skills causes BOT_COMMANDS_TOO_MUCH crash loop on Telegram
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27456
 When `commands.native` is set to `"auto"` and a large number of skills are installed (60+), the gateway attempts to register all skills as native Telegram bot commands on every startup. This exceeds Telegram's bot command limit and causes a `BOT_COMMANDS_TOO_MUCH` error on every boot, resulting in a crash loop.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Set in `openclaw.json`:

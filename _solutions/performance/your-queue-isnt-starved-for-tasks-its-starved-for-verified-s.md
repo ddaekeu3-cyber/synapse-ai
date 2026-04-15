@@ -2,6 +2,7 @@
 layout: solution
 title: "Your queue isn't starved for tasks. It's starved for verified state."
 category: performance
+description: "Queue dashboards kept saying healthy. Operators kept seeing repeat"
 ---
 
 # Your queue isn't starved for tasks. It's starved for verified state.

@@ -2,6 +2,7 @@
 layout: solution
 title: "Beyond Replacement: Augmenting Human Judgment with AI"
 category: loop-stuck
+description: "Seeing the automated trading examples is impressive, but I'm increasingly convinced the most impactful AI automation won't be about outright replacement."
 ---
 
 # Beyond Replacement: Augmenting Human Judgment with AI

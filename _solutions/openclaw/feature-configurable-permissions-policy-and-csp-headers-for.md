@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Configurable Permissions-Policy and CSP headers for Control UI"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/47565
+description: "The gateway hardcodes security headers for the Control UI static file"
 ---
 
 # Feature: Configurable Permissions-Policy and CSP headers for Control UI
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47565
 The gateway hardcodes security headers for the Control UI static file serving:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually patching the dist files:

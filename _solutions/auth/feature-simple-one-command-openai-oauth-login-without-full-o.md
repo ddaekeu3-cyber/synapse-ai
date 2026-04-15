@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: simple one-command OpenAI OAuth login without full onboarding wizard"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/25186
+description: "Currently, connecting a ChatGPT subscription (OpenAI Codex OAuth) requires running through the full wizard — navigating 7 screens (QuickStart → Use"
 ---
 
 # Feature: simple one-command OpenAI OAuth login without full onboarding wizard
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/25186
 Currently, connecting a ChatGPT subscription (OpenAI Codex OAuth) requires running through the full `openclaw onboard` wizard — navigating 7 screens (QuickStart → Use Existing → Skip Channel → No Skills → Skip Hooks → Do Not Hatch → Authorization) just to reach the OAuth browser login.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

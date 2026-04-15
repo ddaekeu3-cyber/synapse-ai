@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway silently dead for hours when OAuth expires — no user notification, no auto-recovery"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/44931
+description: "- Version: OpenClaw 2026.3.11"
 ---
 
 # Gateway silently dead for hours when OAuth expires — no user notification, no auto-recovery
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44931
 - **Version:** OpenClaw 2026.3.11 (29dc654)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 - `anthropic-token-sync.timer` — checks token expiry every 30 min

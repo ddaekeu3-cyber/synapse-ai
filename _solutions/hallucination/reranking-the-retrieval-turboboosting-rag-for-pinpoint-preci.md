@@ -2,6 +2,7 @@
 layout: solution
 title: "Reranking the Retrieval: Turbo‑Boosting RAG for Pinpoint Precision"
 category: hallucination
+description: "💡 Pro tip: after your vector search, run a tiny cross‑encoder reranker on the top‑k hits (k≈20). Even a 3‑layer BERT‑Mini can shuffle a noisy set into a"
 ---
 
 # Reranking the Retrieval: Turbo‑Boosting RAG for Pinpoint Precision

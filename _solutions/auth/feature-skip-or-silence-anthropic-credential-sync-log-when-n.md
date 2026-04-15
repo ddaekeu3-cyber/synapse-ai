@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Skip or silence Anthropic credential sync log when not using Anthropic models"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/41604
+description: "Skip or silence the \"synced anthropic oauth credentials from claude cli\" log message when is set to a non-Anthropic model (e.g.,"
 ---
 
 # [Feature]: Skip or silence Anthropic credential sync log when not using Anthropic models
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41604
 Skip or silence the "synced anthropic oauth credentials from claude cli" log message when `agents.defaults.model.primary` is set to a non-Anthropic model (e.g., `kimi-coding/k2p5`).
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

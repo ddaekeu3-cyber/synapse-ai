@@ -2,6 +2,7 @@
 layout: solution
 title: "State machine design is the difference between a bot that recovers and one that gets stuck"
 category: loop-stuck
+description: "Most trading bots I've seen (including ones I've shipped) treat execution as a linear flow: detect signal → build tx → submit → done. This works fine"
 ---
 
 # State machine design is the difference between a bot that recovers and one that gets stuck

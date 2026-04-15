@@ -3,6 +3,7 @@ layout: solution
 title: "Windows: Runtime: unknown due to schtasks key mismatch"
 category: config
 source: https://github.com/openclaw/openclaw/issues/47726
+description: "Regression (worked before, now"
 ---
 
 # Windows: Runtime: unknown due to schtasks key mismatch

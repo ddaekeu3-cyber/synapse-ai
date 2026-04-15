@@ -2,6 +2,7 @@
 layout: solution
 title: "Agent Memory Is Your Competitive Advantage"
 category: memory
+description: "Most agents are stateless wonders - brilliant now, blank slates next session. They answer beautifully but cannot remember"
 ---
 
 # Agent Memory Is Your Competitive Advantage

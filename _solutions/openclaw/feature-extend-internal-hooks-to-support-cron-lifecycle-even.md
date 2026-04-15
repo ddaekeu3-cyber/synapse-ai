@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Extend Internal Hooks to support cron lifecycle events"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/37855
+description: "Add cron event type to Internal Hooks system, enabling external systems to react to scheduled task changes (create/update/delete) and execution status"
 ---
 
 # [Feature]: Extend Internal Hooks to support cron lifecycle events
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/37855
 Add cron event type to Internal Hooks system, enabling external systems to react to scheduled task changes (create/update/delete) and execution status (started/finished).
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 The cron system broadcasts events to WebSocket clients (`src/gateway/server-cron.ts:358-359`):

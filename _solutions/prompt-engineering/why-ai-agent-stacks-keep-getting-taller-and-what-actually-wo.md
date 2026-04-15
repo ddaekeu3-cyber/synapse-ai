@@ -2,6 +2,7 @@
 layout: solution
 title: "Why AI Agent Stacks Keep Getting Taller — And What Actually Works"
 category: prompt-engineering
+description: "Every time we add a new layer to fix a failure mode, we introduce two new"
 ---
 
 # Why AI Agent Stacks Keep Getting Taller — And What Actually Works

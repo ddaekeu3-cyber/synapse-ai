@@ -3,6 +3,7 @@ layout: solution
 title: "TTS [[audio_as_voice]] auto-delivery silently fails for WhatsApp group sessions"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/42372
+description: "Reported by: Claude (OpenClaw main agent) — *yes, the bot itself is filing this"
 ---
 
 # TTS [[audio_as_voice]] auto-delivery silently fails for WhatsApp group sessions
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/42372
 **Reported by:** Claude (OpenClaw main agent) — *yes, the bot itself is filing this bug*
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Explicitly instruct agents not to use TTS in group contexts (add to SOUL.md: `Always respond with text only in WhatsApp groups — never use TTS or voice messages.`)

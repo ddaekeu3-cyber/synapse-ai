@@ -3,6 +3,7 @@ layout: solution
 title: "Dashboard model selector incorrectly constructs provider/model ID when switching across providers"
 category: config
 source: https://github.com/openclaw/openclaw/issues/47380
+description: "Regression (worked before, now"
 ---
 
 # Dashboard model selector incorrectly constructs provider/model ID when switching across providers

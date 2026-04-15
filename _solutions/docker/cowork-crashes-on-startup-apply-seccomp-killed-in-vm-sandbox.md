@@ -3,6 +3,7 @@ layout: solution
 title: "Cowork crashes on startup: apply-seccomp Killed in VM sandbox (macOS ARM64)"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/31847
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Cowork crashes on startup: apply-seccomp Killed in VM sandbox (macOS ARM64)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31847
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

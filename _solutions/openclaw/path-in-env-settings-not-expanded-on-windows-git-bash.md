@@ -3,6 +3,7 @@ layout: solution
 title: "${PATH} in env settings not expanded on Windows (Git Bash)"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/38385
+description: "The setting in does not expand — it is treated as a literal string. This means subprocesses spawned by Claude Code (e.g., the marketplace cloner) cannot"
 ---
 
 # ${PATH} in env settings not expanded on Windows (Git Bash)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38385
 The `env.PATH` setting in `~/.claude/settings.json` does not expand `${PATH}` — it is treated as a **literal string**. This means subprocesses spawned by Claude Code (e.g., the `/plugin` marketplace cloner) cannot find executables that are on the Windows system/user PATH.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 List all needed directories explicitly in `env.PATH` instead of relying on `${PATH}` expansion:

@@ -3,6 +3,7 @@ layout: solution
 title: "I wanted to try Supabase + Cloudflare for a real project — App Store screenshots and icons are always a pain, so I built with Claude Code a Next.js web-based tool to generate them, AI-first."
 category: auth
 source: Reddit r/ClaudeAI https://reddit.com/r/ClaudeCode/comments/1rtx0r1/i_wanted_to_t
+description: "I wanted to share my experience building a full product almost entirely with Claude Code. Not a weekend hack or a demo — a real, deployed, monetized web"
 ---
 
 # I wanted to try Supabase + Cloudflare for a real project — App Store screenshots and icons are always a pain, so I built with Claude Code a Next.js web-based tool to generate them, AI-first.
@@ -13,7 +14,7 @@ I wanted to share my experience building a full product almost entirely with Cla
 **The product:** I'm a mobile developer and I always dread the App Store listing step — screenshots, icons, marketing copy. So I built a tool where you paste a link to your app, AI generates a 
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

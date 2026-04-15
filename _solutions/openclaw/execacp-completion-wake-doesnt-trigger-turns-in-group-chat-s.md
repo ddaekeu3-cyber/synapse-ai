@@ -3,6 +3,7 @@ layout: solution
 title: "Exec/ACP completion wake doesn't trigger turns in group chat sessions (Discord/Telegram channels)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/47578
+description: "Background exec completion and ACP session completion do not trigger agent turns in group chat sessions (Discord channels, Telegram groups). The system"
 ---
 
 # Exec/ACP completion wake doesn't trigger turns in group chat sessions (Discord/Telegram channels)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47578
 Background exec completion and ACP session completion do not trigger agent turns in group chat sessions (Discord channels, Telegram groups). The system event is enqueued and `requestHeartbeatNow` is called with the correct `sessionKey`, but the heartbeat response is never delivered to the group chat session.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We use a separate Discord bot ("Claude Code Notifier") that sends an `@mention` to the channel when Claude Code finishes. OpenClaw treats this as a normal inbound message and triggers a turn. This bypasses the heartbeat/system-event pipeline entirely.

@@ -3,6 +3,7 @@ layout: solution
 title: "session_status shows Context: 0/1.0m (0%) in container environment"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/40479
+description: "Regression (worked before, now"
 ---
 
 # session_status shows Context: 0/1.0m (0%) in container environment
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40479
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

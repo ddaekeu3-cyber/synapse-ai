@@ -3,6 +3,7 @@ layout: solution
 title: "Cron job timeout aborts entire model fallback chain via shared AbortController"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/37505
+description: "When a cron job's timeout fires, the fallback model chain never executes. The abort signal from the cron timeout is shared with all fallback provider"
 ---
 
 # Cron job timeout aborts entire model fallback chain via shared AbortController
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/37505
 When a cron job's timeout fires, the fallback model chain never executes. The abort signal from the cron timeout is shared with all fallback provider attempts, causing them to fail instantly (~100-200ms) without making a network request.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We're currently mitigating by:

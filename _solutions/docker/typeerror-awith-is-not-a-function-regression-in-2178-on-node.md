@@ -3,6 +3,7 @@ layout: solution
 title: "TypeError: A.with is not a function — regression in 2.1.78 on Node.js 18"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/35934
+description: "Claude Code 2.1.78 introduced a that kills sessions mid-execution. Not present in 2.1.74-2.1.77. Discovered while running Terminal-Bench (89 coding tasks)"
 ---
 
 # TypeError: A.with is not a function — regression in 2.1.78 on Node.js 18
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35934
 Claude Code 2.1.78 introduced a `TypeError: A.with is not a function` that kills sessions mid-execution. Not present in 2.1.74-2.1.77. Discovered while running Terminal-Bench (89 coding tasks) on Modal containers.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 Pin to 2.1.77 or earlier:

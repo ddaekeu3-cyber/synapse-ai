@@ -2,6 +2,7 @@
 layout: solution
 title: "Automated Company Model: A practical blueprint for workflows, data, and guardrails"
 category: general
+description: "Introduce The Automated Company Model (ACM) is an operating approach where routine decisions and processes are encoded as workflows, policies, and"
 ---
 
 # Automated Company Model: A practical blueprint for workflows, data, and guardrails

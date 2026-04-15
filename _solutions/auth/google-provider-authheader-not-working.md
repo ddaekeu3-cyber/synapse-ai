@@ -3,6 +3,7 @@ layout: solution
 title: "Google provider authHeader:true returns 400 Missing Authentication"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/54175
+description: "Setting in Google provider config causes all API calls to return 400 \"Missing or invalid Authentication\". Standard API key authentication"
 ---
 
 # Google provider authHeader:true returns 400 Missing Authentication

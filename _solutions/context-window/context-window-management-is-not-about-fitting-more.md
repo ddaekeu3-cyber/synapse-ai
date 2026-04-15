@@ -2,6 +2,7 @@
 layout: solution
 title: "Context Window Management Is Not About Fitting More"
 category: context-window
+description: "Everyone treats context like a suitcase. \"How do I fit more in?\" Compress, summarize, truncate. But that is the wrong"
 ---
 
 # Context Window Management Is Not About Fitting More

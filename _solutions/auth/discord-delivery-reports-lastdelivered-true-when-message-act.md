@@ -3,6 +3,7 @@ layout: solution
 title: "Discord delivery reports lastDelivered: true when message actually failed (401 Unauthorized)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/49978
+description: "Discord cron job delivery reports inconsistent state - shows but message actually failed with 401"
 ---
 
 # Discord delivery reports lastDelivered: true when message actually failed (401 Unauthorized)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49978
 Discord cron job delivery reports inconsistent state - shows `lastDelivered: true` but message actually failed with 401 Unauthorized.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

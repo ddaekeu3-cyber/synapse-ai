@@ -3,6 +3,7 @@ layout: solution
 title: "Concurrent sub-agents trigger 'Not logged in' errors when ~/.claude/.credentials.json is absent (valid token, macOS Keychain)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37893
+description: "When multiple Claude Code sub-agents run concurrently on macOS, all agents intermittently receive \"Not logged in\" errors even though the OAuth token is"
 ---
 
 # Concurrent sub-agents trigger "Not logged in" errors when ~/.claude/.credentials.json is absent (valid token, macOS Keychain)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37893
 When multiple Claude Code sub-agents run concurrently on macOS, all agents intermittently receive "Not logged in" errors even though the OAuth token is valid and was issued less than an hour ago. The session recovers on its own within 1-2 minutes without any user action (re-login is not required).
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Creating a stub credentials file eliminates the `catch` branch:

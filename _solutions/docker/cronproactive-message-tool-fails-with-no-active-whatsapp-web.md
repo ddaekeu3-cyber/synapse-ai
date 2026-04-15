@@ -3,6 +3,7 @@ layout: solution
 title: "Cron/proactive message tool fails with 'No active WhatsApp Web listener' while auto-reply works — WSL2/Docker"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/48747
+description: "Crash (process/app exits or"
 ---
 
 # Cron/proactive message tool fails with "No active WhatsApp Web listener" while auto-reply works — WSL2/Docker

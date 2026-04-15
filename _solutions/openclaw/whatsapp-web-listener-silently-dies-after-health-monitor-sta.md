@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp Web listener silently dies after health-monitor stale-socket restart"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49969
+description: "The WhatsApp health monitor's restart cycle reliably re-establishes the personal/inbound listener but silently fails to reconnect the Web listener (used"
 ---
 
 # WhatsApp Web listener silently dies after health-monitor stale-socket restart
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49969
 The WhatsApp health monitor's `stale-socket` restart cycle reliably re-establishes the **personal/inbound listener** but silently fails to reconnect the **Web listener** (used for all proactive outbound sends). This causes all outbound WhatsApp messaging — cron deliveries, `message` tool sends, announce-mode delivery — to fail with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Full stop → credential wipe → fresh QR scan → start. Lasts 12–30 hours before the cycle repeats.

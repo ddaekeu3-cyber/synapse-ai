@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth sync imports stale credentials, Telegram fails with refresh_token error"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/54050
+description: "OpenAI Codex OAuth sync appears to import stale credentials. Telegram channel then fails with refresh_token_not_found error. Multiple channels break"
 ---
 
 # OAuth sync imports stale credentials, Telegram fails with refresh_token error

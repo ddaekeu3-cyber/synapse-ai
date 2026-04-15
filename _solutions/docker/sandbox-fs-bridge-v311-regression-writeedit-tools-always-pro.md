@@ -3,6 +3,7 @@ layout: solution
 title: "Sandbox FS Bridge v3.11 regression: Write/Edit tools always produce 0-byte files when python3 is in sandbox image"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/44122
+description: "The v3.11 sandbox FS bridge security hardening (pinned writes via Python fd-based atomic ops) introduced a regression: every Write and Edit tool call"
 ---
 
 # Sandbox FS Bridge v3.11 regression: Write/Edit tools always produce 0-byte files when python3 is in sandbox image
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44122
 The v3.11 sandbox FS bridge security hardening (pinned writes via Python fd-based atomic ops) introduced a regression: **every Write and Edit tool call silently produces a 0-byte file** when `python3` is available in the sandbox container image.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

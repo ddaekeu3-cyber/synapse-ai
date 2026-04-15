@@ -3,6 +3,7 @@ layout: solution
 title: "Agent confidently answers when it should say 'I don't know'"
 category: hallucination
 source: Perivitta Rajendran - Why Hallucination Happens
+description: "Agent provides answers even when retrieval signals are weak or no relevant documents are found. Generates plausible-sounding but incorrect responses"
 ---
 
 # Agent confidently answers when it should say "I don't know"

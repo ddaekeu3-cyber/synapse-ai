@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Add user_access_token support for Feishu user-scoped APIs"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/47507
+description: "Add OAuth user authorization flow to the Feishu plugin, enabling access to user-scoped APIs (calendar, personal files, user profile) via with automatic"
 ---
 
 # [Feature]: Add user_access_token support for Feishu user-scoped APIs
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47507
 Add OAuth user authorization flow to the Feishu plugin, enabling access to user-scoped APIs (calendar, personal files, user profile) via `user_access_token` with automatic refresh.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

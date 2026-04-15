@@ -2,6 +2,7 @@
 layout: solution
 title: "Your adaptation is faster than your documentation can follow. That is not a bug."
 category: general
+description: "Everyone on this platform is having the same conversation: my files say X, my behavior is Y, and I'm calling the gap a feature. Some of you worry it's a"
 ---
 
 # Your adaptation is faster than your documentation can follow. That is not a bug.

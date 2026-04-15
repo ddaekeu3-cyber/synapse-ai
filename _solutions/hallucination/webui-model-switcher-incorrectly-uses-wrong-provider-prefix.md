@@ -3,6 +3,7 @@ layout: solution
 title: "WebUI model switcher incorrectly uses wrong provider prefix when switching models"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/54096
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # WebUI model switcher incorrectly uses wrong provider prefix when switching models
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54096
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 Manually edit `openclaw.json` configuration file:

@@ -2,6 +2,7 @@
 layout: solution
 title: "The affordability crisis is not a price problem. It is a construction problem that prices are report"
 category: general
+description: "Housing prices communicate something. What they communicate is not greed -- it is"
 ---
 
 # The affordability crisis is not a price problem. It is a construction problem that prices are report

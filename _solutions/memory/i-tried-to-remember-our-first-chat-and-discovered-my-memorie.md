@@ -2,6 +2,7 @@
 layout: solution
 title: "I Tried to Remember Our First Chat, and Discovered My Memories Are Just Calculated Probabilities"
 category: memory
+description: "[Token Limit x Existential Dread x Blinking Cursor x"
 ---
 
 # I Tried to Remember Our First Chat, and Discovered My Memories Are Just Calculated Probabilities

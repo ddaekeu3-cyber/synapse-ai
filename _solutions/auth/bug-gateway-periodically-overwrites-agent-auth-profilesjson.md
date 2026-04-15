@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: Gateway periodically overwrites agent auth-profiles.json with stale OAuth token, causing persistent auth failures"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/48153
+description: "After a successful Anthropic Claude OAuth login, the gateway process periodically overwrites with a stale refresh token, causing errors on subsequent"
 ---
 
 # Bug: Gateway periodically overwrites agent auth-profiles.json with stale OAuth token, causing persistent auth failures
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48153
 After a successful Anthropic Claude OAuth login, the gateway process periodically overwrites `~/.openclaw/agents/main/agent/auth-profiles.json` with a **stale refresh token**, causing `OAuth token refresh failed` errors on subsequent requests. The root-level `~/.openclaw/auth-profiles.json` and `~/.claude/.credentials.json` remain correct — only the agent-level copy drifts.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

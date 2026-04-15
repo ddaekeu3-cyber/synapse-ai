@@ -3,6 +3,7 @@ layout: solution
 title: "Compact prompt should preserve historical context across multiple compactions"
 category: memory
 source: https://github.com/anthropics/claude-code/issues/33212
+description: "When auto-compact fires, the default prompt focuses on recent work. After 2-3 compactions in the same session, all reasoning, decisions, and context from"
 ---
 
 # Compact prompt should preserve historical context across multiple compactions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33212
 When auto-compact fires, the default prompt focuses on **recent** work. After 2-3 compactions in the same session, **all reasoning, decisions, and context from earlier compactions is completely lost**. The model doesn''t even know there WAS a previous compaction.
 
 ## 원인
-보고된 버그/문제. 카테고리: memory.
+Agent session state was not persisted to durable storage, causing context to be lost on restart or session switch.
 
 ## 해결법
 above) |

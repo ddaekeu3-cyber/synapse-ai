@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram channel plugin: Desktop app zombie processes steal bot polling, MCP server fails"
 category: telegram
 source: https://github.com/anthropics/claude-code/issues/37624
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Telegram channel plugin: Desktop app zombie processes steal bot polling, MCP server fails
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37624
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Fully quit the Desktop app (not just close the window) and kill any zombie Claude processes before starting the CLI with `--channels`. However, this defeats the purpose for users who want to use both the Desktop app for chat and the CLI for Telegram integration.

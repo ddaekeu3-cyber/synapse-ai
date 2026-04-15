@@ -3,6 +3,7 @@ layout: solution
 title: "feat: atomic config management with validation and crash-loop rollback"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/17700
+description: "When is modified with invalid values, the gateway crashes on reload/restart and enters a crash loop. There is no rollback mechanism, no pre-apply"
 ---
 
 # feat: atomic config management with validation and crash-loop rollback
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/17700
 When `openclaw.json` is modified with invalid values, the gateway crashes on reload/restart and enters a crash loop. There is no rollback mechanism, no pre-apply validation that catches unresolvable env vars, and no fallback to a known-good state.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 . The gateway should be self-healing, not fragile.

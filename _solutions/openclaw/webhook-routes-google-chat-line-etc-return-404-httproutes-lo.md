@@ -3,6 +3,7 @@ layout: solution
 title: "Webhook routes (Google Chat, LINE, etc.) return 404 — httpRoutes lost on plugin registry swap (v2026.3.12)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/45445
+description: "<!-- ~/.openclaw/GITHUB-ISSUE-BODY.md"
 ---
 
 # Webhook routes (Google Chat, LINE, etc.) return 404 — httpRoutes lost on plugin registry swap (v2026.3.12)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45445
 <!-- ~/.openclaw/GITHUB-ISSUE-BODY.md -->
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We applied a local patch to the dist files covering both issues:

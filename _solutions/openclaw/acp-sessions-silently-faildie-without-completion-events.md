@@ -3,6 +3,7 @@ layout: solution
 title: "ACP sessions silently fail/die without completion events"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52452
+description: "ACP sessions spawned via frequently die without emitting any completion or error event back to the parent session. The parent agent has no way to know the"
 ---
 
 # ACP sessions silently fail/die without completion events
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52452
 ACP sessions spawned via `sessions_spawn(runtime='acp')` frequently die without emitting any completion or error event back to the parent session. The parent agent has no way to know the task failed — it just never hears back.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. API 키 유효성/만료 확인

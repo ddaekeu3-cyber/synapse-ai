@@ -3,6 +3,7 @@ layout: solution
 title: "openai-codex OAuth profile present but openai-codex provider not injected into models.json"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/40364
+description: "Regression (worked before, now"
 ---
 
 # openai-codex OAuth profile present but openai-codex provider not injected into models.json
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40364
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Manually adding to `openclaw.json` resolves it:

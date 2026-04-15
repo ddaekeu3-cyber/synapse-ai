@@ -3,6 +3,7 @@ layout: solution
 title: "Slash command autocomplete intermittently missing in Desktop with remote-control"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/38142
+description: "When using to connect Claude Desktop to a remote Claude Code instance, the slash command () autocomplete dropdown menu intermittently fails to appear in"
 ---
 
 # Slash command autocomplete intermittently missing in Desktop with remote-control
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38142
 When using `claude remote-control` to connect Claude Desktop to a remote Claude Code instance, the slash command (`/`) autocomplete dropdown menu intermittently fails to appear in some conversations while working correctly in others.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

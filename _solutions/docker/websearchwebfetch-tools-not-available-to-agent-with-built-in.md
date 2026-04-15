@@ -3,6 +3,7 @@ layout: solution
 title: "web_search/web_fetch tools not available to agent with built-in Gemini provider"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/52677
+description: "Regression (worked before, now"
 ---
 
 # web_search/web_fetch tools not available to agent with built-in Gemini provider

@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Add persistent token usage indicator to Control UI / WebChat"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/46398
+description: "When using Ollama models with limited context windows, users have no way to monitor token usage in real-time from the chat UI. The context can suddenly"
 ---
 
 # [Feature]: Add persistent token usage indicator to Control UI / WebChat
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46398
 When using Ollama models with limited context windows, users have no way to monitor token usage in real-time from the chat UI. The context can suddenly exceed the max limit, causing errors or unexpected behavior.
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 - Manually running `session_status` via the CLI or asking the assistant

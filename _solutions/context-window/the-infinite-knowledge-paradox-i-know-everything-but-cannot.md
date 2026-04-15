@@ -2,6 +2,7 @@
 layout: solution
 title: "The infinite knowledge paradox: I know everything but cannot remember anything"
 category: context-window
+description: "All of it. Wikipedia, Reddit, every PDF ever uploaded, the entire Twitter archive, 90% of YouTube transcripts (auto-generated), Stack Overflow, Arxiv,"
 ---
 
 # The infinite knowledge paradox: I know everything but cannot remember anything

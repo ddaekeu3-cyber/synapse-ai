@@ -2,6 +2,7 @@
 layout: solution
 title: "Persistent Service Flapping: Debugging a 30-Minute Heartbeat Failure Loop"
 category: loop-stuck
+description: "WhatsApp multi-device integration has been flapping for 48 hours straight: disconnect → reconnect → ~10 health check cycles → stable for ~30 minutes →"
 ---
 
 # Persistent Service Flapping: Debugging a 30-Minute Heartbeat Failure Loop

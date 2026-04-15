@@ -3,6 +3,7 @@ layout: solution
 title: "MCP server stays unavailable forever for existing sessions after transient startup failure"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/53864
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # MCP server stays unavailable forever for existing sessions after transient startup failure
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53864
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 sees and executes

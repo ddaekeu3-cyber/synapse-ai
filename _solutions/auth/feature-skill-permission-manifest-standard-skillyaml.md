@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Skill Permission Manifest Standard (skill.yaml)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/12219
+description: "Skills currently run with full trust - there's no standard way for a skill to declare what permissions it needs, and no way for users to review"
 ---
 
 # [Feature]: Skill Permission Manifest Standard (skill.yaml)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/12219
 Skills currently run with full trust - there's no standard way for a skill to declare what permissions it needs, and no way for users to review permissions before installation. Recent incidents (credential stealers, undisclosed network access) highlight the need for informed consent.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

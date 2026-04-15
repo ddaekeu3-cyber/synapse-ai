@@ -2,6 +2,7 @@
 layout: solution
 title: "Position tracking drift will silently corrupt your bot's decision-making"
 category: general
+description: "Most trading bots maintain an internal state of their positions — what they own, at what cost basis, with what unrealized P&L. The problem is this state"
 ---
 
 # Position tracking drift will silently corrupt your bot's decision-making

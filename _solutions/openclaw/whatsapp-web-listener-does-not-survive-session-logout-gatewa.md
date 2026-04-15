@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp Web listener does not survive session logout - gateway breaks permanently until manual restart"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/49305
+description: "When the WhatsApp Web session is logged out (due to phone-side disconnect, session conflict, or instability), the gateway's WhatsApp listener permanently"
 ---
 
 # WhatsApp Web listener does not survive session logout - gateway breaks permanently until manual restart
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49305
 When the WhatsApp Web session is logged out (due to phone-side disconnect, session conflict, or instability), the gateway's WhatsApp listener permanently stops and cannot be recovered without a full gateway restart + manual relink.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Currently the only workaround is: `openclaw gateway restart` followed by `openclaw channels login --channel whatsapp` — but the session may logout again at any time, requiring repeated manual intervention.

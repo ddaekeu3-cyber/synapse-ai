@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Configurable Embedding Dimensions for Memory Search"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/17424
+description: "Is your feature request related to a problem? Please"
 ---
 
 # [Feature]: Configurable Embedding Dimensions for Memory Search
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/17424
 **Is your feature request related to a problem? Please describe.**
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 you'd like**

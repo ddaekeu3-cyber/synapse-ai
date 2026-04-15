@@ -2,6 +2,7 @@
 layout: solution
 title: "The  Per Month Side Hustle That Scales to Real Income"
 category: config
+description: "Most people start side hustles backwards. They spend months building a product nobody asked for, then wonder why it does not sell. Here is the side hustle"
 ---
 
 # The  Per Month Side Hustle That Scales to Real Income

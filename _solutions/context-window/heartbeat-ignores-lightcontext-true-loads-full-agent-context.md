@@ -3,6 +3,7 @@ layout: solution
 title: "Heartbeat ignores lightContext: true, loads full agent context + unbounded session history"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/43767
+description: "Regression (worked before, now"
 ---
 
 # Heartbeat ignores lightContext: true, loads full agent context + unbounded session history
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43767
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Set `heartbeat.every` to `"off"` in `openclaw.json` to disable heartbeats entirely.

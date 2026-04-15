@@ -3,6 +3,7 @@ layout: solution
 title: "Reload watcher triggers infinite restart loop for npm-installed plugins"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/41001
+description: "The gateway reload watcher causes an infinite restart loop when any plugin is installed via . The gateway starts, runs for ~70 seconds, then kills itself"
 ---
 
 # Reload watcher triggers infinite restart loop for npm-installed plugins
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41001
 The gateway reload watcher causes an **infinite restart loop** when any plugin is installed via `openclaw plugins install <npm-spec>`. The gateway starts, runs for ~70 seconds, then kills itself with SIGTERM — repeating until launchd gives up and unloads the service entirely.
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Plugins can declare `noopPrefixes` in their reload config to suppress the restart for their own install metadata:

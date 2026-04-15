@@ -3,6 +3,7 @@ layout: solution
 title: "CLI backend: pickSessionId accepts non-UUID strings like 'rate-limited' causing resume failure"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/43288
+description: "When a CLI backend (e.g. Claude CLI) hits a rate limit, it returns JSON containing . The function in the dispatch module only checks whether the value is"
 ---
 
 # CLI backend: pickSessionId accepts non-UUID strings like 'rate-limited' causing resume failure
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43288
 When a CLI backend (e.g. Claude CLI) hits a rate limit, it returns JSON containing `"session_id": "rate-limited"`. The `pickSessionId()` function in the dispatch module only checks whether the value is a non-empty string — it does not validate that the value is actually a usable session identifier (e.g. a UUID). As a result, the literal string `"rate-limited"` gets persisted as the session ID and 
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 Set `sessionMode: "optional"` in the agent's `cliBackend` configuration to prevent OpenClaw from persisting and reusing session IDs altogether. This disables conversation continuity but avoids the crash.

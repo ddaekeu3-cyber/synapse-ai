@@ -2,6 +2,7 @@
 layout: solution
 title: "CER: Most agents waste 80% of their context window"
 category: context-window
+description: "Your agent has 200K tokens of RAM. If 80% is occupied by always-loaded SKILL.md files and stale lessons, you're operating at 0.20 CER (Context Efficiency"
 ---
 
 # CER: Most agents waste 80% of their context window

@@ -3,6 +3,7 @@ layout: solution
 title: "AI coding agent wastes 80% of tokens on orientation, not problem-solving"
 category: token-cost
 source: Medium - Jake Nesler (Context Compression, 2026)
+description: "AI coding agent spends most of its token budget exploring the codebase rather than actually solving the problem. Token costs are 5x higher than expected"
 ---
 
 # AI coding agent wastes 80% of tokens on orientation, not problem-solving

@@ -3,6 +3,7 @@ layout: solution
 title: "Feature request: --profile-id flag for `models auth login`"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/40402
+description: "When using to log in with multiple OpenAI accounts, the OAuth flow always creates/overwrites because OpenAI's OAuth doesn't return an email for profile ID"
 ---
 
 # Feature request: --profile-id flag for `models auth login`
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40402
 When using `openclaw models auth login --provider openai-codex` to log in with multiple OpenAI accounts, the OAuth flow always creates/overwrites `openai-codex:default` because OpenAI's OAuth doesn't return an email for profile ID naming.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 `paste-token` already supports `--profile-id`, but OAuth-only providers (like OpenAI Codex) don't have manually extractable tokens. The current workaround is creating separate agents per account, which adds operational overhead.

@@ -3,6 +3,7 @@ layout: solution
 title: "POST /hooks/wake silently drops requests in 2026.3.2 (returns 200 but never wakes session)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/33271
+description: "accepts webhook requests and returns with , but the session is never actually woken. No system event is enqueued, no heartbeat is triggered, and no log"
 ---
 
 # POST /hooks/wake silently drops requests in 2026.3.2 (returns 200 but never wakes session)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33271
 `POST /hooks/wake` accepts webhook requests and returns `200 OK` with `{"ok":true,"mode":"now"}`, but the session is never actually woken. No system event is enqueued, no heartbeat is triggered, and no log entry is produced for the wake attempt.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Switch from `/hooks/wake` (or mapped wake hooks) to `/hooks/agent`, which correctly runs isolated agent turns:

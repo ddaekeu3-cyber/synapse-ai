@@ -3,6 +3,7 @@ layout: solution
 title: "pnpm prune --prod wipes dependencies of installed workspace packages in partial workspaces (pnpm 10)"
 category: config
 source: https://github.com/openclaw/openclaw/issues/49501
+description: "Regression (worked before, now"
 ---
 
 # pnpm prune --prod wipes dependencies of installed workspace packages in partial workspaces (pnpm 10)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49501
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 is used.

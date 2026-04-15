@@ -3,6 +3,7 @@ layout: solution
 title: "`openclaw logs --follow` fails after 2026.3.12 upgrade with handshake timeout while gateway remains healthy"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/44714
+description: "After upgrading from 2026.3.11 to 2026.3.12, the gateway remains healthy and reachable locally, but (and even one-shot ) fails"
 ---
 
 # `openclaw logs --follow` fails after 2026.3.12 upgrade with handshake timeout while gateway remains healthy
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44714
 After upgrading from **2026.3.11** to **2026.3.12**, the gateway remains healthy and reachable locally, but `openclaw logs --follow` (and even one-shot `openclaw logs`) fails with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Tail the file log directly instead of using `openclaw logs --follow`, e.g.:

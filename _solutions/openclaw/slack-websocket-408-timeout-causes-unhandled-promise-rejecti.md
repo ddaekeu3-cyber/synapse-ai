@@ -3,6 +3,7 @@ layout: solution
 title: "Slack WebSocket 408 timeout causes unhandled promise rejection + gateway crash"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/45852
+description: "The OpenClaw gateway crashes when the Slack Socket Mode WebSocket connection receives a 408 (Request Timeout) response. An unhandled promise rejection is"
 ---
 
 # Slack WebSocket 408 timeout causes unhandled promise rejection + gateway crash
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45852
 The OpenClaw gateway crashes when the Slack Socket Mode WebSocket connection receives a 408 (Request Timeout) response. An unhandled promise rejection is thrown and the Node.js process exits.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Wrapping `openclaw-gateway` in a watchdog loop (`while true; do openclaw-gateway; sleep 5; done`) provides auto-restart, but the root cause (unhandled rejection in Slack WebSocket error handler) should be fixed.

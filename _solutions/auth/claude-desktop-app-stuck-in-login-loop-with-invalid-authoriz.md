@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Desktop App stuck in login loop with 'Invalid authorization' error"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/22685
+description: "Claude Desktop App (v1.1.1520) on macOS is unable to authenticate. Every launch immediately produces errors from the . Login via magic link fails"
 ---
 
 # Claude Desktop App stuck in login loop with 'Invalid authorization' error
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/22685
 Claude Desktop App (v1.1.1520) on macOS is unable to authenticate. Every launch immediately produces `Invalid authorization` errors from the `REACT_QUERY_CLIENT`. Login via magic link fails repeatedly. The app is completely unusable.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

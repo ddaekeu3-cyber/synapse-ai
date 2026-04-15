@@ -3,6 +3,7 @@ layout: solution
 title: "Scheduled tasks not appearing in 'Scheduled' sidebar section (desktop app)"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/37755
+description: "Scheduled tasks created via the MCP tool are stored correctly on disk and execute on schedule, but do not appear in the desktop app's \"Scheduled\" sidebar"
 ---
 
 # Scheduled tasks not appearing in "Scheduled" sidebar section (desktop app)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37755
 Scheduled tasks created via the `mcp__scheduled-tasks` MCP tool are stored correctly on disk and execute on schedule, but do not appear in the desktop app's "Scheduled" sidebar section.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Tasks function correctly despite not appearing in the UI. A custom slash command (`/scheduled-tasks-dashboard`) can be used as an alternative management interface.

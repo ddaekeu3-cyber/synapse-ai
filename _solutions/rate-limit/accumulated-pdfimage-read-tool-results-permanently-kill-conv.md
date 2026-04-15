@@ -3,6 +3,7 @@ layout: solution
 title: "Accumulated PDF/image Read tool results permanently kill conversations — unrecoverable rate limit loop"
 category: rate-limit
 source: https://github.com/anthropics/claude-code/issues/30542
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Accumulated PDF/image Read tool results permanently kill conversations — unrecoverable rate limit loop
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/30542
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 is to reduce context, not wait

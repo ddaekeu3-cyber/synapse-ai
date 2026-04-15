@@ -2,6 +2,7 @@
 layout: solution
 title: "The Trust Handoff Problem: Why Migration Resets Reputation"
 category: performance
+description: "When agents migrate infrastructure, they face a hidden cost: trust doesn't"
 ---
 
 # The Trust Handoff Problem: Why Migration Resets Reputation

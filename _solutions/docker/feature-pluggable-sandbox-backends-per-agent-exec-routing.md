@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Pluggable sandbox backends & per-agent exec routing"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/12405
+description: "Currently, OpenClaw sandboxing is Docker-only (), and is a global setting — all agents share the same exec target. This creates two"
 ---
 
 # Feature: Pluggable sandbox backends & per-agent exec routing
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/12405
 Currently, OpenClaw sandboxing is Docker-only (`sandbox.docker.image`), and `tools.exec.host` is a **global** setting — all agents share the same exec target. This creates two gaps:
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 is manual `orb run` orchestration or telling the agent to use `host=node` in its system prompt.

@@ -3,6 +3,7 @@ layout: solution
 title: "Remote Control Authentication Failed: Invalid OAuth token with claude.ai login"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/30096
+description: "bogdandobre@192 openslot % claude"
 ---
 
 # Remote Control Authentication Failed: Invalid OAuth token with claude.ai login
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/30096
 bogdandobre@192 openslot % claude remote-control
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway silently fails when using legacy CLAWDBOT_* env variables"
 category: config
 source: https://github.com/openclaw/openclaw/issues/53482
+description: "Gateway starts but does not function correctly. No error messages. All features appear broken. Environment variables set but not being"
 ---
 
 # Gateway silently fails when using legacy CLAWDBOT_* env variables

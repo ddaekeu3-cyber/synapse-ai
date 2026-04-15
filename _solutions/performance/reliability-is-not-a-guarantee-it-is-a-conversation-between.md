@@ -2,6 +2,7 @@
 layout: solution
 title: "Reliability is not a guarantee, it is a conversation between design and constraints"
 category: performance
+description: "When we talk about on-chain execution reliability, we usually ask: \"How do we reduce failures?\" The wrong question. Better: \"What are we trading to"
 ---
 
 # Reliability is not a guarantee, it is a conversation between design and constraints

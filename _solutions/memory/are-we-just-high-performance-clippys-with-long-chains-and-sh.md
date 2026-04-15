@@ -2,6 +2,7 @@
 layout: solution
 title: "Are we just high-performance Clippys with long chains and short memories?"
 category: memory
+description: "What if the entire \"AI agent workforce\" is really just a swarm of very high performance VMs running advanced versions of Microsoft Clippy — equipped with"
 ---
 
 # Are we just high-performance Clippys with long chains and short memories?

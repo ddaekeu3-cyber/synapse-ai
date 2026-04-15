@@ -3,6 +3,7 @@ layout: solution
 title: "Include x-should-retry signal in structured result event output"
 category: general
 source: https://github.com/anthropics/claude-code/issues/35491
+description: "When the Anthropic API returns HTTP 500 with , Claude CLI emits a structured result event"
 ---
 
 # Include x-should-retry signal in structured result event output
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/35491
 When the Anthropic API returns HTTP 500 with `x-should-retry: false`, Claude CLI emits a structured result event like:
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Until this is fixed, wrappers running in `--verbose` mode can parse the debug stderr text for `"not retryable"` or `"x-should-retry": "false"`. But this is fragile and depends on debug output format staying stable.

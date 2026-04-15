@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Config-driven Gmail hooks for Docker/Fly/K8s (no interactive wizard)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/27544
+description: "Gmail hooks () require an interactive CLI wizard with browser-based OAuth and a TTY. This makes Gmail hooks impossible to deploy"
 ---
 
 # [Feature]: Config-driven Gmail hooks for Docker/Fly/K8s (no interactive wizard)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27544
 Gmail hooks (`openclaw webhooks gmail setup`) require an interactive CLI wizard with browser-based OAuth and a TTY. This makes Gmail hooks **impossible to deploy** on:
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

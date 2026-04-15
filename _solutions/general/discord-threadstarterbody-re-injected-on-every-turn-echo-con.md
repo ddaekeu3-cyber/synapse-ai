@@ -3,6 +3,7 @@ layout: solution
 title: "Discord: ThreadStarterBody re-injected on every turn (echo contamination)"
 category: general
 source: https://github.com/openclaw/openclaw/issues/41355
+description: "Discord thread starter context () is re-injected into the agent's input on every turn of a thread conversation, causing echo contamination. The agent"
 ---
 
 # Discord: ThreadStarterBody re-injected on every turn (echo contamination)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41355
 Discord thread starter context (`ThreadStarterBody`) is re-injected into the agent's input on **every turn** of a thread conversation, causing echo contamination. The agent receives `[Thread starter - for context]` repeatedly, which can leak into outbound messages.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Set `includeThreadStarter: false` per-channel in config:

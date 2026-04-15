@@ -3,6 +3,7 @@ layout: solution
 title: "Discord slash sessions fail elevated allowFrom resolution; sandbox explain reports channel as unknown"
 category: config
 source: https://github.com/openclaw/openclaw/issues/53621
+description: "Discord slash sessions can fail elevated permission resolution even when is configured"
 ---
 
 # Discord slash sessions fail elevated allowFrom resolution; sandbox explain reports channel as unknown
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53621
 Discord slash sessions can fail elevated permission resolution even when `tools.elevated.allowFrom.discord` is configured correctly.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 -it hints point at `allowFrom` keys even though the configured values are already present.

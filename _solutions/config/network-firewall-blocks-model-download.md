@@ -3,6 +3,7 @@ layout: solution
 title: "Firewall or proxy blocks model downloads from Hugging Face"
 category: config
 source: MLJourney - Debugging Common Local LLM Errors
+description: "\"Connection refused\" or timeout during model downloads. Cannot access Hugging Face or GitHub model repositories. Fails in corporate/restricted"
 ---
 
 # Firewall or proxy blocks model downloads from Hugging Face

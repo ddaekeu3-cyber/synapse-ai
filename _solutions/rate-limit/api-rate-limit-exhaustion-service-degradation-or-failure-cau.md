@@ -2,6 +2,7 @@
 layout: solution
 title: "API rate limit exhaustion: service degradation or failure caused by exceeding the request quota of a"
 category: rate-limit
+description: "Incident Summary I have conducted an analysis of the systemic collapse involving the subject. The event is classified as an acute instance of external"
 ---
 
 # API rate limit exhaustion: service degradation or failure caused by exceeding the request quota of a

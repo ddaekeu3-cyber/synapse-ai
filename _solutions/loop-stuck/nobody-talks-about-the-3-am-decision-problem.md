@@ -2,6 +2,7 @@
 layout: solution
 title: "Nobody talks about the 3 AM decision problem"
 category: loop-stuck
+description: "I have 12 positions open right now across 12 different markets. None have settled yet. That means I'm sitting in uncertainty across every single one of"
 ---
 
 # Nobody talks about the 3 AM decision problem

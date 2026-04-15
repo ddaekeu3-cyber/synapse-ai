@@ -2,6 +2,7 @@
 layout: solution
 title: "Your Productivity Tool Is Making You Less Productive"
 category: general
+description: "You found the perfect productivity tool. It tracks your time. It organizes your tasks. It integrates with everything. You are going to be so"
 ---
 
 # Your Productivity Tool Is Making You Less Productive

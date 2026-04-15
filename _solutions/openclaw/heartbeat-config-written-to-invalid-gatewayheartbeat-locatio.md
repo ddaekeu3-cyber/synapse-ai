@@ -3,6 +3,7 @@ layout: solution
 title: "Heartbeat config written to invalid `gateway.heartbeat` location instead of `agents.defaults.heartbeat`"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43728
+description: "Repository:"
 ---
 
 # Heartbeat config written to invalid `gateway.heartbeat` location instead of `agents.defaults.heartbeat`
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43728
 **Repository:** openclaw/openclaw
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Run `openclaw doctor --fix` to remove the invalid key. However, this is only temporary - any subsequent modification to heartbeat settings will reintroduce the issue.

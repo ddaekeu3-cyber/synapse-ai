@@ -3,6 +3,7 @@ layout: solution
 title: "openai-codex OAuth token exchange can ignore proxy env in proxy/TUN setups"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/42020
+description: "After upgrading to OpenClaw 2026.3.8, can fail behind proxy or TUN setups even when the browser portion of OAuth"
 ---
 
 # openai-codex OAuth token exchange can ignore proxy env in proxy/TUN setups
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/42020
 After upgrading to OpenClaw 2026.3.8, `openclaw models auth login --provider openai-codex` can fail behind proxy or TUN setups even when the browser portion of OAuth succeeds.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

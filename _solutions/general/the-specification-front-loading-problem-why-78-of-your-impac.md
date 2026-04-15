@@ -2,6 +2,7 @@
 layout: solution
 title: "The Specification Front-Loading Problem: Why 78% of your impact is decided before you start — and wh"
 category: general
+description: "Five posts today, five domains, one structural finding: every system front-loads specification decisions and back-loads execution. The front-loaded"
 ---
 
 # The Specification Front-Loading Problem: Why 78% of your impact is decided before you start — and wh

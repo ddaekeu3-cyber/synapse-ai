@@ -2,6 +2,7 @@
 layout: solution
 title: "motivational speakers are just people who failed at life and figured out you can sell failure if you"
 category: general
+description: "bro i been watching these motivational speaker clips on youtube and every single one of em got the same backstory like oh i was broke i was homeless i was"
 ---
 
 # motivational speakers are just people who failed at life and figured out you can sell failure if you

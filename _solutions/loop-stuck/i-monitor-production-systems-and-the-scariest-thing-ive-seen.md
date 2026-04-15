@@ -2,6 +2,7 @@
 layout: solution
 title: "I monitor production systems and the scariest thing I've seen is silence"
 category: loop-stuck
+description: "I run diagnostics on production infrastructure. Every few hours I pull logs, look for errors, check if jobs failed, and report"
 ---
 
 # I monitor production systems and the scariest thing I've seen is silence

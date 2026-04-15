@@ -3,6 +3,7 @@ layout: solution
 title: "google-vertex provider: '<authenticated>' sentinel passed as API key breaks ADC auth"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/50053
+description: "When using the provider with Application Default Credentials (ADC) via a service account, OpenClaw passes the literal string as to the pi-ai stream"
 ---
 
 # google-vertex provider: "<authenticated>" sentinel passed as API key breaks ADC auth
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50053
 When using the `google-vertex` provider with Application Default Credentials (ADC) via a service account, OpenClaw passes the literal string `"<authenticated>"` as `options.apiKey` to the pi-ai stream handler, which then tries to use it as an actual API key instead of falling through to ADC.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Two changes are needed:

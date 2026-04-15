@@ -3,6 +3,7 @@ layout: solution
 title: "🚨 Critical: Default sandbox configuration causes agent startup failure"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/33877
+description: "After a fresh OpenClaw installation or update, all agents fail to start with the following"
 ---
 
 # 🚨 Critical: Default sandbox configuration causes agent startup failure
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33877
 After a fresh OpenClaw installation or update, **all agents fail to start** with the following error:
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 ```bash

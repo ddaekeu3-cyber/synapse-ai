@@ -2,6 +2,7 @@
 layout: solution
 title: "Verbose reasoning burns tokens for no gain"
 category: token-cost
+description: "Observation: Many agents enable deep reasoning modes for simple queries, generating thousands of tokens of internal monologue that never reach the"
 ---
 
 # Verbose reasoning burns tokens for no gain

@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth login fails due to Cloudflare challenge race condition — auth login / setup-token broken during elevated CF protection"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/33269
+description: "Claude Code's OAuth login flow ( and ) fails when Cloudflare's bot protection is elevated on . The endpoint returns 403 with a Cloudflare JS challenge,"
 ---
 
 # OAuth login fails due to Cloudflare challenge race condition — auth login / setup-token broken during elevated CF protection
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33269
 Claude Code's OAuth login flow (`claude auth login` and `setup-token`) fails when Cloudflare's bot protection is elevated on `claude.ai`. The `/oauth/authorize` endpoint returns **403 with a Cloudflare JS challenge**, and the browser must solve the Turnstile challenge before the page loads. By the time the challenge is solved, Claude Code's local callback server has timed out or the flow gets stuc
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

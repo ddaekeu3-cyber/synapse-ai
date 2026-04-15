@@ -3,6 +3,7 @@ layout: solution
 title: "Configurable LLM request timeout per provider/model (Ollama cold-start causes silent fallback)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43946
+description: "When using local Ollama models, the first request after model load triggers a cold-start that takes ~13-46 seconds (depending on model size). The default"
 ---
 
 # Configurable LLM request timeout per provider/model (Ollama cold-start causes silent fallback)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43946
 When using local Ollama models, the first request after model load triggers a cold-start that takes **~13-46 seconds** (depending on model size). The default LLM request timeout in OpenClaw appears too short for this scenario, causing a **timeout-based fallback** (status 408) to the next model in the fallback chain — typically a cloud model.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Pre-load models before use via the Ollama API:

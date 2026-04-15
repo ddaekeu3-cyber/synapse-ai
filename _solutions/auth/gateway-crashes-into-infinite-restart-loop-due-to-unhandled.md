@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crashes into infinite restart loop due to Unhandled Promise Rejection on LLM API failure"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/23441
+description: "When the LLM API call fails (e.g., due to an unauthorized model or 404/403 error), an Unhandled Promise Rejection occurs. This crashes the entire OpenClaw"
 ---
 
 # Gateway crashes into infinite restart loop due to Unhandled Promise Rejection on LLM API failure
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/23441
 When the LLM API call fails (e.g., due to an unauthorized model or 404/403 error), an Unhandled Promise Rejection occurs. This crashes the entire OpenClaw Node.js gateway process instantly, often leaving zombie processes that cause infinite restart loops.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

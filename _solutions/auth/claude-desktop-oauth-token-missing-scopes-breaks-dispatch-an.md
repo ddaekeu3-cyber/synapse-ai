@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Desktop OAuth token missing scopes breaks Dispatch and Marketplace (user:inference only)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/36448
+description: "Claude Desktop v2.1.51 (macOS) generates OAuth tokens with only scope during authentication. This causes Dispatch (remote task management from mobile) and"
 ---
 
 # Claude Desktop OAuth token missing scopes breaks Dispatch and Marketplace (user:inference only)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36448
 Claude Desktop v2.1.51 (macOS) generates OAuth tokens with only `user:inference` scope during authentication. This causes **Dispatch** (remote task management from mobile) and **Marketplace** (plugin marketplace) to be completely non-functional.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

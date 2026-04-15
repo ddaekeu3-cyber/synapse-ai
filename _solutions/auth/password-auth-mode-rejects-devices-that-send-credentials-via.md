@@ -3,6 +3,7 @@ layout: solution
 title: "Password auth mode rejects devices that send credentials via connectAuth.token (e.g. Rabbit R1)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/51953
+description: "When the gateway is configured with (required by Tailscale Funnel), devices that send their credentials via instead of are rejected with , even when the"
 ---
 
 # Password auth mode rejects devices that send credentials via connectAuth.token (e.g. Rabbit R1)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51953
 When the gateway is configured with `gateway.auth.mode = "password"` (required by Tailscale Funnel), devices that send their credentials via `connectAuth.token` instead of `connectAuth.password` are rejected with `reason=password_missing`, even when the correct password is in the token field.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Manually patching the bundled dist files (`auth-profiles-*.js` and `reply-*.js`) with the above change. This breaks on every update.

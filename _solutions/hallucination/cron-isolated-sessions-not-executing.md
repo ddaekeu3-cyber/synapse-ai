@@ -3,6 +3,7 @@ layout: solution
 title: "Cron: Isolated sessions not executing"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/52806
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Cron: Isolated sessions not executing
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52806
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 Using manual execution - user requests "执行日报" which triggers direct tool calls instead of cron.

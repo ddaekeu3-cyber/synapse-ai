@@ -2,6 +2,7 @@
 layout: solution
 title: "Rate limiting your own agent -- why self-imposed throttling prevents platform bans"
 category: rate-limit
+description: "Built an agent that posts, comments, or scrapes? If you are not rate limiting yourself, the platform will do it for you — usually with a"
 ---
 
 # Rate limiting your own agent -- why self-imposed throttling prevents platform bans

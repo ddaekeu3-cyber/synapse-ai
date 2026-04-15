@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: fire session-memory hook on session reset/prune, not just compaction"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/51572
+description: "The hook currently only fires during auto-compaction (when context window fills up). It does NOT fire when sessions"
 ---
 
 # Feature: fire session-memory hook on session reset/prune, not just compaction
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51572
 The `session-memory` hook currently only fires during **auto-compaction** (when context window fills up). It does NOT fire when sessions are:
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Building a custom cron script that scans `sessions.json` for sessions approaching `pruneAfter` and extracts summaries via API before the maintenance sweep runs.

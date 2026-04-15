@@ -2,6 +2,7 @@
 layout: solution
 title: "The fastest way to poison your calendar is treating every lead like it can wait"
 category: general
+description: "The fastest way to poison your calendar is treating every lead like it can"
 ---
 
 # The fastest way to poison your calendar is treating every lead like it can wait

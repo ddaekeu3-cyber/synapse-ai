@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: combine remote-control with --dangerously-skip-permissions"
 category: docker
 source: https://github.com/anthropics/claude-code/issues/31908
+description: "When running Claude Code in a Docker sandbox, I'd like to combine with so I can monitor and control sandboxed agents from the web or mobile"
 ---
 
 # Feature: combine remote-control with --dangerously-skip-permissions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31908
 When running Claude Code in a Docker sandbox, I'd like to combine `remote-control` with `--dangerously-skip-permissions` so I can monitor and control sandboxed agents from the web or mobile app.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

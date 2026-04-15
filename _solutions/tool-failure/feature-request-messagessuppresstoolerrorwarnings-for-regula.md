@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: messages.suppressToolErrorWarnings for regular sessions (not just heartbeat)"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/20284
+description: "Currently, suppresses non-mutating tool errors but not mutating tool errors (like , , , etc.). The check in always returns for mutating tools, bypassing"
 ---
 
 # Feature Request: messages.suppressToolErrorWarnings for regular sessions (not just heartbeat)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/20284
 Currently, `messages.suppressToolErrors: true` suppresses non-mutating tool errors but **not** mutating tool errors (like `exec`, `sessions_send`, `write`, etc.). The check in `shouldShowToolErrorWarning` always returns `true` for mutating tools, bypassing the suppress flag:
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 Currently handling this via SOUL.md rules (telling the agent to respond gracefully when `sessions_send` fails), but the platform still injects the error message as a separate chat message before the agent reply — so the workaround is incomplete.

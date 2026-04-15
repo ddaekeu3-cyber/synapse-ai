@@ -3,6 +3,7 @@ layout: solution
 title: "Security: Slack OAuth state token uses Math.random() instead of crypto"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/54293
+description: "The Slack OAuth uses for generating OAuth state tokens via . is not cryptographically secure — its output can be"
 ---
 
 # Security: Slack OAuth state token uses Math.random() instead of crypto
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54293
 The Slack OAuth `FileStateStore` uses `Math.random()` for generating OAuth state tokens via `generateRandomString`. `Math.random()` is not cryptographically secure — its output can be predicted.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

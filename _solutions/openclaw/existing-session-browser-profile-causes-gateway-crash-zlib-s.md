@@ -3,6 +3,7 @@ layout: solution
 title: "existing-session browser profile causes gateway crash (zlib segfault during MCP handshake)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/47965
+description: "Crash (process/app exits or"
 ---
 
 # existing-session browser profile causes gateway crash (zlib segfault during MCP handshake)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47965
 Crash (process/app exits or hangs)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Remove the `user` profile from config to restore normal browser service operation:

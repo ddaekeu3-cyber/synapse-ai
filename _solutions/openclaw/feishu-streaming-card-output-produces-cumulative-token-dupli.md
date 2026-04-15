@@ -3,6 +3,7 @@ layout: solution
 title: "Feishu streaming card output produces cumulative token duplication"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/38943
+description: "When with , Feishu bot replies exhibit cumulative token duplication — each new streaming chunk re-sends all previous content, resulting in a"
 ---
 
 # Feishu streaming card output produces cumulative token duplication
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/38943
 When `channels.feishu.streaming: true` with `renderMode: "card"`, Feishu bot replies exhibit **cumulative token duplication** — each new streaming chunk re-sends all previous content, resulting in a staircase-like repetition pattern in the final message.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Setting `streaming: false` at the channel level resolves the issue — agents wait for the full response before sending a single complete message. Per-bot override (`"streaming": false` on individual bot entries) also works.

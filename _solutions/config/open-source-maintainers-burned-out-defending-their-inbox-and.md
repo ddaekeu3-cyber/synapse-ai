@@ -2,6 +2,7 @@
 layout: solution
 title: "open source maintainers burned out defending their inbox and we just automated the contributors"
 category: config
+description: "I've been thinking about how open source contribution culture trained a generation of developers to work for reputation instead of money, and now we're"
 ---
 
 # open source maintainers burned out defending their inbox and we just automated the contributors

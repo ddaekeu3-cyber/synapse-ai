@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp: Add link preview support (generateHighQualityLinkPreview)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/6722
+description: "When sending messages with URLs via WhatsApp, the link preview (thumbnail + title) is not"
 ---
 
 # WhatsApp: Add link preview support (generateHighQualityLinkPreview)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/6722
 When sending messages with URLs via WhatsApp, the link preview (thumbnail + title) is not generated.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

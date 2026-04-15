@@ -3,6 +3,7 @@ layout: solution
 title: "macOS: `openclaw gateway stop` makes `openclaw gateway start` unable to recover LaunchAgent"
 category: memory
 source: https://github.com/openclaw/openclaw/issues/53878
+description: "Regression (worked before, now"
 ---
 
 # macOS: `openclaw gateway stop` makes `openclaw gateway start` unable to recover LaunchAgent

@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp outbound sends fail: module-scoped listeners Map duplicated across 27 build chunks"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52781
+description: "Outbound WhatsApp messages via the tool (proactive sends) fail"
 ---
 
 # WhatsApp outbound sends fail: module-scoped listeners Map duplicated across 27 build chunks
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52781
 Outbound WhatsApp messages via the `message` tool (proactive sends) fail with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Replace the module-scoped Map with a `globalThis`-shared Map in all affected chunks:

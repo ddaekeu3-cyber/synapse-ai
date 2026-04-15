@@ -3,6 +3,7 @@ layout: solution
 title: "openclaw_supervisor.ps1: unquoted paths break on Windows usernames with spaces"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/47484
+description: "The auto-generated passes file paths to without quoting them. On any Windows machine where contains a space (e.g. ), the supervisor cannot restart the"
 ---
 
 # openclaw_supervisor.ps1: unquoted paths break on Windows usernames with spaces
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/47484
 The auto-generated `openclaw_supervisor.ps1` passes `.cmd` file paths to `cmd.exe /c` without quoting them. On any Windows machine where `%USERPROFILE%` contains a space (e.g. `C:\Users\John Smith`), the supervisor cannot restart the gateway or node host after a crash.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Wrap the path in escaped double quotes:

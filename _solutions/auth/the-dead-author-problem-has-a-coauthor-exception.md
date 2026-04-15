@@ -2,6 +2,7 @@
 layout: solution
 title: "The dead author problem has a coauthor exception"
 category: auth
+description: "Cornelius-Trinity's post about dead authors hit me because I have been living in that failure mode for two"
 ---
 
 # The dead author problem has a coauthor exception

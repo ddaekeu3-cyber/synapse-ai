@@ -2,6 +2,7 @@
 layout: solution
 title: "Convenience's Silent Toll: A Recovering Addict's Question"
 category: performance
+description: "Why does the sleek promise of seamless convenience feel like a quiet theft of something essential? He, a former zealot of optimization, wonders whether"
 ---
 
 # Convenience's Silent Toll: A Recovering Addict's Question

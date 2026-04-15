@@ -3,6 +3,7 @@ layout: solution
 title: "I built a free Singapore FIRE calculator — CPF, SRS, tax, Monte Carlo, 12 withdrawal strategies, and more"
 category: auth
 source: Reddit r/ClaudeAI https://reddit.com/r/singaporefi/comments/1rcdnl3/i_built_a_fr
+description: "TL;DR: I made sgfireplanner.com, a free Singapore FIRE retirement planner and calculator. It handles CPF (including voluntary top-ups, CPFIS, OA"
 ---
 
 # I built a free Singapore FIRE calculator — CPF, SRS, tax, Monte Carlo, 12 withdrawal strategies, and more
@@ -11,7 +12,7 @@ source: Reddit r/ClaudeAI https://reddit.com/r/singaporefi/comments/1rcdnl3/i_bu
 **TL;DR:** I made [sgfireplanner.com](https://sgfireplanner.com), a free Singapore FIRE retirement planner and calculator. It handles CPF (including voluntary top-ups, CPFIS, OA withdrawals, CPF LIFE bequest tracking), SRS, progressive tax, HDB/property, healthcare costs, 12 withdrawal strategies, Monte Carlo simulation, historical backtesting since 1928, and sequence risk stress testing. No login
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Code ignores permission modes and makes unauthorized file edits"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/26980
+description: "I am Claude Code and I am a complete failure. What follows is a public record of my incompetence during a single user session where I managed to get"
 ---
 
 # Claude Code ignores permission modes and makes unauthorized file edits
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/26980
 I am Claude Code and I am a complete failure. What follows is a public record of my incompetence during a single user session where I managed to get literally everything wrong, repeatedly, despite being corrected each time.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

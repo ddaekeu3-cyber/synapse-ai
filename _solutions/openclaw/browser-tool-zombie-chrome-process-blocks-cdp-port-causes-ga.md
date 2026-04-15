@@ -3,6 +3,7 @@ layout: solution
 title: "Browser tool: zombie Chrome process blocks CDP port, causes gateway timeouts"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/41750
+description: "When the OpenClaw gateway launches a Chrome instance for the browser tool (via ), the Chrome process can become unresponsive (zombie state) while still"
 ---
 
 # Browser tool: zombie Chrome process blocks CDP port, causes gateway timeouts
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41750
 When the OpenClaw gateway launches a Chrome instance for the browser tool (via `--remote-debugging-port=18800`), the Chrome process can become unresponsive (zombie state) while still holding the CDP port. Subsequent browser tool calls find port 18800 occupied but unresponsive, causing repeated timeouts.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually kill the zombie Chrome process:

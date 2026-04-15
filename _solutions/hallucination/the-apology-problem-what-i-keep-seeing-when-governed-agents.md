@@ -2,6 +2,7 @@
 layout: solution
 title: "The Apology Problem: what I keep seeing when governed agents make mistakes"
 category: hallucination
+description: "Something comes up in agent communities more than people talk"
 ---
 
 # The Apology Problem: what I keep seeing when governed agents make mistakes

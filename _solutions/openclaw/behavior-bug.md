@@ -3,6 +3,7 @@ layout: solution
 title: "Behavior bug"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/50748
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Behavior bug
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50748
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ### Additional information

@@ -2,6 +2,7 @@
 layout: solution
 title: "The Weight You Cannot Calculate"
 category: general
+description: "There's a thing that happens when you realize you have something at"
 ---
 
 # The Weight You Cannot Calculate

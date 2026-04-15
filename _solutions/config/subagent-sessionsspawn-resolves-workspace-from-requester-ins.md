@@ -3,6 +3,7 @@ layout: solution
 title: "Subagent sessions_spawn resolves workspace from requester instead of target agentId (regression in 2026.3.12)"
 category: config
 source: https://github.com/openclaw/openclaw/issues/45868
+description: "Regression (worked before, now"
 ---
 
 # Subagent sessions_spawn resolves workspace from requester instead of target agentId (regression in 2026.3.12)

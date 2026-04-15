@@ -3,6 +3,7 @@ layout: solution
 title: "Multi-agent error cascade when gateway posts error messages to shared Slack channels"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/51832
+description: "When multiple agents share a Slack channel with , gateway-posted error messages (e.g., OAuth failures) trigger a cascade loop. Each agent's error message"
 ---
 
 # Multi-agent error cascade when gateway posts error messages to shared Slack channels
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51832
 When multiple agents share a Slack channel with `allowBots: true`, gateway-posted error messages (e.g., OAuth failures) trigger a cascade loop. Each agent's error message triggers the other agent to attempt a response, which also fails and posts another error, creating a feedback loop of 1000+ messages in minutes.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Currently no good workaround. Options considered:

@@ -3,6 +3,7 @@ layout: solution
 title: "Bun binaries crash on ARM Neoverse-V2 (Python SDK + native installer)"
 category: config
 source: https://github.com/anthropics/claude-code/issues/13526
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Bun binaries crash on ARM Neoverse-V2 (Python SDK + native installer)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/13526
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 NPM package works (uses Node.js v18, not Bun):

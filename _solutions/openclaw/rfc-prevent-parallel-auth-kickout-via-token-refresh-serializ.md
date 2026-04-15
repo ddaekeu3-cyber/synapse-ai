@@ -3,6 +3,7 @@ layout: solution
 title: "RFC: Prevent parallel auth kickout via token refresh serialization"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/37678
+description: "Parallel processes cause VS Code/Cursor extension to lose authentication. This has been reported across 7+ issues (#24317, #37512, #37203, #37324, #37468,"
 ---
 
 # RFC: Prevent parallel auth kickout via token refresh serialization
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37678
 Parallel `claude -p` processes cause VS Code/Cursor extension to lose authentication. This has been reported across 7+ issues (#24317, #37512, #37203, #37324, #37468, #25609, #22600) and affects every user running concurrent sessions on macOS.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 We built [`claude-batch`](https://github.com/LARIkoz/claude-batch) — a tmux-based wrapper that prevents refresh from occurring during batch runs. Strategy: pre-batch force refresh → 2h token gate → batch completes within token lifetime → no refresh triggered → no race.

@@ -3,6 +3,7 @@ layout: solution
 title: "Token usage shows as 'unknown' in 2026.3.7 (regression from 3.2)"
 category: token-cost
 source: https://github.com/openclaw/openclaw/issues/39620
+description: "Regression (worked before, now"
 ---
 
 # Token usage shows as 'unknown' in 2026.3.7 (regression from 3.2)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/39620
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: token-cost.
+Excessive token consumption from repeated failed attempts, large context windows, or inefficient prompt construction. 카테고리: token-cost.
 
 ## 해결법
 Downgrade to OpenClaw 2026.3.2:

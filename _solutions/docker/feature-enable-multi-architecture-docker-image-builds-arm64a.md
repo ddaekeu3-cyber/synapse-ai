@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: Enable Multi-Architecture Docker Image Builds (ARM64/ARMv7)"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/41881
+description: "Build and publish official Docker images for linux/arm64 and linux/arm/v7 architectures alongside the existing linux/amd64 images to support heterogeneous"
 ---
 
 # [Feature]: Enable Multi-Architecture Docker Image Builds (ARM64/ARMv7)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/41881
 Build and publish official Docker images for linux/arm64 and linux/arm/v7 architectures alongside the existing linux/amd64 images to support heterogeneous computing environments.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

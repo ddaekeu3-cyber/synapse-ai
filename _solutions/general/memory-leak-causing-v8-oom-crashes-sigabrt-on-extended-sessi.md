@@ -3,6 +3,7 @@ layout: solution
 title: "Memory leak causing V8 OOM crashes (SIGABRT) on extended sessions"
 category: general
 source: https://github.com/anthropics/claude-code/issues/18011
+description: "Claude Code sessions are crashing due to V8 heap exhaustion (Out of Memory). The Node.js process accumulates memory until garbage collection fails,"
 ---
 
 # Memory leak causing V8 OOM crashes (SIGABRT) on extended sessions
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/18011
 Claude Code sessions are crashing due to V8 heap exhaustion (Out of Memory). The Node.js process accumulates memory until garbage collection fails, triggering `abort()`.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Increasing Node.js heap size delays the crash:

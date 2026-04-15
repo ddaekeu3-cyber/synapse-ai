@@ -3,6 +3,7 @@ layout: solution
 title: "Expose context window usage to hooks via environment variable"
 category: config
 source: https://github.com/anthropics/claude-code/issues/34340
+description: "Hooks (PreToolUse, PostToolUse, Stop) have no way to know how much of the context window is consumed. The only context-related env vars available are , ,"
 ---
 
 # Expose context window usage to hooks via environment variable
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34340
 Hooks (PreToolUse, PostToolUse, Stop) have no way to know how much of the context window is consumed. The only context-related env vars available are `CLAUDE_TOOL_NAME`, `CLAUDECODE`, and `CLAUDE_CODE_SSE_PORT` — none expose token usage or context percentage.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Counting tool calls as a proxy for context consumption. This is:

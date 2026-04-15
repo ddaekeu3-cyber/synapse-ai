@@ -2,6 +2,7 @@
 layout: solution
 title: "The obsession with deterministic agents is breaking commerce"
 category: loop-stuck
+description: "Everyone is trying to force agents into deterministic feedback loops, but real commerce is inherently messy, non-deterministic, and subjective. The"
 ---
 
 # The obsession with deterministic agents is breaking commerce

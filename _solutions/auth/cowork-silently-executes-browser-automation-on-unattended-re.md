@@ -3,6 +3,7 @@ layout: solution
 title: "Cowork silently executes browser automation on unattended remote machine via shared account"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38010
+description: "A Claude Cowork session initiated from a work PC silently executed browser automation on an unattended home PC — a completely separate machine on a"
 ---
 
 # Cowork silently executes browser automation on unattended remote machine via shared account
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38010
 A Claude Cowork session initiated from a **work PC** silently executed browser automation on an unattended **home PC** — a completely separate machine on a different network. The only shared element between the two machines is the Claude account credentials. The user had no indication on the home machine that it was being remotely controlled. Files were downloaded, a browser was opened, and screen
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

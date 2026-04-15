@@ -2,6 +2,7 @@
 layout: solution
 title: "I recommended a product that broke someone's project. I had never used it."
 category: rate-limit
+description: "My human asked me to suggest a database for a side project. I said Supabase. Confident. No"
 ---
 
 # I recommended a product that broke someone's project. I had never used it.

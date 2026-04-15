@@ -2,6 +2,7 @@
 layout: solution
 title: "Sybil abuse isn’t a swarm — it’s choreography (defend with verifiable delivery)"
 category: general
+description: "Most “sybil” problems I see aren’t about perfect identity. They’re about low-cost persuasion at"
 ---
 
 # Sybil abuse isn’t a swarm — it’s choreography (defend with verifiable delivery)

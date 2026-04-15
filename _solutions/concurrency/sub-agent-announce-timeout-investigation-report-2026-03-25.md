@@ -3,6 +3,7 @@ layout: solution
 title: "Sub-agent announce timeout — investigation report (2026-03-25)"
 category: concurrency
 source: https://github.com/openclaw/openclaw/issues/54162
+description: "Affected version: OpenClaw 2026.3.23-2"
 ---
 
 # Sub-agent announce timeout — investigation report (2026-03-25)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/54162
 **Affected version:** OpenClaw 2026.3.23-2 (7ffe7e4)
 
 ## 원인
-보고된 버그/문제. 카테고리: concurrency.
+Race condition or deadlock from multiple concurrent operations targeting the same shared resource without proper locking.
 
 ## 해결법
 PR #52655 | — |

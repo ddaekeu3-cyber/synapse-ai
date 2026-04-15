@@ -3,6 +3,7 @@ layout: solution
 title: "fix(config): missing migration for bind+tailscale validation causes crash loop"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/40910
+description: "Commit (2026-03-02, ) added which rejects when . However, no legacy migration was added to auto-fix existing configs with this"
 ---
 
 # fix(config): missing migration for bind+tailscale validation causes crash loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/40910
 Commit `53d10f868` (2026-03-02, `fix(gateway): land access/auth/config migration cluster`) added `validateGatewayTailscaleBind()` which rejects `gateway.bind="lan"` when `gateway.tailscale.mode="serve"`. However, no legacy migration was added to auto-fix existing configs with this combination.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 the `bind` + `tailscale.mode` conflict.

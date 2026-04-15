@@ -3,6 +3,7 @@ layout: solution
 title: "Solution: Proxy configuration for LLM timeout and Telegram in restricted networks (China)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43629
+description: "Encountered the following issues when using"
 ---
 
 # Solution: Proxy configuration for LLM timeout and Telegram in restricted networks (China)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43629
 Encountered the following issues when using OpenClaw:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ### Config File Location

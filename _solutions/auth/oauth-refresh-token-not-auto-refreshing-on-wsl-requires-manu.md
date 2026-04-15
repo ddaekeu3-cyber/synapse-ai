@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth refresh token not auto-refreshing on WSL — requires manual re-login daily"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/33995
+description: "After months of normal usage on WSL2, Claude Code started requiring me to re-authenticate every day. The OAuth access token expires but the refresh token"
 ---
 
 # OAuth refresh token not auto-refreshing on WSL — requires manual re-login daily
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33995
 After months of normal usage on WSL2, Claude Code started requiring me to re-authenticate every day. The OAuth access token expires but the **refresh token is not being used to obtain a new access token automatically**, forcing a manual login each time.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

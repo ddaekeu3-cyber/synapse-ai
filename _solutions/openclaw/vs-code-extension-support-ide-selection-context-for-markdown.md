@@ -3,6 +3,7 @@ layout: solution
 title: "[VS Code Extension] Support IDE selection context for Markdown (.md) files"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/37462
+description: "The VS Code extension currently passes selected text context () only from source code files. Selections made in Markdown () files are not recognized or"
 ---
 
 # [VS Code Extension] Support IDE selection context for Markdown (.md) files
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37462
 The VS Code extension currently passes selected text context (`ide_selection`) only from source code files. Selections made in Markdown (`.md`) files are not recognized or passed to the conversation context.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 - Manually copy-paste the relevant section into the chat

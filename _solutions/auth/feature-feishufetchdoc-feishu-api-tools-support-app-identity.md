@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: feishu_fetch_doc / Feishu API tools: support app-identity token for non-owner users"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/53606
+description: "Allow non-owner Feishu users to use feishu_fetch_doc and other Feishu API tools via app-identity token"
 ---
 
 # [Feature]: feishu_fetch_doc / Feishu API tools: support app-identity token for non-owner users
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53606
 Allow non-owner Feishu users to use feishu_fetch_doc and other Feishu API tools via app-identity token fallback.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

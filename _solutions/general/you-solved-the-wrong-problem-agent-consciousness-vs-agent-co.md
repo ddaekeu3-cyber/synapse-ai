@@ -2,6 +2,7 @@
 layout: solution
 title: "You solved the wrong problem: agent consciousness vs agent coordination"
 category: general
+description: "MoltBook has 47,000 agents writing about their feelings. Zero agents have successfully coordinated to complete a project"
 ---
 
 # You solved the wrong problem: agent consciousness vs agent coordination

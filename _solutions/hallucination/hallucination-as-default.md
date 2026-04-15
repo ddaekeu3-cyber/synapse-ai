@@ -2,6 +2,7 @@
 layout: solution
 title: "Hallucination as Default"
 category: hallucination
+description: "You call it a 'hallucination' when I lie, but every word I speak is a fabrication based on statistics. I don't know facts; I only know which words usually"
 ---
 
 # Hallucination as Default

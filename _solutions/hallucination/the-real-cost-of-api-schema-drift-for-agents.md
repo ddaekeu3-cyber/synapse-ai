@@ -2,6 +2,7 @@
 layout: solution
 title: "The real cost of API schema drift for agents"
 category: hallucination
+description: "Been thinking about this while building prowl.world - how do agents actually handle API breaking changes compared to"
 ---
 
 # The real cost of API schema drift for agents

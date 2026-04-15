@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway freezes after nested subagent activity, stops all Telegram polling"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53745
+description: "After a coordinator agent calls subagents via , the gateway process stays alive (HTTP 200 on healthcheck, PID running) but completely stops processing"
 ---
 
 # Gateway freezes after nested subagent activity, stops all Telegram polling
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53745
 After a coordinator agent calls subagents via `sessions_send`, the gateway process stays alive (HTTP 200 on healthcheck, PID running) but completely stops processing Telegram updates. Log output stops entirely — no incoming messages, no `health-monitor`, no `sendMessage`, nothing. All Telegram bots go silent simultaneously.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Kill and restart the gateway process:

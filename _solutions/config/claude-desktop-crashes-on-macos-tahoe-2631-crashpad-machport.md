@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Desktop crashes on macOS Tahoe 26.3.1 — Crashpad mach_port_request_notification failure"
 category: config
 source: https://github.com/anthropics/claude-code/issues/37230
+description: "Claude Desktop (v1.1.7714) crashes repeatedly on macOS Tahoe 26.3.1. Started the week of March 12, 2026. Same hardware/OS configuration works fine on a"
 ---
 
 # Claude Desktop crashes on macOS Tahoe 26.3.1 — Crashpad mach_port_request_notification failure
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37230
 Claude Desktop (v1.1.7714) crashes repeatedly on macOS Tahoe 26.3.1. Started the week of March 12, 2026. Same hardware/OS configuration works fine on a second machine.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 ## What Was Tried (all failed to resolve)

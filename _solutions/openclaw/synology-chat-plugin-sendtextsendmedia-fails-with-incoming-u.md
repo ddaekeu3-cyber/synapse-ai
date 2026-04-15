@@ -3,6 +3,7 @@ layout: solution
 title: "Synology Chat plugin: sendText/sendMedia fails with 'incoming URL not configured' due to empty config fallback"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/37852
+description: "The and functions in the Synology Chat plugin () fail when called by the delivery recovery system because they fall back to with an empty config object"
 ---
 
 # Synology Chat plugin: sendText/sendMedia fails with 'incoming URL not configured' due to empty config fallback
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/37852
 The `sendText` and `sendMedia` functions in the Synology Chat plugin (`extensions/synology-chat/src/channel.ts`) fail when called by the delivery recovery system because they fall back to `resolveAccount({}, accountId)` with an empty config object `{}`.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Load the real config from runtime when `ctxAccount` is not provided:

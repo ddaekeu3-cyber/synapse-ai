@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI freezes with high CPU when switching sessions via dropdown menu"
 category: performance
 source: https://github.com/openclaw/openclaw/issues/51685
+description: "Crash (process/app exits or"
 ---
 
 # Control UI freezes with high CPU when switching sessions via dropdown menu
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51685
 Crash (process/app exits or hangs)
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Force refresh: Ctrl + Shift + R

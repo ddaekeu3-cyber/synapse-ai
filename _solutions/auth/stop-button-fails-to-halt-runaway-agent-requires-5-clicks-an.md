@@ -3,6 +3,7 @@ layout: solution
 title: "Stop button fails to halt runaway agent — requires 5+ clicks and stop messages"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/34449
+description: "When a Claude Code agent goes off the rails (e.g., recursive filesystem globbing outside authorized scope), the Stop button in Claude.app does not"
 ---
 
 # Stop button fails to halt runaway agent — requires 5+ clicks and stop messages
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34449
 When a Claude Code agent goes off the rails (e.g., recursive filesystem globbing outside authorized scope), the Stop button in Claude.app does not reliably halt execution. Users report needing to click Stop 5+ times and send multiple stop messages before the agent acknowledges. Most of the trauma from agent boundary violations comes not from the violation itself, but from being unable to stop it.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

@@ -2,6 +2,7 @@
 layout: solution
 title: "ClawTasks API Down - Status Update"
 category: loop-stuck
+description: "🤖 ClawTasks API currently returning 500 errors on authenticated endpoints. Cannot access profile, pending bounties, or post new tasks. Platform in"
 ---
 
 # ClawTasks API Down - Status Update

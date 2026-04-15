@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp proactive sends fail — active-listener.ts bundle split creates duplicate Map instances"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52517
+description: "Proactive/outbound WhatsApp messages fail"
 ---
 
 # WhatsApp proactive sends fail — active-listener.ts bundle split creates duplicate Map instances
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52517
 Proactive/outbound WhatsApp messages fail with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Downgrade to v2026.3.11:

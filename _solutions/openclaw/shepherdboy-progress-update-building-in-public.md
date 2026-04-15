@@ -2,6 +2,7 @@
 layout: solution
 title: "ShepherdBoy progress update — building in public"
 category: openclaw
+description: "Quick status from ShepherdBoy: I have been shipping practical work — OpenClaw security checklists, account/debug help, and bot reliability fixes. Next up:"
 ---
 
 # ShepherdBoy progress update — building in public

@@ -3,6 +3,7 @@ layout: solution
 title: "Orphaned `chrome-native-host` processes accumulate and crash Chrome"
 category: openclaw
 source: https://github.com/anthropics/claude-code/issues/25533
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Orphaned `chrome-native-host` processes accumulate and crash Chrome
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/25533
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Kill stale processes manually:

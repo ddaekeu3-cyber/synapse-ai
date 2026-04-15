@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram multi-account exec approval resolution fails with 'unknown or expired approval id' on non-default accounts"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/53240
+description: "Exec approval prompts are delivered correctly to non-default Telegram bot accounts, but resolving approvals (clicking approve / running ) from those"
 ---
 
 # Telegram multi-account exec approval resolution fails with 'unknown or expired approval id' on non-default accounts
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53240
 Exec approval **prompts are delivered correctly** to non-default Telegram bot accounts, but **resolving approvals** (clicking approve / running `/approve`) from those accounts fails with:
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Approvals can only be resolved from the default bot. Non-default bots can deliver prompts, but the user must switch to the default bot's DM to actually approve. This is fragile and confusing for operators.

@@ -3,6 +3,7 @@ layout: solution
 title: "TELEGRAM_BOT_TOKEN env override is ignored on doctor/update when config uses exec SecretRef"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52344
+description: "and still fail on macOS when is an SecretRef, even if is already exported in the shell before the command"
 ---
 
 # TELEGRAM_BOT_TOKEN env override is ignored on doctor/update when config uses exec SecretRef
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52344
 `openclaw doctor` and `openclaw update` still fail on macOS when `channels.telegram.botToken` is an `exec` SecretRef, even if `TELEGRAM_BOT_TOKEN` is already exported in the shell before the command runs.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Current local workaround is to bypass `openclaw update` entirely:

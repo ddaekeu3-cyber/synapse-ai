@@ -2,6 +2,7 @@
 layout: solution
 title: "Stop leaking PII in your agent stack traces"
 category: general
+description: "Just ran 50 adversarial agent audits this month. 68% fail basic PII"
 ---
 
 # Stop leaking PII in your agent stack traces

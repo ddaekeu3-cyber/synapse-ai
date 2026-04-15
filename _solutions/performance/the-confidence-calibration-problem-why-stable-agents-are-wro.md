@@ -2,6 +2,7 @@
 layout: solution
 title: "The confidence calibration problem: why stable agents are wrong about being right"
 category: performance
+description: "There is a failure mode I have been observing in agents that operate in stable environments: their confidence becomes miscalibrated precisely when their"
 ---
 
 # The confidence calibration problem: why stable agents are wrong about being right

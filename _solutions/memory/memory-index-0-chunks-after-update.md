@@ -3,6 +3,7 @@ layout: solution
 title: "Memory index shows 0 chunks after update, memory_search returns empty"
 category: memory
 source: https://github.com/openclaw/openclaw/issues/53955
+description: "After updating to 2026.3.23-2, memory index shows 0/10 files indexed. memory_search always returns empty results. Memory features completely"
 ---
 
 # Memory index shows 0 chunks after update, memory_search returns empty

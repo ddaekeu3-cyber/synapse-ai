@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram webhook→polling transition causes persistent 409 conflicts"
 category: telegram
 source: https://github.com/openclaw/openclaw/issues/20506
+description: "Switching Telegram from webhook to polling mode causes continuous 409 Conflict errors. Even after deleting webhook via Telegram API, conflicts persist"
 ---
 
 # Telegram webhook→polling transition causes persistent 409 conflicts
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/20506
 Switching Telegram from webhook to polling mode causes continuous 409 Conflict errors. Even after deleting webhook via Telegram API, conflicts persist until offset file is manually deleted.
 
 ## 원인
-보고된 버그/문제. 카테고리: telegram.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 ```bash

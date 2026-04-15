@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: support idmap (UID remapping) on docker.binds and workspaceAccess mounts"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/34594
+description: "When running OpenClaw with rootless Podman on Linux, files rsync'd into the agent workspace from the host are not writable by the sandboxed agent"
 ---
 
 # Feature: support idmap (UID remapping) on docker.binds and workspaceAccess mounts
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/34594
 When running OpenClaw with rootless Podman on Linux, files rsync'd into the agent workspace from the host are not writable by the sandboxed agent process.
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

@@ -3,6 +3,7 @@ layout: solution
 title: "Bonjour/mDNS name-conflict loop on in-process restart (VM environments)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/33609
+description: "When the gateway performs an in-process restart (fallback after ), it registers a new Bonjour/mDNS service without deregistering the previous one. This"
 ---
 
 # Bonjour/mDNS name-conflict loop on in-process restart (VM environments)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/33609
 When the gateway performs an **in-process restart** (fallback after `spawnSync launchctl ETIMEDOUT`), it registers a new Bonjour/mDNS service without deregistering the previous one. This causes an endless name-conflict resolution loop, incrementing the gateway name every ~60 seconds.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Disable mDNS discovery in `openclaw.json`:

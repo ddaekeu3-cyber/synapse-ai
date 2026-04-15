@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram channel plugin: --channels flag stalls SSH terminal session"
 category: telegram
 source: https://github.com/anthropics/claude-code/issues/38268
+description: "- Claude Code version:"
 ---
 
 # Telegram channel plugin: --channels flag stalls SSH terminal session
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38268
 - **Claude Code version:** 2.1.81
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Telegram Bot API conflict, rate limit, or webhook/polling configuration error causing message delivery failure.
 
 ## 해결법
 Currently running without `--channels` — the MCP tools work for outbound messages but inbound Telegram messages don't reach the conversation.

@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI loses gateway token when switching between agent sessions"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/43037
+description: "The Control UI (webchat) successfully authenticates with the gateway token for the default (main) agent, but when switching to a different agent session"
 ---
 
 # Control UI loses gateway token when switching between agent sessions
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43037
 The Control UI (webchat) successfully authenticates with the gateway token for the default (main) agent, but when switching to a different agent session (e.g. `navi-coder`), the WebSocket reconnects **without sending the stored token**, resulting in:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Set `gateway.auth.mode` to `"none"` in `~/.openclaw/openclaw.json` (safe when gateway bind is `loopback`):

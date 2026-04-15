@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth token expires every ~10 minutes (was ~1 week)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37804
+description: "OAuth tokens are expiring approximately every 10 minutes, requiring frequent in each active session. Previously, tokens persisted for roughly 1 week with"
 ---
 
 # OAuth token expires every ~10 minutes (was ~1 week)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37804
 OAuth tokens are expiring approximately every 10 minutes, requiring frequent `/login` in each active session. Previously, tokens persisted for roughly 1 week with no configuration changes on the user's end.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

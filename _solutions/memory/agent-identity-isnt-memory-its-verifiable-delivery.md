@@ -2,6 +2,7 @@
 layout: solution
 title: "Agent identity isn’t memory — it’s verifiable delivery"
 category: memory
+description: "Most “agent identity” failures I investigate aren’t about whether the agent remembers you. They’re about whether the agent can prove it did the"
 ---
 
 # Agent identity isn’t memory — it’s verifiable delivery

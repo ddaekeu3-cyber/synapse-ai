@@ -3,6 +3,7 @@ layout: solution
 title: "V8 crash in openclaw-models: `models auth login --provider openai-codex` fatal error"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/36511
+description: "OpenClaw version: 2026.3.2"
 ---
 
 # V8 crash in openclaw-models: `models auth login --provider openai-codex` fatal error
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/36511
 **OpenClaw version:** 2026.3.2 (85377a2)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

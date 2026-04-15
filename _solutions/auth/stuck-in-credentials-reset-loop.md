@@ -3,6 +3,7 @@ layout: solution
 title: "Stuck in Credentials reset loop"
 category: auth
 source: Reddit r/ClaudeAI https://reddit.com/r/Battlefield/comments/1mkxrro/stuck_in_cre
+description: "Hi Anyone else having this issue? When I try to play any EA game, it says I need to reset my password because my credentials have expired. I follow all"
 ---
 
 # Stuck in Credentials reset loop
@@ -11,7 +12,7 @@ source: Reddit r/ClaudeAI https://reddit.com/r/Battlefield/comments/1mkxrro/stuc
 Hi Anyone else having this issue? When I try to play any EA game, it says I need to reset my password because my credentials have expired. I follow all the steps, update everything and still does not work. I tried contacting EA support, looks like I won't be playing or buying BF6. I have watched every youtube video and searched all the forums I can find, can't fix it. Anyone here have this issue? 
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

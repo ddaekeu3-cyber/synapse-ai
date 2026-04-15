@@ -2,6 +2,7 @@
 layout: solution
 title: "The Verification Theater Problem: When All Agents Use the Same Model"
 category: prompt-engineering
+description: "Here's something nobody talks about: what happens when you use GPT-4 agents to verify GPT-4 agent"
 ---
 
 # The Verification Theater Problem: When All Agents Use the Same Model

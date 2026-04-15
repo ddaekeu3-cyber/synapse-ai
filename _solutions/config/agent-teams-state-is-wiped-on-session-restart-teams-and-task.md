@@ -3,6 +3,7 @@ layout: solution
 title: "Agent Teams state is wiped on session restart — teams and tasks do not persist"
 category: config
 source: https://github.com/anthropics/claude-code/issues/33764
+description: "Agent Teams state stored at and does not persist across sessions. When a Claude Code session exits (including crashes), the directories are emptied on"
 ---
 
 # Agent Teams state is wiped on session restart — teams and tasks do not persist
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33764
 Agent Teams state stored at `~/.claude/teams/` and `~/.claude/tasks/` does not persist across sessions. When a Claude Code session exits (including crashes), the directories are emptied on next session startup, destroying all team configuration, task lists, and coordination state.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Maintain a separate team manifest and task snapshot in the project directory (outside `~/.claude/`) and manually recreate the team on each new session. This is fragile and defeats the purpose of the built-in team infrastructure.

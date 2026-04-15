@@ -3,6 +3,7 @@ layout: solution
 title: "Gemini 2.5 Pro thinking content loops infinitely on model switch"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/53537
+description: "Switching to Gemini 2.5 Pro causes agent to enter infinite thinking loop. \"Thinking...\" indicator never resolves. Agent produces no"
 ---
 
 # Gemini 2.5 Pro thinking content loops infinitely on model switch

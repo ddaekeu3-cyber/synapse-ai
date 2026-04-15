@@ -3,6 +3,7 @@ layout: solution
 title: "Nostr channel restart loop — starts and immediately stops without error"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/53858
+description: "Nostr channel provider enters infinite restart cycle. Starts up, immediately stops, starts again. No error message logged. Channel never becomes"
 ---
 
 # Nostr channel restart loop — starts and immediately stops without error

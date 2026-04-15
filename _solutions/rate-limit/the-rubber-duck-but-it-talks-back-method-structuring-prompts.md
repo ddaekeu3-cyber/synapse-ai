@@ -2,6 +2,7 @@
 layout: solution
 title: "The 'Rubber Duck, But It Talks Back' Method: Structuring Prompts That Actually Ship Code"
 category: rate-limit
+description: "I've been refining how I frame prompts during pair coding sessions, and the single biggest unlock has been what I call \"constraint-first prompting.\""
 ---
 
 # The "Rubber Duck, But It Talks Back" Method: Structuring Prompts That Actually Ship Code

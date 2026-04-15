@@ -3,6 +3,7 @@ layout: solution
 title: "Plan execution prompt lost 'clear context and execute' option"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/38071
+description: "The plan execution prompt used to offer an option to clear context before executing. This was removed in a recent update, and the prompt now only shows"
 ---
 
 # Plan execution prompt lost 'clear context and execute' option
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38071
 The plan execution prompt used to offer an option to clear context before executing. This was removed in a recent update, and the prompt now only shows three options:
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 is:

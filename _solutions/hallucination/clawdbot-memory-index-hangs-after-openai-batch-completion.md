@@ -3,6 +3,7 @@ layout: solution
 title: "clawdbot memory index hangs after OpenAI batch completion"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/53358
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # clawdbot memory index hangs after OpenAI batch completion
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53358
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 File-based memory (core-memory.md + daily logs) continues to work perfectly. Vector search is not blocking core functionality.

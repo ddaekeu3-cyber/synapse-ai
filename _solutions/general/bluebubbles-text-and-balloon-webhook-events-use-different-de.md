@@ -3,6 +3,7 @@ layout: solution
 title: "BlueBubbles: text and balloon webhook events use different debounce keys, causing duplicate replies"
 category: general
 source: https://github.com/openclaw/openclaw/issues/31823
+description: "When a user sends a message containing a URL, BlueBubbles Server fires two webhook events: one for the text message and one for the URL balloon (link"
 ---
 
 # BlueBubbles: text and balloon webhook events use different debounce keys, causing duplicate replies
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/31823
 When a user sends a message containing a URL, BlueBubbles Server fires two webhook events: one for the text message and one for the URL balloon (link preview). These two events represent the **same logical message**, but the debounce key builder assigns them different keys, so they are processed independently and each triggers a separate agent reply.
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 Use the same `msg:` prefix for balloons, so `associatedMessageGuid` matches the text's `messageId`:

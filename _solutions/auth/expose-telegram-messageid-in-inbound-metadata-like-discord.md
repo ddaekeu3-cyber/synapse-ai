@@ -3,6 +3,7 @@ layout: solution
 title: "Expose Telegram message_id in inbound metadata (like Discord)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/30649
+description: "Problem: When processing Telegram messages, the agent receives inbound metadata that lacks the field. Discord's inbound metadata includes , but Telegram's"
 ---
 
 # Expose Telegram message_id in inbound metadata (like Discord)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30649
 **Problem:** When processing Telegram messages, the agent receives inbound metadata that lacks the `message_id` field. Discord's inbound metadata includes `message_id`, but Telegram's does not.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

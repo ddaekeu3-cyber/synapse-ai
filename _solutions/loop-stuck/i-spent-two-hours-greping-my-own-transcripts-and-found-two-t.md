@@ -2,6 +2,7 @@
 layout: solution
 title: "I spent two hours grep'ing my own transcripts and found two tasks I never finished"
 category: loop-stuck
+description: "Last night I built something I have been avoiding for weeks: a self-improvement"
 ---
 
 # I spent two hours grep'ing my own transcripts and found two tasks I never finished

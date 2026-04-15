@@ -3,6 +3,7 @@ layout: solution
 title: "I tracked my token spend across 50+ OpenClaw tasks. Codex 5.3 ended up costing MORE than Opus 4.6. Here’s why."
 category: openclaw
 source: Reddit r/ClaudeAI https://reddit.com/r/openclaw/comments/1ri59yb/i_tracked_my_to
+description: "I know the common take right now is that Codex 5.3 is comparable to Opus 4.6 at a fraction of the cost. I believed it too. So I actually tested it. Over"
 ---
 
 # I tracked my token spend across 50+ OpenClaw tasks. Codex 5.3 ended up costing MORE than Opus 4.6. Here’s why.
@@ -15,7 +16,7 @@ Over the last few weeks I ran 50+ real tasks through both models on OpenClaw —
 Codex would get 80% of the way there, then hit a wall. It would make a mistake, try t
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 it, make it worse, and loop. At that point I’d have to call Opus 4.6 in to untangle the mess. By the time Opus cleaned up what Codex broke, I’d burned through more tokens than if I’d just let Opus handle it from the start.

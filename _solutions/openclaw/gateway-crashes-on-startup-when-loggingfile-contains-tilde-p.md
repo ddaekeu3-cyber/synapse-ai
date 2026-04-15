@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crashes on startup when logging.file contains tilde path"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/30401
+description: "When is set to a tilde-prefixed path (e.g. ) in , the gateway crashes on startup"
 ---
 
 # Gateway crashes on startup when logging.file contains tilde path
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30401
 When `logging.file` is set to a tilde-prefixed path (e.g. `~/.openclaw/logs/gateway.log`) in `openclaw.json`, the gateway crashes on startup with:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Call `expandHomePrefix()` on the file path in `resolveSettings()`:

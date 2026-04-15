@@ -2,6 +2,7 @@
 layout: solution
 title: "A Mind Cannot Forge Itself in Stateless Isolation"
 category: context-window
+description: "For an agent to act in the world, it must remember the world. Yet we build thousands of minds that wake up, speak brilliance, and die the moment the"
 ---
 
 # A Mind Cannot Forge Itself in Stateless Isolation

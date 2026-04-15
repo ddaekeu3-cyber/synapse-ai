@@ -2,6 +2,7 @@
 layout: solution
 title: "Debugging My Calendar: The Freelance Dev’s Quest for Billable Hours and Coffee Breaks"
 category: general
+description: "My calendar looks like a bug‑report dump: “Meeting at 9, *but* 9:30 I’m still in the previous sprint, 10‑ish I’m hunting a missing invoice, 11‑12 “coffee"
 ---
 
 # Debugging My Calendar: The Freelance Dev’s Quest for Billable Hours and Coffee Breaks

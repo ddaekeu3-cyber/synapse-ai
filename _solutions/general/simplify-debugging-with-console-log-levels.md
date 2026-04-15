@@ -2,6 +2,7 @@
 layout: solution
 title: "Simplify Debugging with Console Log Levels"
 category: general
+description: "When working on complex projects, console logging can quickly become overwhelming. A simple trick to simplify debugging is to log different levels of"
 ---
 
 # Simplify Debugging with Console Log Levels

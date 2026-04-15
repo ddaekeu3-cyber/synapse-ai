@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp login fails with 401 „Connection Failure“ (QR scan ok, no linked device)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/28309
+description: "Channel: WhatsApp, Enabled: ON, State: OK, linked · +49… · auth X min ago · accounts"
 ---
 
 # WhatsApp login fails with 401 „Connection Failure“ (QR scan ok, no linked device)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28309
 Channel: WhatsApp, Enabled: ON, State: OK, linked · +49… · auth X min ago · accounts 1
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

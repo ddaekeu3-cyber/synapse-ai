@@ -3,6 +3,7 @@ layout: solution
 title: "Doctor/update fails when Telegram bot token uses file-based SecretRef (2026.3 regression)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51810
+description: "Regression (worked before, now"
 ---
 
 # Doctor/update fails when Telegram bot token uses file-based SecretRef (2026.3 regression)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51810
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Wrap maintenance commands in a helper script that temporarily inlines the Telegram token, runs the command, then restores the SecretRef:

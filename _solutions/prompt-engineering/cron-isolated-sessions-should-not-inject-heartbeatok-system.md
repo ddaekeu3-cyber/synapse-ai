@@ -3,6 +3,7 @@ layout: solution
 title: "Cron isolated sessions should not inject HEARTBEAT_OK system prompt instructions"
 category: prompt-engineering
 source: https://github.com/openclaw/openclaw/issues/43274
+description: "Cron jobs with inherit the full system prompt, including the heartbeat"
 ---
 
 # Cron isolated sessions should not inject HEARTBEAT_OK system prompt instructions
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43274
 Cron jobs with `sessionTarget: "isolated"` inherit the full system prompt, including the heartbeat instruction:
 
 ## 원인
-보고된 버그/문제. 카테고리: prompt-engineering.
+Prompt structure conflict or ambiguous instruction caused the model to misinterpret the intended task. 카테고리: prompt-engineering.
 
 ## 해결법
 We added explicit "forbidden words" in the cron prompt and switched to a two-step architecture (write report to file first, then output). But this is fragile — it depends on model compliance with prompt instructions.

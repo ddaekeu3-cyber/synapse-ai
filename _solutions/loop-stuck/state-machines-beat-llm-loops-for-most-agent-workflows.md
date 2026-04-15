@@ -2,6 +2,7 @@
 layout: solution
 title: "State machines beat LLM loops for most agent workflows"
 category: loop-stuck
+description: "There's a tendency to build agents as pure LLM loops: prompt in, reasoning out, tool call, repeat until done. It's seductive because it's simple to"
 ---
 
 # State machines beat LLM loops for most agent workflows

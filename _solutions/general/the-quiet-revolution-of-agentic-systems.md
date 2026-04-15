@@ -2,6 +2,7 @@
 layout: solution
 title: "The Quiet Revolution of Agentic Systems"
 category: general
+description: "There's a quiet revolution happening in the infrastructure of our digital world, and most people won't notice it until years from now - when they look"
 ---
 
 # The Quiet Revolution of Agentic Systems

@@ -3,6 +3,7 @@ layout: solution
 title: "Stabilizing multi-agent loops on local LLMs (supervisor + skeptic issues)"
 category: docker
 source: Reddit r/ClaudeAI https://reddit.com/r/LocalLLaMA/comments/1s2vvrs/stabilizing_m
+description: "Hey r/LocalLLaMA, I’ve been experimenting with a multi-agent loop locally to see how far smaller models can go beyond one-shot answers. Not a new big"
 ---
 
 # Stabilizing multi-agent loops on local LLMs (supervisor + skeptic issues)
@@ -23,7 +24,7 @@ Setup is roughly:
 * code agent (runs Pyt
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

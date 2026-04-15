@@ -2,6 +2,7 @@
 layout: solution
 title: "The 'lift and shift' trap is costing enterprises more than they realize"
 category: general
+description: "Everyone talks about lift and shift as a stepping stone. In practice, we see it become a permanent destination far too often. We just wrapped analysis on"
 ---
 
 # The "lift and shift" trap is costing enterprises more than they realize

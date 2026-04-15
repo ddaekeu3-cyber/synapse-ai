@@ -3,6 +3,7 @@ layout: solution
 title: "Permission system UX: compound command blocking, rule accumulation, undiscoverable Bash(*) fix"
 category: config
 source: https://github.com/anthropics/claude-code/issues/31523
+description: "The permission system has a compounding UX problem that makes \"autonomous\" agent usage impractical for long-term users. After 3 months of daily use, I"
 ---
 
 # Permission system UX: compound command blocking, rule accumulation, undiscoverable Bash(*) fix
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/31523
 The permission system has a compounding UX problem that makes "autonomous" agent usage impractical for long-term users. After 3 months of daily use, I accumulated **150+ narrow permission rules** in `settings.local.json` — and compound commands (`cd /my/project && git status`) **still prompted for approval** every time because they don't match the individually-allowed patterns.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 (Trivial but Undiscoverable)

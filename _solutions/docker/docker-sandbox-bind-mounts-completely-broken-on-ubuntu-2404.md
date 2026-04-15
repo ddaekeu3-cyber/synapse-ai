@@ -3,6 +3,7 @@ layout: solution
 title: "Docker sandbox bind mounts completely broken on Ubuntu 24.04"
 category: docker
 source: https://github.com/openclaw/openclaw/issues/49309
+description: "Regression (worked before, now"
 ---
 
 # Docker sandbox bind mounts completely broken on Ubuntu 24.04
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49309
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: docker.
+Container permission, networking, or environment variable misconfiguration inside the sandbox.
 
 ## 해결법
 1. 권한 확인: --user 플래그, 볼륨 권한

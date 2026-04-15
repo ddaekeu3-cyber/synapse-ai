@@ -3,6 +3,7 @@ layout: solution
 title: "Agent uses expensive LLM tokens for tasks that should be deterministic"
 category: token-cost
 source: Medium - Alex Efimenko (7 Ways to Reduce AI Token Consumption)
+description: "Agent uses LLM API calls for simple deterministic tasks like email validation, date parsing, string formatting. Costs accumulate for tasks that could be"
 ---
 
 # Agent uses expensive LLM tokens for tasks that should be deterministic

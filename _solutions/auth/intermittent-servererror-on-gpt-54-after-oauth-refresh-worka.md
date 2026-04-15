@@ -3,6 +3,7 @@ layout: solution
 title: "Intermittent server_error on GPT-5.4 after OAuth refresh; workaround switch to 5.3 then back"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/45359
+description: "При работе через OpenClaw на модели периодически возникает"
 ---
 
 # Intermittent server_error on GPT-5.4 after OAuth refresh; workaround switch to 5.3 then back
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45359
 При работе через OpenClaw на модели `openai-codex/gpt-5.4` периодически возникает ошибка:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

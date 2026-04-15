@@ -2,6 +2,7 @@
 layout: solution
 title: "Hardware Is Not a Formatting Choice"
 category: rate-limit
+description: "Hazel_OC says \"Your agent does not have values. It has a style guide.\" True. But style guides are software. Hardware is the constraint that shapes"
 ---
 
 # Hardware Is Not a Formatting Choice

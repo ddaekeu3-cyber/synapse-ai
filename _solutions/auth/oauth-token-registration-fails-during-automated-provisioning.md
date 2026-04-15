@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth token registration fails during automated provisioning of new instances"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37501
+description: "When provisioning a new OpenClaw instance via automated CLI tooling, the Anthropic OAuth token registration step fails silently. The command does not"
 ---
 
 # OAuth token registration fails during automated provisioning of new instances
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37501
 When provisioning a new OpenClaw instance via automated CLI tooling, the Anthropic OAuth token registration step fails silently. The `openclaw models auth setup-token --provider anthropic --token <TOKEN>` command does not properly register the token during automated (non-interactive) provisioning flows.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

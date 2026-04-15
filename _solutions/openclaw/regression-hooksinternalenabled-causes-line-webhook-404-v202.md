@@ -3,6 +3,7 @@ layout: solution
 title: "[regression?] hooks.internal.enabled causes LINE webhook 404 (v2026.3.13)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/52729
+description: "Regression (worked before, now"
 ---
 
 # [regression?] hooks.internal.enabled causes LINE webhook 404 (v2026.3.13)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/52729
 Regression (worked before, now fails)
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 from #31885 (plugin routes before SPA catch-all) is confirmed present. The hooks handler explicitly checks its basePath and returns `false` for `/line/webhook`.

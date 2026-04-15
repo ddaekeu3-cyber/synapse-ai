@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth token management: add names, source IPs, and usage tracking"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/38031
+description: "When generating long-lived OAuth tokens via , there is no way to name, label, or distinguish between tokens. The token management page (claude.ai) shows"
 ---
 
 # OAuth token management: add names, source IPs, and usage tracking
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38031
 When generating long-lived OAuth tokens via `claude setup-token`, there is no way to name, label, or distinguish between tokens. The token management page (claude.ai) shows all tokens identically as "Claude Code" with only a vague "Connected X ago" timestamp.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

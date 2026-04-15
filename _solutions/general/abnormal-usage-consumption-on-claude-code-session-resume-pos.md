@@ -3,6 +3,7 @@ layout: solution
 title: "Abnormal Usage Consumption on Claude Code Session Resume — Possible Bug"
 category: general
 source: https://github.com/anthropics/claude-code/issues/38029
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # Abnormal Usage Consumption on Claude Code Session Resume — Possible Bug
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/38029
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 "Improved memory usage and startup time when resuming large sessions." This strongly suggests that the behavior I experienced was a known issue that has since been patched.

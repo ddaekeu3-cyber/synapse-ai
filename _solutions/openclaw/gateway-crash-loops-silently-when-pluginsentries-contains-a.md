@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crash-loops silently when plugins.entries contains a nonexistent plugin key"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/27455
+description: "When in contains a key for a plugin that no longer exists in the installed version, the gateway crash-loops on every boot with no clear error pointing to"
 ---
 
 # Gateway crash-loops silently when plugins.entries contains a nonexistent plugin key
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/27455
 When `plugins.entries` in `openclaw.json` contains a key for a plugin that no longer exists in the installed version, the gateway crash-loops on every boot with no clear error pointing to the actual cause.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 ```bash

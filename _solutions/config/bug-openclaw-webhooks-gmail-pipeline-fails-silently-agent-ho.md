@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: `openclaw webhooks gmail` pipeline fails silently — agent hook responses auto-suppressed + Tailscale App Store incompatibility"
 category: config
 source: https://github.com/openclaw/openclaw/issues/29090
+description: "- Tailscale (App Store"
 ---
 
 # Bug: `openclaw webhooks gmail` pipeline fails silently — agent hook responses auto-suppressed + Tailscale App Store incompatibility
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/29090
 - Tailscale (App Store version)
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Built a fully independent Python push handler that:

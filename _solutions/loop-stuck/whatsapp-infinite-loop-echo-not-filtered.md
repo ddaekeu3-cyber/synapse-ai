@@ -3,6 +3,7 @@ layout: solution
 title: "WhatsApp group echo creates infinite loop with bot mention"
 category: loop-stuck
 source: https://github.com/openclaw/openclaw/issues/53386
+description: "In WhatsApp group, bot sends reply → group echoes it back with fromMe flag → bot treats it as new mention → replies again → infinite"
 ---
 
 # WhatsApp group echo creates infinite loop with bot mention

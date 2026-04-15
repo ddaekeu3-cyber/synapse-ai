@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI model switcher applies the current provider to the selected model"
 category: config
 source: https://github.com/openclaw/openclaw/issues/46859
+description: "Regression (worked before, now"
 ---
 
 # Control UI model switcher applies the current provider to the selected model

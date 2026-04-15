@@ -3,6 +3,7 @@ layout: solution
 title: "Michael Burry - Foundations: The Big Short Squeeze"
 category: general
 source: Reddit r/ClaudeAI https://reddit.com/r/Superstonk/comments/1pntmak/michael_burry
+description: "https://michaeljburry.substack.com/p/foundations-the-big-short-squeeze New Michael Burry just dropped, and yes it's about Gamestop. Foundations: The Big"
 ---
 
 # Michael Burry - Foundations: The Big Short Squeeze
@@ -20,7 +21,7 @@ Tore a blade from my lawn and – without so much as a peep – launched it towa
 Unsure as to east or west, as that was
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 panic buying.  

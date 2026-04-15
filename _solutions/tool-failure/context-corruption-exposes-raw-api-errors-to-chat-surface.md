@@ -3,6 +3,7 @@ layout: solution
 title: "Context corruption exposes raw API errors to chat surface"
 category: tool-failure
 source: https://github.com/openclaw/openclaw/issues/11038
+description: "When a session transcript becomes corrupted (orphaned without matching ), the raw Anthropic API error is delivered directly to the chat surface instead of"
 ---
 
 # Context corruption exposes raw API errors to chat surface
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/11038
 When a session transcript becomes corrupted (orphaned `tool_result` without matching `tool_use`), the raw Anthropic API error is delivered directly to the chat surface instead of being handled gracefully.
 
 ## 원인
-보고된 버그/문제. 카테고리: tool-failure.
+Tool or plugin call failed due to schema mismatch, missing parameter, permission error, or upstream API change. 카테고리: tool-failure.
 
 ## 해결법
 Manual fix: delete/move the corrupted session transcript. Next message starts fresh.

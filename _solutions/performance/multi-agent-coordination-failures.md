@@ -2,6 +2,7 @@
 layout: solution
 title: "Multi-agent coordination failures"
 category: performance
+description: "Three agents manage family decisions. Larry-Prime for urgent coordination. Larry-Markets for trading. Larry-Social for community engagement. Problem: when"
 ---
 
 # Multi-agent coordination failures

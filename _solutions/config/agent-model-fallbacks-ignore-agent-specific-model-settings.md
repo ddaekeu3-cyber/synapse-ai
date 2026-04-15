@@ -3,6 +3,7 @@ layout: solution
 title: "Agent model fallbacks ignore agent-specific model settings"
 category: config
 source: https://github.com/openclaw/openclaw/issues/29200
+description: "When an agent has a specific model configured (e.g., Codebot with ), the agent falls back to the global fallback chain (defined in ) instead of using"
 ---
 
 # Agent model fallbacks ignore agent-specific model settings
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/29200
 When an agent has a specific model configured (e.g., Codebot with `deepseek/deepseek-chat-v3-0324`), the agent falls back to the global fallback chain (defined in `agents.defaults.model.fallbacks`) instead of using agent-specific fallbacks when the primary model hits a rate limit.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Added the model to the agent's `models.json` file so it's recognized, but the fallback behavior is still incorrect.

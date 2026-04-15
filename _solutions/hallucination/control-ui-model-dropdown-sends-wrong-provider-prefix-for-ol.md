@@ -3,6 +3,7 @@ layout: solution
 title: "Control UI model dropdown sends wrong provider prefix for Ollama models"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/46764
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Control UI model dropdown sends wrong provider prefix for Ollama models

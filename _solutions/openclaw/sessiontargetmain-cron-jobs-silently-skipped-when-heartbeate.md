@@ -3,6 +3,7 @@ layout: solution
 title: "sessionTarget='main' cron jobs silently skipped when heartbeat.every='0m'"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/46046
+description: "cron jobs report , when is set to , even though the jobs fire at the correct scheduled"
 ---
 
 # sessionTarget="main" cron jobs silently skipped when heartbeat.every="0m"
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46046
 `sessionTarget: "main"` cron jobs report `status: "skipped"`, `error: "disabled"` when `agents.defaults.heartbeat.every` is set to `"0m"`, even though the jobs fire at the correct scheduled time.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Set `heartbeat.every` to a non-zero value even when periodic heartbeats are not desired (e.g. `"24h"`). This allows `state.agents` registration to succeed and the interval check to pass, while keeping heartbeat activity minimal.

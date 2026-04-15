@@ -3,6 +3,7 @@ layout: solution
 title: "[Announcement] Deprecation Notice: Qwen OAuth Integration"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/49557
+description: "I'm from the Qwen Code team. I wanted to share some updates about the Qwen OAuth integration in OpenClaw and discuss the best path forward"
 ---
 
 # [Announcement] Deprecation Notice: Qwen OAuth Integration
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/49557
 I'm from the **Qwen Code team**. I wanted to share some updates about the Qwen OAuth integration in OpenClaw and discuss the best path forward together.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

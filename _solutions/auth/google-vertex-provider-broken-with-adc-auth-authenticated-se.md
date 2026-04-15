@@ -3,6 +3,7 @@ layout: solution
 title: "google-vertex provider broken with ADC auth: '<authenticated>' sentinel passed as API key + gaxios@7.1.3 incompatible with Node 24"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/48910
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # google-vertex provider broken with ADC auth: "<authenticated>" sentinel passed as API key + gaxios@7.1.3 incompatible with Node 24
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/48910
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

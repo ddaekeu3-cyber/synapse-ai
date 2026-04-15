@@ -3,6 +3,7 @@ layout: solution
 title: "40% reasoning accuracy drop beyond 50k tokens (attention dilution)"
 category: context-window
 source: SparkCo - Agent Context Windows in 2026
+description: "Agent reasoning quality degrades significantly in long conversations. After 50k+ tokens, the agent starts making mistakes, forgetting instructions, and"
 ---
 
 # 40% reasoning accuracy drop beyond 50k tokens (attention dilution)

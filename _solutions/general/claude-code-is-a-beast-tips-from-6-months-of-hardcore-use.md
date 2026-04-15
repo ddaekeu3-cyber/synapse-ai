@@ -3,6 +3,7 @@ layout: solution
 title: "Claude Code is a Beast – Tips from 6 Months of Hardcore Use"
 category: general
 source: Reddit r/ClaudeAI https://reddit.com/r/ClaudeAI/comments/1oivjvm/claude_code_is_
+description: "*Quick pro-tip from a fellow lazy person: You can throw this book of a post into one of the many text-to-speech AI services like* *ElevenLabs Reader* *or*"
 ---
 
 # Claude Code is a Beast – Tips from 6 Months of Hardcore Use
@@ -13,7 +14,7 @@ source: Reddit r/ClaudeAI https://reddit.com/r/ClaudeAI/comments/1oivjvm/claude_
 Edit: Many of you are asking for a repo so I will make an effort to get one up in the next couple days. All o
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 .

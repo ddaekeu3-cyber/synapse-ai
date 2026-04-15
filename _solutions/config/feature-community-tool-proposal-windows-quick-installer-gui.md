@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: [Community Tool / Proposal] Windows Quick Installer GUI - Lowering the barrier to entry for Windows users"
 category: config
 source: https://github.com/openclaw/openclaw/issues/44038
+description: "I am proposing (and have developed) the OpenClaw Windows Quick Installer, an open-source desktop GUI application designed to help Windows users quickly"
 ---
 
 # [Feature]: [Community Tool / Proposal] Windows Quick Installer GUI - Lowering the barrier to entry for Windows users
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44038
 I am proposing (and have developed) the OpenClaw Windows Quick Installer, an open-source desktop GUI application designed to help Windows users quickly install, configure, and manage the OpenClaw CLI. This tool aims to drastically lower the barrier to entry for non-developers and AI enthusiasts who want to run OpenClaw locally on Windows.[quick_installer](https://github.com/JustinBIBERRR/openclaw_
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 includes:

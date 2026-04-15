@@ -3,6 +3,7 @@ layout: solution
 title: "Bug: google-gemini-cli-auth OAuth fails on Windows (client_secret missing + loadCodeAssist 400)"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/30403
+description: "- OpenClaw version:"
 ---
 
 # Bug: google-gemini-cli-auth OAuth fails on Windows (client_secret missing + loadCodeAssist 400)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/30403
 - **OpenClaw version:** 2026.2.26
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Manually set the env vars that `resolveOAuthClientConfig()` checks first (per `oauth.ts` lines 7–10):

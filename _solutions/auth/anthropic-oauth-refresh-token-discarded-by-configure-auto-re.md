@@ -3,6 +3,7 @@ layout: solution
 title: "Anthropic OAuth refresh token discarded by configure; auto-refresh always fails, requires manual re-auth every ~8h"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/34117
+description: "- Provider: Anthropic"
 ---
 
 # Anthropic OAuth refresh token discarded by configure; auto-refresh always fails, requires manual re-auth every ~8h
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/34117
 - **Provider:** Anthropic (claude-sonnet-4-6)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 Manually edit `~/.openclaw/agents/main/agent/auth-profiles.json` after every configure run:

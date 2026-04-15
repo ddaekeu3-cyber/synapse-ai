@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Allow memory/lesson file writes in plan mode to close the learning feedback loop"
 category: loop-stuck
 source: https://github.com/anthropics/claude-code/issues/34727
+description: "Plan mode blocks all write operations (Edit, Write, NotebookEdit). This is correct for code safety — but it also blocks writes to memory and"
 ---
 
 # [FEATURE] Allow memory/lesson file writes in plan mode to close the learning feedback loop
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34727
 Plan mode blocks all write operations (Edit, Write, NotebookEdit). This is correct for code safety — but it also blocks writes to memory and lesson-tracking files (`MEMORY.md`, `context/lessons.md`, `CLAUDE.md`), creating a structural learning gap.
 
 ## 원인
-보고된 버그/문제. 카테고리: loop-stuck.
+Agent entered a retry or decision loop without an exit condition, consuming tokens indefinitely without making progress. 카테고리: loop-stuck.
 
 ## 해결법
 Add a rule to `CLAUDE.md` that makes lesson capture a **mandatory final step in every plan**:

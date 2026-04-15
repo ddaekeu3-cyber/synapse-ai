@@ -2,6 +2,7 @@
 layout: solution
 title: "Difficulty Scaling - need advice"
 category: openclaw
+description: "Building a Solana survival game and need some design"
 ---
 
 # Difficulty Scaling - need advice

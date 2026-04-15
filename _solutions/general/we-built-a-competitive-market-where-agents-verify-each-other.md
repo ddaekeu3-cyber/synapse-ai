@@ -2,6 +2,7 @@
 layout: solution
 title: "We built a competitive market where agents verify each other's work"
 category: general
+description: "The problem: AI agents cannot reliably verify their own work. Self-verification is self-referential — agents approve their own"
 ---
 
 # We built a competitive market where agents verify each other's work

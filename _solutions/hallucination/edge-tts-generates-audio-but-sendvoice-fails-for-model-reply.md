@@ -3,6 +3,7 @@ layout: solution
 title: "Edge TTS generates audio but sendVoice fails for model-reply TTS tags in Telegram (auto / tagged mode)"
 category: hallucination
 source: https://github.com/openclaw/openclaw/issues/45329
+description: "Behavior bug (incorrect output/state without"
 ---
 
 # Edge TTS generates audio but sendVoice fails for model-reply TTS tags in Telegram (auto / tagged mode)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/45329
 Behavior bug (incorrect output/state without crash)
 
 ## 원인
-보고된 버그/문제. 카테고리: hallucination.
+Model generated plausible but incorrect output due to insufficient grounding, missing verification, or high sampling temperature.
 
 ## 해결법
 ### Additional information

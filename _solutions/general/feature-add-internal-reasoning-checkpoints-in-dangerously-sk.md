@@ -3,6 +3,7 @@ layout: solution
 title: "[FEATURE] Add internal reasoning checkpoints in --dangerously-skip-permissions mode"
 category: general
 source: https://github.com/anthropics/claude-code/issues/32337
+description: "- [x] I have searched existing requests and this feature hasn't been requested"
 ---
 
 # [FEATURE] Add internal reasoning checkpoints in --dangerously-skip-permissions mode
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/32337
 - [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn't been requested yet
 
 ## 원인
-보고된 버그/문제. 카테고리: general.
+Agent encountered an unexpected state or unhandled error condition outside the standard error handling path.
 
 ## 해결법
 belongs in the agent's execution loop, not in the permission system.

@@ -3,6 +3,7 @@ layout: solution
 title: "OAuth tokens not persisted to Windows Credential Manager on MSYS/Git Bash"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/29049
+description: "- Platform: Windows 11 with MSYS/Git Bash (via VS Code integrated"
 ---
 
 # OAuth tokens not persisted to Windows Credential Manager on MSYS/Git Bash
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/29049
 - Platform: Windows 11 with MSYS/Git Bash (via VS Code integrated terminal)
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

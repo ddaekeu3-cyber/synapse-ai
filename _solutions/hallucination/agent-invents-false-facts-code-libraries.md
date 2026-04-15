@@ -3,6 +3,7 @@ layout: solution
 title: "Agent invents non-existent code libraries or false facts"
 category: hallucination
 source: Stevens Institute + PR-Peri Hallucination Research
+description: "Agent confidently references libraries, functions, or APIs that do not exist. Generates code using fabricated package names. Provides false information"
 ---
 
 # Agent invents non-existent code libraries or false facts

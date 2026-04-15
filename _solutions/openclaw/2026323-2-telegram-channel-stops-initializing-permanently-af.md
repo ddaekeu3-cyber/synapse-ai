@@ -3,6 +3,7 @@ layout: solution
 title: "2026.3.23-2: Telegram channel stops initializing permanently after polling stall loop"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/53493
+description: "Severity: Critical — Telegram channel permanently stops initializing after polling stall loop escalates, surviving reboots. Downgrading to immediately"
 ---
 
 # 2026.3.23-2: Telegram channel stops initializing permanently after polling stall loop
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/53493
 **Severity: Critical** — Telegram channel permanently stops initializing after polling stall loop escalates, surviving reboots. Downgrading to `2026.3.22` immediately fixes the issue.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 **Downgrade to 2026.3.22 immediately resolves the issue:**

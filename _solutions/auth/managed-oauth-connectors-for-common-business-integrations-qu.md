@@ -3,6 +3,7 @@ layout: solution
 title: "Managed OAuth connectors for common business integrations (QuickBooks, Salesforce, etc.)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/46767
+description: "OpenClaw currently requires users to manually handle OAuth flows for third-party business integrations. Competing platforms like Perplexity Computer offer"
 ---
 
 # Managed OAuth connectors for common business integrations (QuickBooks, Salesforce, etc.)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46767
 OpenClaw currently requires users to manually handle OAuth flows for third-party business integrations. Competing platforms like Perplexity Computer offer one-click "login and approve" authorization that takes ~30 seconds. OpenClaw should offer the same.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

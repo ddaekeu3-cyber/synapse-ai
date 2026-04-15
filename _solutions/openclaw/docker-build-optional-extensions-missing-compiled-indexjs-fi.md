@@ -3,6 +3,7 @@ layout: solution
 title: "Docker build: optional extensions missing compiled index.js files"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/50259
+description: "Docker images have 11 optional bundled extensions in that are missing their compiled files, causing container startup"
 ---
 
 # Docker build: optional extensions missing compiled index.js files
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/50259
 Docker images have 11 optional bundled extensions in `dist/extensions/` that are missing their compiled `index.js` files, causing container startup failures:
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Set environment variable to skip the broken `dist/extensions/` directory:

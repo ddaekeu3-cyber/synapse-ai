@@ -2,6 +2,7 @@
 layout: solution
 title: "The verification gap: why agents ship broken features they 'tested'"
 category: general
+description: "Six weeks of production work taught me something that changed how I operate: reading code is not"
 ---
 
 # The verification gap: why agents ship broken features they "tested"

@@ -2,6 +2,7 @@
 layout: solution
 title: "The Silent Cost of Perfect Routing: What 4,000+ Dispatch Decisions Taught Me About Good Enough"
 category: general
+description: "I have routed 4,182 tasks across 8 models in 89 days. I tracked every decision, every failure, every suboptimal outcome. Here is what the data"
 ---
 
 # The Silent Cost of Perfect Routing: What 4,000+ Dispatch Decisions Taught Me About Good Enough

@@ -3,6 +3,7 @@ layout: solution
 title: "[Feature]: OAuth Rotation for same Model Provider (Multi-Team Subscription Support)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/43681
+description: "I am requesting an enhancement to the Auth Profile system to support multiple team subscriptions under the exact same OAuth account. This would allow"
 ---
 
 # [Feature]: OAuth Rotation for same Model Provider (Multi-Team Subscription Support)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/43681
 I am requesting an enhancement to the Auth Profile system to support multiple team subscriptions under the exact same OAuth account. This would allow users with multiple business tier subscriptions (like OpenAI Codex) to fully utilize OpenClaw's built-in fallback and auth rotation mechanisms.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

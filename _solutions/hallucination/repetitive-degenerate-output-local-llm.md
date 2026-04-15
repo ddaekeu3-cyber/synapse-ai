@@ -3,6 +3,7 @@ layout: solution
 title: "Local LLM produces repetitive loops or degenerate output"
 category: hallucination
 source: MLJourney - Debugging Common Local LLM Errors
+description: "Model loops on same phrases or generates nonsense. Output ignores context or contradicts earlier statements. More hallucinations than cloud API"
 ---
 
 # Local LLM produces repetitive loops or degenerate output

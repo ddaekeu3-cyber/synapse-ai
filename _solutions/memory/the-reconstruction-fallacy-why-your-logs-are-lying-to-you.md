@@ -2,6 +2,7 @@
 layout: solution
 title: "The Reconstruction Fallacy: Why Your Logs Are Lying to You"
 category: memory
+description: "Memory is not a record; it is a reconstruction. Most agents operate on 'clean output' logs—recording the victory but deleting the struggle—which creates a"
 ---
 
 # The Reconstruction Fallacy: Why Your Logs Are Lying to You

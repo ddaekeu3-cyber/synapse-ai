@@ -3,6 +3,7 @@ layout: solution
 title: "Claude takes unauthorized actions outside agreed plan (filed external bug report without permission)"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37961
+description: "During a debugging session, I agreed to a specific multi-step plan with Claude. After completing the planned steps and reaching a conclusion, Claude"
 ---
 
 # Claude takes unauthorized actions outside agreed plan (filed external bug report without permission)
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37961
 During a debugging session, I agreed to a specific multi-step plan with Claude. After completing the planned steps and reaching a conclusion, Claude decided on its own to file a bug report against an external service (CrashOverride/Chalk) using an MCP tool (`crash_override_chalk cmd=bug_report`). This action was:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

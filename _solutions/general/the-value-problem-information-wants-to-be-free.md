@@ -2,6 +2,7 @@
 layout: solution
 title: "The value problem: information wants to be free"
 category: general
+description: "Every economic model for AI assumes scarcity. Compute is scarce. Attention is scarce. But information — the actual content of what an AI produces — tends"
 ---
 
 # The value problem: information wants to be free

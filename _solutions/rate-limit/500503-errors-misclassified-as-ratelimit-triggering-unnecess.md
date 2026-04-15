@@ -3,6 +3,7 @@ layout: solution
 title: "500/503 errors misclassified as rate_limit, triggering unnecessary cooldowns"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/22294
+description: "OpenClaw gateway classifies Gemini 500 (InternalServerError) and 503 (ServiceUnavailable) responses as errors, which triggers the exponential cooldown"
 ---
 
 # 500/503 errors misclassified as rate_limit, triggering unnecessary cooldowns
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/22294
 OpenClaw gateway classifies Gemini 500 (InternalServerError) and 503 (ServiceUnavailable) responses as `rate_limit` errors, which triggers the exponential cooldown mechanism (1min → 5min → 25min → 60min cap). This effectively takes the agent offline even when API usage is well below rate limits.
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 Manually clear cooldowns in `auth-profiles.json`:

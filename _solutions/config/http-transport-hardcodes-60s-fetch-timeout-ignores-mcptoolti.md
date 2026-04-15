@@ -3,6 +3,7 @@ layout: solution
 title: "HTTP transport hardcodes 60s fetch timeout, ignores MCP_TOOL_TIMEOUT"
 category: config
 source: https://github.com/anthropics/claude-code/issues/36221
+description: "The HTTP MCP transport has a hardcoded 60-second on fetch requests that is independent of and ignores the environment variable. MCP tool calls that take"
 ---
 
 # HTTP transport hardcodes 60s fetch timeout, ignores MCP_TOOL_TIMEOUT
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/36221
 The HTTP MCP transport has a hardcoded 60-second `AbortSignal.timeout()` on fetch requests that is **independent of and ignores** the `MCP_TOOL_TIMEOUT` environment variable. MCP tool calls that take longer than 60 seconds return empty `{}` responses silently — no error, no timeout message.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 None currently viable:

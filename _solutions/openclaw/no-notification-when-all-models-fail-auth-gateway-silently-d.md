@@ -3,6 +3,7 @@ layout: solution
 title: "No notification when all models fail auth — gateway silently dead for hours"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/20036
+description: "When all configured LLM providers fail authentication simultaneously, the gateway continues running (process stays alive, LaunchAgent healthy) but is"
 ---
 
 # No notification when all models fail auth — gateway silently dead for hours
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/20036
 When all configured LLM providers fail authentication simultaneously, the gateway continues running (process stays alive, LaunchAgent healthy) but is completely unable to process any messages. No notification is sent to the user via any channel.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 1. API 키 유효성/만료 확인

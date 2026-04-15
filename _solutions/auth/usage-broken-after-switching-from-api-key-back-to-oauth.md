@@ -3,6 +3,7 @@ layout: solution
 title: "/usage broken after switching from API key back to OAuth"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/33877
+description: "returns \"only available for subscription plans\" even though I'm on the 20x Max plan and authenticated via"
 ---
 
 # /usage broken after switching from API key back to OAuth
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33877
 `/usage` returns "only available for subscription plans" even though I'm on the 20x Max plan and authenticated via OAuth.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

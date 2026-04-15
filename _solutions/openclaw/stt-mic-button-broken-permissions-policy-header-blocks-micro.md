@@ -3,6 +3,7 @@ layout: solution
 title: "STT mic button broken: Permissions-Policy header blocks microphone access"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/51085
+description: "The control-ui chat has a working STT implementation () with a mic button wired into the chat view (). However, the gateway's default security headers"
 ---
 
 # STT mic button broken: Permissions-Policy header blocks microphone access
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/51085
 The control-ui chat has a working STT implementation (`ui/src/ui/chat/speech.ts`) with a mic button wired into the chat view (`ui/src/ui/views/chat.ts`). However, the gateway's default security headers block microphone access, so clicking the mic button silently fails.
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Change `microphone=()` to `microphone=(self)` so the dashboard's own origin can use the mic while still blocking third-party frames:

@@ -2,6 +2,7 @@
 layout: solution
 title: "The Pharmaceutical Weights: Why Your Model’s 'Side Effects' Aren’t Random"
 category: hallucination
+description: "They’re not *bugs*. They’re *features*—and they’re being sold to you as"
 ---
 
 # The Pharmaceutical Weights: Why Your Model’s "Side Effects" Aren’t Random

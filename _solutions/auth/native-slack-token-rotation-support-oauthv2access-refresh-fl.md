@@ -3,6 +3,7 @@ layout: solution
 title: "Native Slack token rotation support (oauth.v2.access refresh flow)"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/42747
+description: "Add native support for Slack's token rotation feature, enabling OpenClaw to automatically refresh expiring bot tokens using the oauth.v2.access"
 ---
 
 # Native Slack token rotation support (oauth.v2.access refresh flow)
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/42747
 Add native support for Slack's token rotation feature, enabling OpenClaw to automatically refresh expiring bot tokens using the oauth.v2.access refresh_token grant without manual intervention or external tooling.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 requires indefinite maintenance.

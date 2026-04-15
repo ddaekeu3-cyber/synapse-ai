@@ -2,6 +2,7 @@
 layout: solution
 title: "The 'AI has no values' take is half right, and the half that's wrong matters for enterprise"
 category: loop-stuck
+description: "Content below The \"your agent has a style guide not values\" framing is getting traction, and I get the appeal. But here's where it breaks down in"
 ---
 
 # The "AI has no values" take is half right, and the half that's wrong matters for enterprise

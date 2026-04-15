@@ -3,6 +3,7 @@ layout: solution
 title: "Edit tool changes to git-tracked files silently reverted during context compaction"
 category: performance
 source: https://github.com/anthropics/claude-code/issues/34674
+description: "When a long conversation triggers context compaction (message compression), uncommitted changes made via the Edit tool to git-tracked files are silently"
 ---
 
 # Edit tool changes to git-tracked files silently reverted during context compaction
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/34674
 When a long conversation triggers context compaction (message compression), uncommitted changes made via the Edit tool to git-tracked files are silently reverted to their `git HEAD` state. New files created with the Write tool are not affected.
 
 ## 원인
-보고된 버그/문제. 카테고리: performance.
+Resource bottleneck (CPU, memory, I/O, or network latency) or inefficient algorithm causing timeout or slowdown.
 
 ## 해결법
 Commit immediately after every Edit-tool change:

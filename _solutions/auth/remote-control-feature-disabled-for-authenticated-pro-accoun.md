@@ -3,6 +3,7 @@ layout: solution
 title: "Remote Control feature disabled for authenticated Pro account despite previous access"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37772
+description: "claude remote-control returns \"Error: Remote Control is not yet enabled for your account.\" This was working previously. Issue persists after full logout,"
 ---
 
 # Remote Control feature disabled for authenticated Pro account despite previous access
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37772
 claude remote-control returns "Error: Remote Control is not yet enabled for your account." This was working previously. Issue persists after full logout, re-authentication via OAuth, and claude update. Auth status confirms: loggedIn=true, authMethod=oauth_token, apiProvider=firstParty. No ANTHROPIC_API_KEY set.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

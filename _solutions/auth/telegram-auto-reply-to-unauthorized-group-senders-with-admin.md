@@ -3,6 +3,7 @@ layout: solution
 title: "Telegram: Auto-reply to unauthorized group senders with admin contact instructions"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/46701
+description: "When a user sends a message in a Telegram group but is not in , the bot currently silently drops the"
 ---
 
 # Telegram: Auto-reply to unauthorized group senders with admin contact instructions
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/46701
 When a user sends a message in a Telegram group but is not in `groupAllowFrom`, the bot currently silently drops the message.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

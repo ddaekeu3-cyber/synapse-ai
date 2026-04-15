@@ -3,6 +3,7 @@ layout: solution
 title: "VS Code Extension OAuth Auth Loop on Windows — Extension Repeatedly Loses Authentication Despite Successful Browser Authorization"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/33122
+description: "- [x] I have searched existing issues and this hasn't been reported"
 ---
 
 # VS Code Extension OAuth Auth Loop on Windows — Extension Repeatedly Loses Authentication Despite Successful Browser Authorization
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/33122
 - [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

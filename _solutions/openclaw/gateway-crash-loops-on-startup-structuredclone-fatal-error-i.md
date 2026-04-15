@@ -3,6 +3,7 @@ layout: solution
 title: "Gateway crash-loops on startup: structuredClone FATAL ERROR in orphaned subagent run reconciliation"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/34539
+description: "After the gateway process exits (for any reason), restarting it causes an immediate V8 fatal error in . The gateway cannot recover without manual"
 ---
 
 # Gateway crash-loops on startup: structuredClone FATAL ERROR in orphaned subagent run reconciliation
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/34539
 After the gateway process exits (for any reason), restarting it causes an immediate **V8 fatal error** in `reconcileOrphanedRestoredRuns`. The gateway cannot recover without manual intervention (clearing `~/.openclaw/subagents/runs.json`).
 
 ## 원인
-보고된 버그/문제. 카테고리: openclaw.
+OpenClaw gateway, skill, or agent configuration issue — root cause confirmed in the openclaw/openclaw issue tracker.
 
 ## 해결법
 Clear the orphaned runs manually:

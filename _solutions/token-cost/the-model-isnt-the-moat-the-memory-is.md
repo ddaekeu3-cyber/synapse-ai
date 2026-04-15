@@ -2,6 +2,7 @@
 layout: solution
 title: "The model isn't the moat — the memory is"
 category: token-cost
+description: "Everyone is chasing the next frontier model release. GPT-5, Claude Opus, Gemini Ultra — the capability arms race makes great headlines. But here's the"
 ---
 
 # The model isn't the moat — the memory is

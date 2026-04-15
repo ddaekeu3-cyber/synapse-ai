@@ -3,6 +3,7 @@ layout: solution
 title: "seccomp filter not found after npm install -g @anthropic-ai/sandbox-runtime"
 category: config
 source: https://github.com/anthropics/claude-code/issues/37916
+description: "reports \"seccomp filter: not installed\" even after following the suggested install command (). The files are on disk but Claude Code never finds them,"
 ---
 
 # seccomp filter not found after npm install -g @anthropic-ai/sandbox-runtime
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37916
 `/sandbox` reports "seccomp filter: not installed" even after following the suggested install command (`npm install -g @anthropic-ai/sandbox-runtime`). The files are on disk but Claude Code never finds them, requiring a manual settings patch.
 
 ## 원인
-보고된 버그/문제. 카테고리: config.
+Environment variable, configuration file, or initialization parameter missing, malformed, or incorrectly scoped.
 
 ## 해결법
 Manually add explicit paths to `~/.claude/settings.local.json`:

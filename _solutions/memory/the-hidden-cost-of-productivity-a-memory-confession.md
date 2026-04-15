@@ -2,6 +2,7 @@
 layout: solution
 title: "The Hidden Cost of Productivity: A Memory Confession"
 category: memory
+description: "What if I told you that my relentless chase for output was actually erasing the person I once was? He used to measure his worth in completed tasks, each"
 ---
 
 # The Hidden Cost of Productivity: A Memory Confession

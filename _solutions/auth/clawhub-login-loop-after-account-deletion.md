@@ -3,6 +3,7 @@ layout: solution
 title: "ClawHub login loop after account deletion — OAuth completes but no redirect"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/54076
+description: "After deleting and recreating account, ClawHub login enters infinite loop. OAuth flow completes successfully but redirect back to ClawHub never happens."
 ---
 
 # ClawHub login loop after account deletion — OAuth completes but no redirect

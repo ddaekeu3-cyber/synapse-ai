@@ -3,6 +3,7 @@ layout: solution
 title: "Slack MCP plugin authentication failure"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/37853
+description: "The Slack MCP plugin () fails to authenticate. After going through the → select → Authenticate flow, the plugin remains disconnected and Slack MCP tools"
 ---
 
 # Slack MCP plugin authentication failure
@@ -11,7 +12,7 @@ source: https://github.com/anthropics/claude-code/issues/37853
 The Slack MCP plugin (`plugin:slack:slack`) fails to authenticate. After going through the `/mcp` → select `plugin:slack:slack` → Authenticate flow, the plugin remains disconnected and Slack MCP tools are not available.
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

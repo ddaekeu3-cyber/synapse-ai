@@ -3,6 +3,7 @@ layout: solution
 title: "Feature: Support multiple API keys per provider as rate limit backup"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/44477
+description: "Currently, OpenClaw uses a single API key per provider (e.g., Claude, OpenAI). When that key hits rate limits, the system fails. This is especially"
 ---
 
 # Feature: Support multiple API keys per provider as rate limit backup
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/44477
 Currently, OpenClaw uses a single API key per provider (e.g., Claude, OpenAI). When that key hits rate limits, the system fails. This is especially problematic for:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

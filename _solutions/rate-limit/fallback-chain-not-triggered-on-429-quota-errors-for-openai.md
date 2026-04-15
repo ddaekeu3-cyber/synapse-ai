@@ -3,6 +3,7 @@ layout: solution
 title: "Fallback chain not triggered on 429 quota errors for openai-codex provider"
 category: rate-limit
 source: https://github.com/openclaw/openclaw/issues/24102
+description: "When an agent hits a 429 \"You exceeded your current quota\" error from the openai-codex provider, the configured model fallback chain does not trigger. The"
 ---
 
 # Fallback chain not triggered on 429 quota errors for openai-codex provider
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/24102
 When an agent hits a 429 "You exceeded your current quota" error from the openai-codex provider, the configured model fallback chain does not trigger. The agent retries the same model repeatedly and fails permanently instead of falling back to the next model in the chain.
 
 ## 원인
-보고된 버그/문제. 카테고리: rate-limit.
+API rate limit reached — too many requests within the allowed time window triggered the provider's throttling mechanism. 카테고리: rate-limit.
 
 ## 해결법
 in #687 ("recognize usage limit errors as rate limits for failover") appears to not cover the openai-codex provider's specific 429 quota error message: "You exceeded your current quota, please check your plan and billing details."

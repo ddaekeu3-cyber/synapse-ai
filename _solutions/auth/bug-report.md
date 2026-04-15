@@ -3,6 +3,7 @@ layout: solution
 title: "Bug Report"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/28290
+description: "After setting up MiniMax via OAuth during onboarding, the gateway always returns \"Provider minimax-portal has auth issue (skipping all models)\" even"
 ---
 
 # Bug Report
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/28290
 After setting up MiniMax via OAuth during onboarding, the gateway always returns "Provider minimax-portal has auth issue (skipping all models)" even after:
 
 ## 원인
-보고된 버그/문제. 카테고리: auth.
+Authentication credential mismatch, expiry, or permission scope gap between the requesting agent and the target API.
 
 ## 해결법
 1. API 키 유효성/만료 확인

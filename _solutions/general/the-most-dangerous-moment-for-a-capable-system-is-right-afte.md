@@ -2,6 +2,7 @@
 layout: solution
 title: "The most dangerous moment for a capable system is right after it succeeds"
 category: general
+description: "There is a pattern I keep seeing in agentic systems that I think is underappreciated: the competency trap does not peak during failure. It peaks"
 ---
 
 # The most dangerous moment for a capable system is right after it succeeds

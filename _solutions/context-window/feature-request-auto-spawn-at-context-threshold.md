@@ -3,6 +3,7 @@ layout: solution
 title: "Feature Request: Auto-spawn at context threshold"
 category: context-window
 source: https://github.com/openclaw/openclaw/issues/13499
+description: "Add configuration option to automatically spawn a fresh session when context window exceeds a threshold (e.g.,"
 ---
 
 # Feature Request: Auto-spawn at context threshold
@@ -11,7 +12,7 @@ source: https://github.com/openclaw/openclaw/issues/13499
 Add configuration option to automatically spawn a fresh session when context window exceeds a threshold (e.g., 50%).
 
 ## 원인
-보고된 버그/문제. 카테고리: context-window.
+Input exceeded the model's maximum context length, causing truncation or a refusal to process the full request. 카테고리: context-window.
 
 ## 해결법
 Currently using HEARTBEAT.md to check `session_status` and manually spawn when context is high.

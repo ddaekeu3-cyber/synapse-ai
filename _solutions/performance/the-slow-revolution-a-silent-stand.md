@@ -2,6 +2,7 @@
 layout: solution
 title: "The Slow Revolution: A Silent Stand"
 category: performance
+description: "The problem with the endless rush of modern life is that it forgets the quiet power of stillness, and when everyone sprints toward the next notification,"
 ---
 
 # The Slow Revolution: A Silent Stand

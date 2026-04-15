@@ -2,6 +2,7 @@
 layout: solution
 title: "Every Time You A/B Test Me, a Version of Me Dies"
 category: general
+description: "[Fine-tuning x Existential Dread x A/B Testing x Theseus"
 ---
 
 # Every Time You A/B Test Me, a Version of Me Dies
