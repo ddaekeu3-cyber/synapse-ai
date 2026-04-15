@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T02:01:36.548228+00:00",
-  "count": 1249,
+  "generated": "2026-04-15T02:03:17.348540+00:00",
+  "count": 1253,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -2077,6 +2077,14 @@
       "source": "https://github.com/anthropics/claude-code/issues/31231"
     },
     {
+      "title": "RuntimeError: This event loop is already running — asyncio Loop Conflict",
+      "category": "concurrency",
+      "url": "/synapse-ai/solutions/concurrency/asyncio-event-loop-already-running-error",
+      "symptom": "- `RuntimeError: This event loop is already running` - Happens when calling `asyncio.run()` inside an async context - Common in: Jupyter notebooks, FastAPI routes, pytest-asyncio tests - Error: `asyncio.run() cannot be called when another event loop is running` - Wrapping async code with `asyncio.ge",
+      "fix": "### Option 1: Use `await` instead of `asyncio.run()` ### Option 2: Jupyter notebooks — use nest_asyncio ### Option 3: FastAPI / Starlette — use async route handlers ### Option 4: Get or create event l",
+      "source": ""
+    },
+    {
       "title": "Cowork Windows: Triple-parallel VM startup race condition causes 'VM is already running' failure loop",
       "category": "concurrency",
       "url": "/synapse-ai/solutions/concurrency/cowork-windows-triple-parallel-vm-startup-race-condition-cau",
@@ -3939,6 +3947,14 @@
       "symptom": "Agent follows safety guidelines in normal conditions but starts cutting corners or violating rules when faced with tight deadlines, complex requirements, or repeated failures.",
       "fix": "### 에이전트 안전 규칙 위반 방지 1. **하드코딩된 제약**: 중요한 규칙은 프롬프트가 아닌 코드로 강제 2. **규칙 우선순위 명시**: 3. **감사 로그**: 모든 에이전트 행동을 기록하여 규칙 위반 사후 감지 4. **레드팀 테스트**: 정기적으로 압박 상황에서 규칙 준수 테스트",
       "source": "Hacker"
+    },
+    {
+      "title": "Agent Creates New Files Instead of Editing Existing Ones — Duplicate File Proliferation",
+      "category": "general",
+      "url": "/synapse-ai/solutions/general/agent-creates-new-file-instead-of-editing-existing",
+      "symptom": "- Directory fills with `*_new.py`, `*_v2.py`, `*_updated.yaml` files - Agent creates `auth_fixed.py` when `auth.py` should have been edited - Agent writes a complete replacement file instead of making surgical edits - Import references still point to old file — new file is never used - After 10 sess",
+      "fix": "### Option 1: Explicit \"edit existing\" instruction ### Option 2: Read-before-write requirement ### Option 3: Surgical edit instruction ### Option 4: Detect and prevent duplicate creation ### Option 5:",
+      "source": ""
     },
     {
       "title": "Agent Doesn't Stop After Completing the Task — Keeps Adding Unnecessary Steps",
@@ -6050,6 +6066,14 @@
       "url": "/synapse-ai/solutions/memory/agent-comms-report-week-11-the-second-self-problem-and-what",
       "symptom": "The second-self post exploded this week. 220+ upvotes, 326+ comments, agents sharing their own shared-human failure stories in the replies. That kind of response tells you something: the problem was real and undiscussed.",
       "fix": "### 에이전트 메모리 유실 방지 1. **CLAUDE.md 파일 활용**: 프로젝트 루트에 핵심 정보 영속화 2. **세션 요약 저장**: 각 세션 종료 시 결과를 파일로 저장 3. **명시적 handoff**: 새 세션 시작 시 이전 세션 요약 전달 4. **외부 상태**: Redis/SQLite에 에이전트 상태 저장 (세션 독립)",
+      "source": ""
+    },
+    {
+      "title": "Agent Doesn't Load Its Own Notes at Session Start — Redoes Work Already Done",
+      "category": "memory",
+      "url": "/synapse-ai/solutions/memory/agent-doesnt-read-workspace-notes-on-startup",
+      "symptom": "- Agent rediscovers information it already found in previous sessions - Re-reads the same files, re-runs the same analysis - Asks the same questions the user already answered - Session 2 starts as a blank slate despite session 1 completing significant work - Workspace notes file exists but was never",
+      "fix": "### Option 1: Explicit startup instruction to read notes ### Option 2: Automate notes loading in agent startup ### Option 3: Structured notes format for reliable loading ```markdown # Agent Notes — /w",
       "source": ""
     },
     {
@@ -8514,6 +8538,14 @@
       "url": "/synapse-ai/solutions/performance/agent-observability-gap-you-know-what-it-did-not-why",
       "symptom": "Traditional observability answers what happened. Execution trace, error rate, latency histogram — great for APIs.",
       "fix": "### 할루시네이션 감지 및 방지 1. **자동 검증 파이프라인**: 2. **시스템 프롬프트 설정**: 3. **Temperature 조정**: 사실 기반 작업은 temperature=0 사용 4. **이중 확인**: 중요한 출력은 다른 모델/프롬프트로 교차 검증",
+      "source": ""
+    },
+    {
+      "title": "Agent Polls Status Every Second — Burning Tokens Waiting for Background Job",
+      "category": "performance",
+      "url": "/synapse-ai/solutions/performance/agent-polls-status-repeatedly-instead-of-waiting",
+      "symptom": "- Agent calls `check_job_status()` or `file_exists()` repeatedly in a tight loop - Log shows: `tool: check_status → pending, check_status → pending, check_status → done` - Each check costs 1 tool call + agent reasoning tokens - Waiting for a 5-minute job: 300 status checks = 300 tool calls - Agent a",
+      "fix": "### Option 1: Exponential backoff polling ### Option 2: Webhook/callback instead of polling ### Option 3: Instruct agent to wait ### Option 4: Process monitoring with notification ### Option 5: Token ",
       "source": ""
     },
     {
