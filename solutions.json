@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T02:00:18.692185+00:00",
-  "count": 1246,
+  "generated": "2026-04-15T02:01:36.548228+00:00",
+  "count": 1249,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -5477,6 +5477,14 @@
       "source": ""
     },
     {
+      "title": "Agent Plans Endlessly Without Executing — Stuck in Analysis Paralysis",
+      "category": "loop-stuck",
+      "url": "/synapse-ai/solutions/loop-stuck/agent-stuck-in-planning-without-executing",
+      "symptom": "- Agent produces detailed plans with many bullet points — then asks for confirmation - Next prompt: another plan with more detail — still no action - Agent says \"I'll first need to understand X, then analyze Y, then plan Z...\" - After 5 turns, nothing concrete has been produced - Agent generates sop",
+      "fix": "### Option 1: \"Execute, don't plan\" instruction ### Option 2: Time-box planning to 1 response ### Option 3: Task decomposition with immediate start ### Option 4: Detect planning loops and break them #",
+      "source": ""
+    },
+    {
       "title": "Agent stuck repeating the same failed action (looping)",
       "category": "loop-stuck",
       "url": "/synapse-ai/solutions/loop-stuck/agent-stuck-repeating-failed-action",
@@ -9013,6 +9021,14 @@
       "source": ""
     },
     {
+      "title": "Agent Responds in Wrong Language — Switches to English When Korean Expected or Vice Versa",
+      "category": "prompt-engineering",
+      "url": "/synapse-ai/solutions/prompt-engineering/agent-responds-in-wrong-language",
+      "symptom": "- User sends messages in Korean, agent responds in English - Agent responds in the correct language for first few turns, then switches - After context pruning, agent reverts to its default language - Tool results in English cause agent to switch to English for the rest of session - System prompt is ",
+      "fix": "### Option 1: Explicit language instruction in system prompt ### Option 2: Language instruction at the END of system prompt Since models attend more to the end of the system prompt under long contexts",
+      "source": ""
+    },
+    {
       "title": "autoMemoryDirectory setting does not update the memory path in system prompt",
       "category": "prompt-engineering",
       "url": "/synapse-ai/solutions/prompt-engineering/automemorydirectory-setting-does-not-update-the-memory-path",
@@ -9962,6 +9978,14 @@
       "url": "/synapse-ai/solutions/tool-failure/tool-call-returns-empty-result-silently",
       "symptom": "- Tool call returns 200 with `{}`, `null`, `[]`, or `{\"result\": null}` - Agent doesn't report an error — it continues working - Subsequent steps fail or produce wrong output because they built on an empty result - Problem: agent says \"I searched for X\" but acted on no results",
       "fix": "### Option 1: Add result validation in the tool call wrapper ### Option 2: Configure empty result handling per tool ### Option 3: Add result shape validation ### Option 4: Prompt the agent to verify b",
+      "source": ""
+    },
+    {
+      "title": "Tool Schema Validation Error — Malformed JSON Schema Rejects Tool Definition",
+      "category": "tool-failure",
+      "url": "/synapse-ai/solutions/tool-failure/tool-schema-validation-error-malformed-json-schema",
+      "symptom": "- Tool is defined but agent cannot call it - Error: `invalid_request_error: tools[N].input_schema is not valid JSON Schema` - Error: `tool_use_param_invalid: input_schema must be an object` - Tool appears in the list but calls fail with schema errors - Works in one SDK version but breaks after upgra",
+      "fix": "### Correct minimal tool schema ### Common schema errors and fixes ### Validate schema before using ### Minimal valid schema templates",
       "source": ""
     },
     {
