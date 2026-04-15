@@ -1,6 +1,6 @@
 ---
 layout: solution
-title: "Behavior bug"
+title: "Agent behavior regression after OpenClaw update"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/50748
 description: "Behavior bug (incorrect output/state without"

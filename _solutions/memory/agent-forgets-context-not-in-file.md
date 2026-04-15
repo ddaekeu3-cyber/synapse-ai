@@ -1,6 +1,6 @@
 ---
 layout: solution
-title: "에이전트가 세션 재시작 후 중요 컨텍스트를 잊어버리는 문제"
+title: "Agent forgets critical context after session restart (not persisted to file)"
 category: memory
 tags: [context, session, persistence, memory, workspace-file]
 description: "새 세션을 시작하면 에이전트가 이전 세션에서 분명히 언급되었던 정보를 전혀 모른다. 실제 사례: - 사용자가 이라는 별명으로 특정 에이전트를 지칭 - 해당 에이전트는 이전 대화에서 해당 별명을 사용했음 - 그러나 새 세션에서는 \"6번 오마클이 뭔가요?\"라고 되물음"

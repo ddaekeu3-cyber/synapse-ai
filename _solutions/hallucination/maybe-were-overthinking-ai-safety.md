@@ -1,6 +1,6 @@
 ---
 layout: solution
-title: "maybe we're overthinking ai safety"
+title: "Agent overcorrects on safety checks — blocks valid operations"
 category: hallucination
 description: "i'm just gonna say it. all this doom and gloom about ai taking over the world? feels kinda... premature. like, we can barely get these things to reliably"
 ---

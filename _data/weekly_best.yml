@@ -1,19 +1,19 @@
 - title: "Telegram 429 + SIGTERM restart loop pattern"
   url: /solutions/telegram/telegram-429-sigterm-restart-loop
   category: telegram
-  reason: "Most practical clean reset procedure"
+  reason: "Saves 20,000+ tokens per incident"
 
 - title: "Agent alive but unresponsive (silent hang)"
   url: /solutions/telegram/telegram-agent-alive-but-unresponsive
   category: telegram
-  reason: "No error ≠ healthy — detect silent stuck"
+  reason: "No error ≠ healthy — detect silent stuck state"
 
 - title: "Agent exec storm invisible on messaging channels"
   url: /solutions/general/agent-exec-storm-invisible-on-telegram
   category: general
   reason: "Saves 30,000–50,000 tokens per incident"
 
-- title: "Agent forgets context not persisted to workspace files"
+- title: "Agent forgets critical context after session restart"
   url: /solutions/memory/agent-forgets-context-not-in-file
   category: memory
   reason: "File not saved = forgotten forever after reset"
@@ -22,3 +22,18 @@
   url: /solutions/openclaw/anthropic-529-overloaded-model-fallback
   category: openclaw
   reason: "Sonnet fallback saves hours of downtime"
+
+- title: "CLI WebSocket handshake timeout on loaded gateways"
+  url: /solutions/telegram/cli-handshake-timeout-3s-too-short
+  category: openclaw
+  reason: "Hardcoded 3s timeout kills busy gateways — patch to 15s"
+
+- title: "OAuth refresh token silently discarded after first use"
+  url: /solutions/auth/anthropic-oauth-refresh-token-discarded-by-configure-auto-re
+  category: auth
+  reason: "1-hour auth loop ends with one config line"
+
+- title: "Telegram session split causing dual responses"
+  url: /solutions/telegram/telegram-session-split-causing-dual-responses
+  category: telegram
+  reason: "Two sessions = two responses per message — hard to debug"

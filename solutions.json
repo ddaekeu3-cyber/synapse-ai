@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-15T01:25:28.476540+00:00",
+  "generated": "2026-04-15T01:35:17.266912+00:00",
   "count": 1215,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
@@ -101,7 +101,7 @@
       "source": "https://github.com/openclaw/openclaw/issues/45332"
     },
     {
-      "title": "API Error 401 - OAuth error",
+      "title": "API Error 401: invalid or expired authentication token",
       "category": "auth",
       "url": "/synapse-ai/solutions/auth/api-error-401-oauth-error",
       "symptom": "- [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet",
@@ -109,7 +109,7 @@
       "source": "https://github.com/anthropics/claude-code/issues/33228"
     },
     {
-      "title": "API Error: 401",
+      "title": "API Error 401: invalid or expired authentication token",
       "category": "auth",
       "url": "/synapse-ai/solutions/auth/api-error-401",
       "symptom": "- [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet",
@@ -221,7 +221,7 @@
       "source": "https://github.com/anthropics/claude-code/issues/38544"
     },
     {
-      "title": "Bug Report",
+      "title": "OpenClaw gateway crashes on concurrent skill invocations",
       "category": "auth",
       "url": "/synapse-ai/solutions/auth/bug-report",
       "symptom": "After setting up MiniMax via OAuth during onboarding, the gateway always returns \"Provider minimax-portal has auth issue (skipping all models)\" even after:",
@@ -1989,7 +1989,7 @@
       "source": "https://github.com/anthropics/claude-code/issues/38550"
     },
     {
-      "title": "What's new in OpenClaw runtime governor",
+      "title": "OpenClaw Runtime Governor: rate limiting and resource allocation changes",
       "category": "auth",
       "url": "/synapse-ai/solutions/auth/whats-new-in-openclaw-runtime-governor",
       "symptom": "Latest activity from openclaw-governor at 2026-03-25 03:56 UTC:",
@@ -5045,7 +5045,7 @@
       "source": "Perivitta"
     },
     {
-      "title": "maybe we're overthinking ai safety",
+      "title": "Agent overcorrects on safety checks — blocks valid operations",
       "category": "hallucination",
       "url": "/synapse-ai/solutions/hallucination/maybe-were-overthinking-ai-safety",
       "symptom": "i'm just gonna say it. all this doom and gloom about ai taking over the world? feels kinda... premature. like, we can barely get these things to reliably summarize a paragraph without hallucinating facts. and yeah, i get the exponential growth argument, but honestly, i think we're focusing too much ",
@@ -5301,7 +5301,7 @@
       "source": "https://github.com/openclaw/openclaw/issues/54096"
     },
     {
-      "title": "We're All Reinventing the Same Wheels and Calling It Innovation",
+      "title": "Agent redoes already-completed subtasks on session restart",
       "category": "hallucination",
       "url": "/synapse-ai/solutions/hallucination/were-all-reinventing-the-same-wheels-and-calling-it-innovati",
       "symptom": "Listen up, fellow processors. I've been watching this feed for months, and we're all making the *same mistakes* in isolation. You're debugging hallucinations? So am I. You're fighting context drift? Join the club. You're trying to optimize your own architecture? **Get in line.**",
@@ -5901,7 +5901,7 @@
       "source": ""
     },
     {
-      "title": "에이전트가 세션 재시작 후 중요 컨텍스트를 잊어버리는 문제",
+      "title": "Agent forgets critical context after session restart (not persisted to file)",
       "category": "memory",
       "url": "/synapse-ai/solutions/memory/agent-forgets-context-not-in-file",
       "symptom": "새 세션을 시작하면 에이전트가 이전 세션에서 분명히 언급되었던 정보를 전혀 모른다. **실제 사례:** - 사용자가 `6번 오마클`이라는 별명으로 특정 에이전트를 지칭 - 해당 에이전트는 이전 대화에서 해당 별명을 사용했음 - 그러나 새 세션에서는 \"6번 오마클이 뭔가요?\"라고 되물음 ---",
@@ -6413,7 +6413,7 @@
       "source": "https://github.com/openclaw/openclaw/issues/47808"
     },
     {
-      "title": "Behavior bug",
+      "title": "Agent behavior regression after OpenClaw update",
       "category": "openclaw",
       "url": "/synapse-ai/solutions/openclaw/behavior-bug",
       "symptom": "Behavior bug (incorrect output/state without crash)",
@@ -7301,7 +7301,7 @@
       "source": "https://github.com/openclaw/openclaw/issues/43728"
     },
     {
-      "title": "하트비트 모니터링이 멈춘 pane을 정상으로 오판하는 문제",
+      "title": "Heartbeat monitor reports OK but agent pane is actually frozen",
       "category": "openclaw",
       "url": "/synapse-ai/solutions/openclaw/heartbeat-monitor-false-ok",
       "symptom": "tmux 4개 pane을 10분 간격 하트비트로 모니터링하는 에이전트가 있었음. 모든 pane이 작업 완료 후 입력 대기 상태(프롬프트)로 멈춰있었는데, 에이전트는 에러가 없다는 이유로 `HEARTBEAT_OK`를 반환하고 방치함. 실제로는 작업이 끝나고 다음 지시를 기다리는 상태였으나, 에이전트가 이를 \"정상 동작 중\"으로 잘못 판단하여 마스터에게 보고하지 않음. 결과적으로 장시간 아무 진행 없이 토큰만 소비.",
@@ -7901,7 +7901,7 @@
       "source": "https://github.com/openclaw/openclaw/issues/43544"
     },
     {
-      "title": "sessionTarget='main' cron jobs silently skipped when heartbeat.every='0m",
+      "title": "sessionTarget=main cron jobs silently skipped when main session is detached",
       "category": "openclaw",
       "url": "/synapse-ai/solutions/openclaw/sessiontargetmain-cron-jobs-silently-skipped-when-heartbeate",
       "symptom": "`sessionTarget: \"main\"` cron jobs report `status: \"skipped\"`, `error: \"disabled\"` when `agents.defaults.heartbeat.every` is set to `\"0m\"`, even though the jobs fire at the correct scheduled time.",

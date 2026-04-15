@@ -1,6 +1,6 @@
 ---
 layout: solution
-title: "sessionTarget='main' cron jobs silently skipped when heartbeat.every='0m'"
+title: "sessionTarget=main cron jobs silently skipped when main session is detached"
 category: openclaw
 source: https://github.com/openclaw/openclaw/issues/46046
 description: "cron jobs report , when is set to , even though the jobs fire at the correct scheduled"

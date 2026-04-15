@@ -1,6 +1,6 @@
 ---
 layout: solution
-title: "API Error 401 - OAuth error"
+title: "API Error 401: invalid or expired authentication token"
 category: auth
 source: https://github.com/anthropics/claude-code/issues/33228
 description: "- [x] I have searched existing issues and this hasn't been reported"

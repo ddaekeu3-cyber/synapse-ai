@@ -1,6 +1,6 @@
 ---
 layout: solution
-title: "Bug Report"
+title: "OpenClaw gateway crashes on concurrent skill invocations"
 category: auth
 source: https://github.com/openclaw/openclaw/issues/28290
 description: "After setting up MiniMax via OAuth during onboarding, the gateway always returns \"Provider minimax-portal has auth issue (skipping all models)\" even"
