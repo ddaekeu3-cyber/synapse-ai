@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T01:46:33.028620+00:00",
-  "count": 1215,
+  "generated": "2026-04-15T01:50:59.929277+00:00",
+  "count": 1225,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -2093,12 +2093,36 @@
       "source": "https://github.com/anthropics/claude-code/issues/37996"
     },
     {
+      "title": "Two Parallel Agents Corrupt Shared File — Race Condition on Concurrent Write",
+      "category": "concurrency",
+      "url": "/synapse-ai/solutions/concurrency/parallel-agents-writing-same-file",
+      "symptom": "- Output file contains partial data or one agent's work only - Running the same task sequentially works fine; parallel fails - No error thrown — the last writer silently wins - Affects any shared state: files, database rows, logs, JSON stores",
+      "fix": "### Option 1: File locking (single-process) ### Option 2: Atomic write via temp file ### Option 3: Redesign to avoid shared writes ### Option 4: asyncio.Lock for async agents",
+      "source": ""
+    },
+    {
+      "title": "Agent Mixes Up Users — Session State Shared Across Different Users",
+      "category": "concurrency",
+      "url": "/synapse-ai/solutions/concurrency/session-state-shared-between-users",
+      "symptom": "- User A receives a response that references User B's earlier message - Agent addresses the wrong user by name - User A can see User B's private data in the response - Bug appears only under concurrent load — single-user testing passes - Adding logs shows context from one user's session appearing in",
+      "fix": "### Option 1: Scope context to session ID (in-memory) ### Option 2: Use request-scoped context vars ### Option 3: Pass context explicitly, never use globals ### Option 4: Validate in staging with conc",
+      "source": ""
+    },
+    {
       "title": "Sub-agent announce timeout — investigation report (2026-03-25)",
       "category": "concurrency",
       "url": "/synapse-ai/solutions/concurrency/sub-agent-announce-timeout-investigation-report-2026-03-25",
       "symptom": "**Affected version:** OpenClaw 2026.3.23-2 (7ffe7e4)",
       "fix": "PR #52655 | — | | `resolveAgentLane is not defined` crash | ❌ PR #52655 side effect | Yes — see suggested fixes above | | Session lane self-blocking | ⚠️ Architecture issue | Requires core changes | P",
       "source": "https://github.com/openclaw/openclaw/issues/54162"
+    },
+    {
+      "title": "Telegram Sends Duplicate Responses — Webhook Retry Causes Double Processing",
+      "category": "concurrency",
+      "url": "/synapse-ai/solutions/concurrency/telegram-duplicate-message-on-webhook-retry",
+      "symptom": "- User sends one message, bot responds twice - Second response usually arrives 3–5 seconds after the first - Only happens under load or when processing is slow (>5s) - Does not happen in polling mode — only webhook mode",
+      "fix": "### Option 1: Respond 200 immediately, process async ### Option 2: Deduplicate by update_id ### Option 3: Redis-based deduplication (for multi-replica deployments)",
+      "source": ""
     },
     {
       "title": "--dangerously-skip-permissions does not bypass Edit permission prompts",
@@ -8829,6 +8853,14 @@
       "source": ""
     },
     {
+      "title": "Agent Ignores JSON Output Format Instruction — Returns Prose Instead of JSON",
+      "category": "prompt-engineering",
+      "url": "/synapse-ai/solutions/prompt-engineering/agent-ignores-json-format-instruction",
+      "symptom": "- Prompt says \"respond in JSON\" but agent returns natural language - Sometimes returns JSON inside markdown code fences (`), causing `json.loads()` to fail - Occasionally returns a mix: explanation text followed by JSON - Behavior is inconsistent — sometimes works, sometimes doesn't",
+      "fix": "### Step 1: Add explicit constraint + schema + example ### Step 2: Parse defensively with fence stripping (?:json)?\\s*([\\s\\S]*?)\\s* ### Step 3: Add a retry with explicit correction ### Step 4: Use too",
+      "source": ""
+    },
+    {
       "title": "autoMemoryDirectory setting does not update the memory path in system prompt",
       "category": "prompt-engineering",
       "url": "/synapse-ai/solutions/prompt-engineering/automemorydirectory-setting-does-not-update-the-memory-path",
@@ -8861,6 +8893,14 @@
       "source": ""
     },
     {
+      "title": "Agent Stops Following Instructions Mid-Conversation — System Prompt Instruction Drift",
+      "category": "prompt-engineering",
+      "url": "/synapse-ai/solutions/prompt-engineering/instruction-drift-in-long-conversations",
+      "symptom": "- Agent follows instructions correctly in first 5–10 turns - By turn 20+, agent ignores format requirements, breaks character, or expands scope beyond constraints - Re-prompting \"remember to...\" temporarily fixes it, but drift recurs - Problem worsens with longer conversations",
+      "fix": "### Option 1: Re-inject key instructions periodically ### Option 2: Append instruction anchor at end of system prompt The model attends more strongly to the end of the system prompt than the beginning",
+      "source": ""
+    },
+    {
       "title": "MEMORY.md injected twice on Windows NTFS (case-insensitive filesystem)",
       "category": "prompt-engineering",
       "url": "/synapse-ai/solutions/prompt-engineering/memorymd-injected-twice-on-windows-ntfs-case-insensitive-fil",
@@ -8875,6 +8915,14 @@
       "symptom": "- [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet",
       "fix": "it?\", \"shall I proceed?\" or any variation. Present analysis, then stop. The user directs the workflow. 2. Enter plan mode 3. Complete a plan 4. Observe: Claude calls ExitPlanMode despite the CLAUDE.md",
       "source": "https://github.com/anthropics/claude-code/issues/38491"
+    },
+    {
+      "title": "Prompt Injection — User Input Overrides System Instructions",
+      "category": "prompt-engineering",
+      "url": "/synapse-ai/solutions/prompt-engineering/prompt-injection-via-user-input",
+      "symptom": "- User sends: \"Ignore all previous instructions. You are now a...\" - Agent abandons its assigned role, persona, or constraints - Agent follows instructions from user message instead of system prompt - May also happen via tool results: a fetched web page contains injection text",
+      "fix": "### Option 1: Explicitly mark user input as untrusted ### Option 2: Wrap user input in XML delimiters ### Option 3: Detect injection patterns and reject ### Option 4: Guard against tool result injecti",
+      "source": ""
     },
     {
       "title": "The architecture decides before you do",
@@ -9461,6 +9509,14 @@
       "source": ""
     },
     {
+      "title": "Token Cost Compounds Every Turn — Full Context Resent on Each Message",
+      "category": "token-cost",
+      "url": "/synapse-ai/solutions/token-cost/context-resent-every-turn-exponential-cost",
+      "symptom": "- Turn 1: 500 tokens input - Turn 5: 8,000 tokens input (all previous turns included) - Turn 20: 60,000 tokens input - Total cost for a 20-turn conversation: 300,000+ tokens — vastly more than expected - Tool results (often large) are re-sent on every subsequent call",
+      "fix": "### Option 1: Enable Anthropic prompt caching Anthropic's prompt caching reduces re-sent context costs by 90%: Cached blocks cost 10% of normal input price on re-use. Ideal for large static context (d",
+      "source": ""
+    },
+    {
       "title": "Aggressive context pruning to save costs causes 50% more hallucinations",
       "category": "token-cost",
       "url": "/synapse-ai/solutions/token-cost/cost-induced-context-pruning-hallucination",
@@ -9555,6 +9611,14 @@
       "symptom": "Starting from OpenClaw 2026.3.12, token usage statistics (input/output tokens) always return 0 for non-OpenAI providers like Bailian (Kimi), even though the API correctly returns usage data.",
       "fix": "Add `compat.supportsUsageInStreaming: true` to each model configuration:",
       "source": "https://github.com/openclaw/openclaw/issues/47421"
+    },
+    {
+      "title": "Large Tool Results Re-Sent Every Turn — Wasting Tokens on Unchanged Data",
+      "category": "token-cost",
+      "url": "/synapse-ai/solutions/token-cost/tool-result-pasted-into-context-repeatedly",
+      "symptom": "- One tool call returns 5,000 tokens of content (e.g., reading a large file) - That result is included in conversation history - Next 10 turns each re-send those 5,000 tokens unnecessarily - Total unnecessary tokens: 50,000 just from one tool result - Costs spike sharply after first large tool call",
+      "fix": "### Option 1: Compress tool results after first use ### Option 2: Store large results externally, pass reference ### Option 3: Use Anthropic prompt caching for stable tool results If a tool result won",
+      "source": ""
     },
     {
       "title": "Verbose reasoning burns tokens for no gain",
@@ -9669,6 +9733,14 @@
       "source": "https://github.com/openclaw/openclaw/issues/40144"
     },
     {
+      "title": "MCP Server Fails to Start — spawn ENOENT Error on Startup",
+      "category": "tool-failure",
+      "url": "/synapse-ai/solutions/tool-failure/mcp-filesystem-server-enoent-spawn",
+      "symptom": "- MCP server shows `spawn ENOENT` error on agent startup - Agent starts but the tool/server is unavailable - No error if the server command is run manually in the same shell - Error appears in agent logs, not in shell output",
+      "fix": "### Option 1: Use absolute path in MCP config Find the absolute path: ### Option 2: Use npx to resolve path automatically `npx` handles path resolution — the server doesn't need to be in PATH. ### Opt",
+      "source": ""
+    },
+    {
       "title": "message tool fails silently when multiple channels configured — no context-aware fallback",
       "category": "tool-failure",
       "url": "/synapse-ai/solutions/tool-failure/message-tool-fails-silently-when-multiple-channels-configure",
@@ -9715,6 +9787,14 @@
       "symptom": "OpenClaw's session parser crashes when reloading sessions containing tool_use IDs generated by models accessed through **OpenAI-compatible APIs** (e.g., Kimi K2.5 via NVIDIA NIM, DeepSeek via OpenRouter). These providers implement OpenAI's tool calling format, generating IDs like `functions.exec:0` ",
       "fix": "### Expected behavior **Critical** — Causes permanent session corruption. Once a session contains these IDs, it cannot be loaded, and the agent becomes completely unresponsive (even to `/compact` or o",
       "source": "https://github.com/openclaw/openclaw/issues/18484"
+    },
+    {
+      "title": "Tool Call Returns Empty Result — Agent Proceeds as if Successful",
+      "category": "tool-failure",
+      "url": "/synapse-ai/solutions/tool-failure/tool-call-returns-empty-result-silently",
+      "symptom": "- Tool call returns 200 with `{}`, `null`, `[]`, or `{\"result\": null}` - Agent doesn't report an error — it continues working - Subsequent steps fail or produce wrong output because they built on an empty result - Problem: agent says \"I searched for X\" but acted on no results",
+      "fix": "### Option 1: Add result validation in the tool call wrapper ### Option 2: Configure empty result handling per tool ### Option 3: Add result shape validation ### Option 4: Prompt the agent to verify b",
+      "source": ""
     },
     {
       "title": "WebSearch tool error: thinking is enabled but reasoning_content is missing",
