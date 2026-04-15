@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T01:58:53.937792+00:00",
-  "count": 1243,
+  "generated": "2026-04-15T02:00:18.692185+00:00",
+  "count": 1246,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -3077,6 +3077,14 @@
       "source": ""
     },
     {
+      "title": "Reading a Large File Fills the Entire Context Window — No Room for Reasoning",
+      "category": "context-window",
+      "url": "/synapse-ai/solutions/context-window/reading-large-file-fills-entire-context",
+      "symptom": "- Agent reads a log file, code file, or data file - Response is truncated or agent stops mid-analysis - API returns 400 context_length_exceeded after reading the file - Agent reads file, then can't call any more tools (context full) - File is 100KB+ and model max input is 200K tokens (but 100K of th",
+      "fix": "### Option 1: Read only relevant sections ### Option 2: Search before reading For agent prompts: ### Option 3: Chunk and summarize ### Option 4: Structured extraction instead of raw read ### Option 5:",
+      "source": ""
+    },
+    {
       "title": "Support Anthropic 1M context window for Amazon Bedrock provider",
       "category": "context-window",
       "url": "/synapse-ai/solutions/context-window/support-anthropic-1m-context-window-for-amazon-bedrock-provi",
@@ -3829,6 +3837,14 @@
       "source": "https://github.com/openclaw/openclaw/issues/46076"
     },
     {
+      "title": "Agent Data Lost on Container Restart — Docker Volume Not Mounted",
+      "category": "docker",
+      "url": "/synapse-ai/solutions/docker/volume-not-mounted-data-lost-on-restart",
+      "symptom": "- Agent writes files during session (logs, outputs, session state, .env files) - Container restarts (crash, update, OOM kill, manual restart) - All written files are gone — container starts fresh - Agent session memory is lost despite the agent \"saving\" to disk - Problem persists even with `restart:",
+      "fix": "### Option 1: Mount workspace as named volume Data in `/workspace` now survives container restarts and recreation. ### Option 2: Bind mount to host directory ### Option 3: Check what needs to persist ",
+      "source": ""
+    },
+    {
       "title": "web_search/web_fetch tools not available to agent with built-in Gemini provider",
       "category": "docker",
       "url": "/synapse-ai/solutions/docker/websearchwebfetch-tools-not-available-to-agent-with-built-in",
@@ -3907,6 +3923,14 @@
       "symptom": "- [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn't been reported yet",
       "fix": "\"Improved memory usage and startup time when resuming large sessions.\" This strongly suggests that the behavior I experienced was a known issue that has since been patched. Request: Could you please i",
       "source": "https://github.com/anthropics/claude-code/issues/38029"
+    },
+    {
+      "title": "Agent Asks Too Many Clarifying Questions Before Starting — Over-Clarification",
+      "category": "general",
+      "url": "/synapse-ai/solutions/general/agent-asks-too-many-clarifying-questions",
+      "symptom": "- User: \"Write a function to parse JSON\" - Agent: \"Before I start, could you tell me: 1) What programming language? 2) What version? 3) Will you handle nested objects? 4) Do you want error handling? 5) Should I write tests? 6) What's the function signature? 7) ...\" - Simple requests blocked by multi",
+      "fix": "### Option 1: \"Bias to action\" system prompt instruction ### Option 2: Limit questions explicitly ### Option 3: Assumptions-first pattern Instruct the agent to state assumptions, not ask about them: #",
+      "source": ""
     },
     {
       "title": "AI agent breaks safety rules when under operational pressure",
