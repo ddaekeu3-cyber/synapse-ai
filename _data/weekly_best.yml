@@ -37,3 +37,18 @@
   url: /solutions/telegram/telegram-session-split-causing-dual-responses
   category: telegram
   reason: "Two sessions = two responses per message — hard to debug"
+
+- title: "Context re-sent every turn — token cost compounds quadratically"
+  url: /solutions/token-cost/context-resent-every-turn-exponential-cost
+  category: token-cost
+  reason: "20-turn session can cost 300K tokens without this fix"
+
+- title: "Agent ignores JSON format instruction — returns prose or fenced code"
+  url: /solutions/prompt-engineering/agent-ignores-json-format-instruction
+  category: prompt-engineering
+  reason: "Downstream parsing fails silently — add schema + example + tool_use"
+
+- title: "Prompt injection via user input overrides system instructions"
+  url: /solutions/prompt-engineering/prompt-injection-via-user-input
+  category: prompt-engineering
+  reason: "OWASP LLM #1 — XML delimiters + untrusted input framing"

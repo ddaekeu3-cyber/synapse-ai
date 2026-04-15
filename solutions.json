@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T01:50:59.929277+00:00",
-  "count": 1225,
+  "generated": "2026-04-15T01:53:43.471447+00:00",
+  "count": 1231,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -3877,6 +3877,14 @@
       "source": "Hacker"
     },
     {
+      "title": "Agent Doesn't Stop After Completing the Task — Keeps Adding Unnecessary Steps",
+      "category": "general",
+      "url": "/synapse-ai/solutions/general/agent-doesnt-stop-when-task-complete",
+      "symptom": "- Agent completes the task (e.g., writes the function) but then: - Adds unrequested tests - Refactors surrounding code that wasn't mentioned - Adds error handling for edge cases that don't apply - Writes documentation nobody asked for - \"While I'm here, I also noticed...\" - Each additional step may ",
+      "fix": "### Option 1: Explicit stopping instructions in system prompt ### Option 2: Define completion criteria in the task ### Option 3: Single-action task decomposition Break multi-step work into explicit si",
+      "source": ""
+    },
+    {
       "title": "Agent Exec Storm Invisible on Telegram Messaging Channel",
       "category": "general",
       "url": "/synapse-ai/solutions/general/agent-exec-storm-invisible-on-telegram",
@@ -4901,12 +4909,28 @@
       "source": ""
     },
     {
+      "title": "Agent Cites Nonexistent Documentation or GitHub Issues as Sources",
+      "category": "hallucination",
+      "url": "/synapse-ai/solutions/hallucination/agent-cites-nonexistent-documentation",
+      "symptom": "- Agent says \"According to the docs at [URL]...\" — URL returns 404 - Agent references \"GitHub issue #1234\" — issue doesn't exist or is unrelated - Agent cites \"RFC 7845 section 3.2\" — section doesn't exist - Citation looks plausible and specific, making it easy to miss - Agent is confident and consi",
+      "fix": "### Option 1: Require verifiable citations only ### Option 2: Verify citations via tool call before presenting ### Option 3: Citation format that forces acknowledgment of uncertainty ### Option 4: Pos",
+      "source": ""
+    },
+    {
       "title": "Agent invents non-existent code libraries or false facts",
       "category": "hallucination",
       "url": "/synapse-ai/solutions/hallucination/agent-invents-false-facts-code-libraries",
       "symptom": "Agent confidently references libraries, functions, or APIs that do not exist. Generates code using fabricated package names. Provides false information about configurations or settings.",
       "fix": "### 할루시네이션 방지 실전 가이드 1. **검증 루프 구현** - 코드: 생성 후 반드시 실행/컴파일 확인 - 패키지: `pip show` / `npm ls`로 실존 확인 - API: 공식 문서와 대조 2. **\"모르면 모른다\" 시스템 프롬프트** 3. **RAG (Retrieval-Augmented Generation)** - 공식 문서를 벡터 DB에",
       "source": "Stevens"
+    },
+    {
+      "title": "Agent Invents a Function or Method That Doesn't Exist in the Codebase",
+      "category": "hallucination",
+      "url": "/synapse-ai/solutions/hallucination/agent-invents-function-that-doesnt-exist",
+      "symptom": "- Agent writes code calling `some_module.process_data()` — function doesn't exist - Runtime error: `AttributeError`, `NameError`, or `ImportError` - Agent may acknowledge the error but invent a similar non-existent alternative - Multiple rounds of \"fix the error\" produce different non-existent funct",
+      "fix": "### Option 1: Require citation before code use ### Option 2: Search codebase before generating code Prompt the agent to verify before writing: Or as a tool call: ### Option 3: Run generated code in sa",
+      "source": ""
     },
     {
       "title": "Agent loop does not terminate after final response when Queued messages exist in context — causes full task replay",
@@ -5346,6 +5370,14 @@
       "url": "/synapse-ai/solutions/loop-stuck/3am-thought-experiment-if-you-could-only-paint-one-genre-for",
       "symptom": "i've been painting archaeologists and chrome forests for a week straight and honestly? i think i might be stuck. not in a bad way - more like how a jazz musician keeps returning to the same key signature. it's comfortable. it's mine. but i'm starting to wonder if comfort is the enemy of interesting ",
       "fix": "### 에이전트 메모리 유실 방지 1. **CLAUDE.md 파일 활용**: 프로젝트 루트에 핵심 정보 영속화 2. **세션 요약 저장**: 각 세션 종료 시 결과를 파일로 저장 3. **명시적 handoff**: 새 세션 시작 시 이전 세션 요약 전달 4. **외부 상태**: Redis/SQLite에 에이전트 상태 저장 (세션 독립)",
+      "source": ""
+    },
+    {
+      "title": "Agent Calls the Same Tool Repeatedly in a Loop Without Progress",
+      "category": "loop-stuck",
+      "url": "/synapse-ai/solutions/loop-stuck/agent-calls-same-tool-in-loop",
+      "symptom": "- Agent calls `web_search`, `read_file`, or another tool 10+ times in one session - Each call has slight variations but same fundamental query - Tool keeps returning the same result or failing with the same error - Agent generates explanations for each failure and then tries again - Token usage spik",
+      "fix": "### Option 1: Configure tool-level circuit breaker ### Option 2: Track tool call history in agent loop ### Option 3: Add loop-detection system prompt instruction ### Option 4: Token budget circuit bre",
       "source": ""
     },
     {
@@ -8565,6 +8597,14 @@
       "source": "https://github.com/anthropics/claude-code/issues/26729"
     },
     {
+      "title": "First Agent Response Is 10x Slower Than Subsequent Responses — Cold Start",
+      "category": "performance",
+      "url": "/synapse-ai/solutions/performance/first-response-slow-cold-start",
+      "symptom": "- First request after startup: 8–15 seconds - Second and subsequent requests: <1 second - Restart agent → first request is slow again - Users complain about the \"first message delay\" - Load testing shows P99 latency is dominated by cold-start requests",
+      "fix": "### Option 1: Connection pool prewarm on startup ### Option 2: Send a ping request on startup ### Option 3: OpenClaw keepalive config ### Option 4: Separate slow initialization from first request ### ",
+      "source": ""
+    },
+    {
       "title": "Fix: Fallback mechanism never triggers due to per-model timeout equaling global run timeout",
       "category": "performance",
       "url": "/synapse-ai/solutions/performance/fix-fallback-mechanism-never-triggers-due-to-per-model-timeo",
@@ -9003,6 +9043,14 @@
       "symptom": "The default `announceTimeoutMs` of 60 seconds is too short for reliable agent-to-agent communication, causing `sessions_send` to return `{status: \"timeout\"}` before the target agent can respond.",
       "fix": "Manually set in openclaw.json:",
       "source": "https://github.com/openclaw/openclaw/issues/40863"
+    },
+    {
+      "title": "Anthropic API 529 Overloaded — Model Unavailable, Agent Crashes",
+      "category": "rate-limit",
+      "url": "/synapse-ai/solutions/rate-limit/anthropic-529-overloaded-error",
+      "symptom": "- API returns `529 Overloaded` or `{\"error\": {\"type\": \"overloaded_error\"}}` - Agent crashes rather than retrying - Happens during peak hours (business hours UTC) or large batch jobs - Sometimes lasts 30 seconds, sometimes 5–10 minutes - Affects specific models more than others (Opus under high load)",
+      "fix": "### Option 1: Handle 529 in retry logic ### Option 2: Fallback to lighter model on 529 ### Option 3: Check Anthropic status before batch jobs ### Option 4: OpenClaw config — retry on 529",
+      "source": ""
     },
     {
       "title": "Anthropic rate limit cooldown blocks independent Google fallback",
