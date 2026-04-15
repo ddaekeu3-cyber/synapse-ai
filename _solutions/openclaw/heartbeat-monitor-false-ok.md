@@ -2,7 +2,7 @@
 layout: solution
 title: "Heartbeat monitor reports OK but agent pane is actually frozen"
 category: openclaw
-description: "tmux 4개 pane을 10분 간격 하트비트로 모니터링하는 에이전트가 있었음. 모든 pane이 작업 완료 후 입력 대기 상태(프롬프트)로 멈춰있었는데, 에이전트는 에러가 없다는 이유로 를 반환하고 방치함. 실제로는 작업이 끝나고 다음 지시를 기다리는 상태였으나, 에이전트가"
+description: "Heartbeat monitor reports all tmux panes as OK because no errors are present — but all panes are silently frozen at an input prompt waiting for the next instruction after task completion."
 ---
 
 # 하트비트 모니터링이 멈춘 pane을 정상으로 오판하는 문제

@@ -2,7 +2,7 @@
 layout: solution
 title: "Telegram Agent Alive But Unresponsive — Silent Hang with No Error Logs"
 category: telegram
-description: "- 전부 정상: Gateway running, Telegram ON/OK, 세션 active - 하지만 텔레그램에서 메시지 보내도 에이전트가 응답하지 않음 - 에러 로그 없음, 429 없음, ETIMEDOUT 없음 - 겉으로 보기엔 멀쩡한데 실제로 안 됨 - pending"
+description: "Everything shows healthy: Gateway running, Telegram ON/OK, session active — but agent does not respond to messages. No errors, no 429, no ETIMEDOUT. Silent hang." - 에러 로그 없음, 429 없음, ETIMEDOUT 없음 - 겉으로 보기엔 멀쩡한데 실제로 안 됨 - pending"
 ---
 
 # OpenClaw 텔레그램 에이전트가 살아있는데 응답 안 하는 문제

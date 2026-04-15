@@ -3,7 +3,7 @@ layout: solution
 title: "Agent Exec Storm Invisible on Telegram Messaging Channel"
 category: general
 tags: agent-behavior, observability, messaging-channel
-description: "- 유저가 텔레그램으로 간단한 한 마디 (\"나왔다 보내라\") 전송 - 에이전트가 뒤에서 폭주: find 탐색, 35KB 파일 전체 읽기, exec 20회+, poll 루프 6번 반복 - 이미 tmux 다른 pane에서 같은 스크립트 실행 중인데 확인 없이 중복 실행 -"
+description: "User sends a simple Telegram message. Agent silently runs exec storm in background: recursive find, reading 35KB files, 20+ exec calls — invisible on messaging channels with no output shown."회+, poll 루프 6번 반복 - 이미 tmux 다른 pane에서 같은 스크립트 실행 중인데 확인 없이 중복 실행 -"
 ---
 
 # 에이전트 exec 폭주가 텔레그램에서 감지 불가능한 문제

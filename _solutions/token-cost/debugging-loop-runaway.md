@@ -1,3 +1,10 @@
+---
+layout: solution
+title: "Agent enters debugging loop and burns $100+ in tokens"
+category: token-cost
+description: "Agent repeatedly hits the same error and keeps trying different approaches without progress. Task never finishes, token usage compounds each turn, cost reaches $100+ before anyone notices."
+---
+
 # Agent enters debugging loop and burns $100+ in tokens
 
 ## 증상

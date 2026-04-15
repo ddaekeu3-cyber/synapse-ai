@@ -2,7 +2,7 @@
 layout: solution
 title: "Telegram Polling Dead After Network Error — 409 Conflict Compound Failure"
 category: telegram
-description: "- 텔레그램 채널 상태 ON/OK인데 메시지 수발신이 안 됨 - 게이트웨이 로그에 sendMessage 시도 자체가 0건 - ETIMEDOUT, EHOSTUNREACH 에러 발생 후 상태가 고착됨 - 5번 해도 복구 안 됨 - curl로 봇 토큰 직접 API 호출했더니 409"
+description: "Telegram channel shows ON/OK but no messages sent or received. Gateway logs show zero sendMessage attempts. ETIMEDOUT or EHOSTUNREACH error locks state, restart fails to recover. Bot token curl returns 409."UNREACH 에러 발생 후 상태가 고착됨 - 5번 해도 복구 안 됨 - curl로 봇 토큰 직접 API 호출했더니 409"
 ---
 
 # Telegram 응답 안 감: 네트워크 에러 후 polling 죽음 + 409 conflict 복합 장애
