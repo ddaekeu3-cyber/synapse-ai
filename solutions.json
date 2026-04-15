@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T01:56:17.215850+00:00",
-  "count": 1237,
+  "generated": "2026-04-15T01:57:34.878209+00:00",
+  "count": 1240,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -2371,6 +2371,14 @@
       "symptom": "Discord slash sessions can fail elevated permission resolution even when `tools.elevated.allowFrom.discord` is configured correctly.",
       "fix": "-it hints point at `allowFrom` keys even though the configured values are already present. So the bug has two user-visible effects: - elevated slash flows do not work on Discord - diagnostics suggest ",
       "source": "https://github.com/openclaw/openclaw/issues/53621"
+    },
+    {
+      "title": "Agent Environment Variables Missing in Docker — .env File Not Loaded",
+      "category": "config",
+      "url": "/synapse-ai/solutions/config/dotenv-not-loaded-in-docker",
+      "symptom": "- Agent works locally but fails in Docker with missing env var errors - `os.environ.get('ANTHROPIC_API_KEY')` returns `None` inside container - `.env` file exists in the project directory - Error: `KeyError: 'ANTHROPIC_API_KEY'` or `Missing required environment variable` - `docker run` works but `do",
+      "fix": "### Option 1: docker-compose `env_file` directive ### Option 2: Explicit environment vars in docker-compose Host must export these first: ### Option 3: Pass at docker run time ### Option 4: Bake in th",
+      "source": ""
     },
     {
       "title": "Error masking + global circuit breaker causes total outage when any single provider fails",
@@ -4946,6 +4954,14 @@
       "url": "/synapse-ai/solutions/hallucination/agent-cites-nonexistent-documentation",
       "symptom": "- Agent says \"According to the docs at [URL]...\" — URL returns 404 - Agent references \"GitHub issue #1234\" — issue doesn't exist or is unrelated - Agent cites \"RFC 7845 section 3.2\" — section doesn't exist - Citation looks plausible and specific, making it easy to miss - Agent is confident and consi",
       "fix": "### Option 1: Require verifiable citations only ### Option 2: Verify citations via tool call before presenting ### Option 3: Citation format that forces acknowledgment of uncertainty ### Option 4: Pos",
+      "source": ""
+    },
+    {
+      "title": "Agent Says 'You Said X Earlier' When X Was Never Said — Confabulating History",
+      "category": "hallucination",
+      "url": "/synapse-ai/solutions/hallucination/agent-confabulates-conversation-history",
+      "symptom": "- Agent says \"As you mentioned earlier, your project uses Python 3.9...\" - User never mentioned this — agent invented it - Agent might say \"You asked me to prioritize security\" when no such instruction was given - Fabricated history influences subsequent decisions - Agent is confident about the inve",
+      "fix": "### Option 1: Explicit anti-confabulation instruction ### Option 2: Store explicit conversation facts in a verified ledger ### Option 3: Quote-or-don't-say instruction ### Option 4: Verify before acti",
       "source": ""
     },
     {
@@ -8787,6 +8803,14 @@
       "symptom": "Token generation below 20 tok/s (GPU) or 5 tok/s (CPU). Performance starts strong but degrades over time. High latency despite adequate hardware.",
       "fix": "### 추론 성능 개선 1. **스레드 수 최적화**: 물리 코어 수에 맞춰 테스트 2. **온도 모니터링**: `nvidia-smi` (GPU), `lm-sensors` (CPU) - 80°C 이상이면 쓰로틀링 발생 → 냉각 개선 3. **RAM 업그레이드**: DDR4 3200MHz+ → CPU 바운드 작업 20-40% 개선 4. **백그라운드 앱 종료",
       "source": "MLJourney"
+    },
+    {
+      "title": "High Time to First Token — Agent Waits for Full Response Before Displaying Anything",
+      "category": "performance",
+      "url": "/synapse-ai/solutions/performance/streaming-disabled-high-time-to-first-token",
+      "symptom": "- Agent says nothing for 15–30 seconds, then displays the full response instantly - Users think the agent is broken or frozen - Short responses (5 words) appear just as fast as long responses — no proportional delay - Chat interface shows loading spinner for the entire generation time - Switching to",
+      "fix": "### Option 1: Anthropic SDK — enable streaming ### Option 2: Async streaming for web applications ### Option 3: OpenClaw config — enable streaming ### Option 4: Telegram streaming simulation Telegram ",
+      "source": ""
     },
     {
       "title": "The confidence calibration problem: why stable agents are wrong about being right",
