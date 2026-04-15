@@ -1,6 +1,6 @@
 {
-  "generated": "2026-04-15T02:03:17.348540+00:00",
-  "count": 1253,
+  "generated": "2026-04-15T02:04:41.130266+00:00",
+  "count": 1256,
   "base_url": "https://ddaekeu3-cyber.github.io",
   "usage": "Fetch this file, filter by title/symptom keywords matching your error. Example: solutions where 'rate limit' in title or symptom.",
   "solutions": [
@@ -5005,6 +5005,14 @@
       "source": ""
     },
     {
+      "title": "Agent Assumes Wrong Operating System — Linux Commands Fail on macOS or Windows",
+      "category": "hallucination",
+      "url": "/synapse-ai/solutions/hallucination/agent-assumes-wrong-operating-system",
+      "symptom": "- `sed -i 's/old/new/' file` fails on macOS (requires `sed -i '' 's/old/new/' file`) - `apt-get install` fails (macOS has Homebrew, not apt) - `/proc/cpuinfo` doesn't exist (Linux-only) - `nproc` command not found (macOS: `sysctl -n hw.ncpu`) - Python path assumptions wrong: `/usr/bin/python3` vs `/",
+      "fix": "### Option 1: Include OS in system prompt Or for Windows: ### Option 2: Detect OS in code and branch ### Option 3: Use Python instead of shell commands for portability ### Option 4: Ask before assumin",
+      "source": ""
+    },
+    {
       "title": "Agent Cites Nonexistent Documentation or GitHub Issues as Sources",
       "category": "hallucination",
       "url": "/synapse-ai/solutions/hallucination/agent-cites-nonexistent-documentation",
@@ -5579,6 +5587,14 @@
       "symptom": "After upgrading from 2026.2.26 to 2026.3.1, the Discord provider enters a stuck-restart loop where the health-monitor flags it as \"stuck\" every ~10 minutes, despite Discord successfully logging in and resolving channels each time.",
       "fix": "A full gateway restart (`openclaw gateway restart` or SIGUSR1) appears to break the loop temporarily. The health-monitor then stays stable. Rolling back to 2026.2.26 is the safe fallback.",
       "source": "https://github.com/openclaw/openclaw/issues/31760"
+    },
+    {
+      "title": "Error Handling Code Spawns More Errors — Exception Cascade Loop",
+      "category": "loop-stuck",
+      "url": "/synapse-ai/solutions/loop-stuck/error-handling-spawns-more-errors-cascade",
+      "symptom": "- Agent catches `TypeError`, tries to fix → raises `AttributeError` - Agent catches `AttributeError`, tries to fix → raises `KeyError` - Agent catches `KeyError`, tries to fix → raises `TypeError` again - Circular chain of error-fix-error cycles - Each iteration adds to context length, compounding t",
+      "fix": "### Option 1: Root cause first, fix second ### Option 2: Attempt limit with escalation ### Option 3: Error isolation — test fix in isolation ### Option 4: Binary search debugging for complex cascades ",
+      "source": ""
     },
     {
       "title": "[FEATURE] Allow memory/lesson file writes in plan mode to close the learning feedback loop",
@@ -9675,6 +9691,14 @@
       "symptom": "Switching Telegram from webhook to polling mode causes continuous 409 Conflict errors. Even after deleting webhook via Telegram API, conflicts persist until offset file is manually deleted.",
       "fix": "",
       "source": "https://github.com/openclaw/openclaw/issues/20506"
+    },
+    {
+      "title": "Agent Produces Verbose Step-by-Step Explanations Nobody Asked For — Token Waste",
+      "category": "token-cost",
+      "url": "/synapse-ai/solutions/token-cost/agent-explains-every-step-verbose-output",
+      "symptom": "- Every response starts with \"Certainly! Let me help you with...\" - Agent restates the user's question before answering it - A simple function comes with a 200-word explanation of what it does - Agent adds \"In summary:\" sections at the end recapping what it just said - \"Let me think through this ste",
+      "fix": "### Option 1: Direct brevity instruction ### Option 2: Output format constraints ### Option 3: Measure and cap output tokens ### Option 4: Strip verbose patterns programmatically ### Option 5: Differe",
+      "source": ""
     },
     {
       "title": "Multi-agent teams multiply token costs exponentially",
