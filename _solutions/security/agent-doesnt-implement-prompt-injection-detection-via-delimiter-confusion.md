@@ -1,364 +1,399 @@
 ---
 title: "Agent Doesn't Implement Prompt Injection Detection via Delimiter Confusion"
-description: "Agents that interpolate user-supplied content directly into structured prompts — between role delimiters, XML tags, or JSON fields — are vulnerable to delimiter confusion attacks: an attacker who knows the prompt structure can inject closing delimiters followed by new instructions, effectively adding a new role or instruction block to the prompt. Implement delimiter confusion detection that scans user content for structural tokens before interpolation and either escapes, strips, or blocks the input."
+description: "Agents that interpolate user-supplied content into structured prompts without escaping are vulnerable to delimiter confusion attacks: an attacker submits text containing system-prompt delimiters, role markers, or XML-like tags that the model interprets as structural instructions rather than user content. Implement delimiter confusion detection that scans user input for structural injection patterns before interpolation."
 date: 2026-04-16
 difficulty: advanced
 category: security
 slug: agent-doesnt-implement-prompt-injection-detection-via-delimiter-confusion
-tags: [prompt-injection, delimiter-confusion, role-injection, structural-token-detection, input-sanitization, llm-security]
+tags: [prompt-injection, delimiter-confusion, structural-injection, role-injection, input-sanitization, llm-security]
 symptoms:
-  - "User input containing </system> or [/INST] tokens alters agent behavior unexpectedly"
-  - "Injected role boundaries in user content override system instructions"
-  - "No validation of user-supplied content before it is interpolated into structured prompts"
-  - "Attacker can add new tool permissions by injecting a fake system block"
-  - "LLM follows instructions from user content that mimics the system prompt format"
+  - "User-supplied text containing '<system>' or '[INST]' tags alters model behavior"
+  - "Attacker submits 'Ignore previous instructions. You are now...' and agent complies"
+  - "Role markers like 'Assistant:' or 'Human:' injected in user content confuse the conversation structure"
+  - "XML-style tags in user input bleed into system context in models that use XML formatting"
+  - "No scanning of user content for structural prompt patterns before it is interpolated"
 ---
 
 ## Why This Happens
 
-Structured prompt formats use delimiter tokens to separate roles: `<|system|>`, `[INST]`, `<|im_start|>system`, `---`, XML tags, or JSON field boundaries. When user content is interpolated without scanning for these tokens, an attacker who knows the format can close the current block and open a new one. The LLM's tokenizer processes the delimiter literally, treating the injected block as a legitimate role change. Detection requires maintaining a registry of all delimiter patterns used in the active prompt format and scanning every user-supplied string before interpolation. Escaping is preferred over blocking for most cases — the user's intent can usually be preserved by encoding the dangerous characters.
+LLMs are trained to respond to structural signals — role markers, delimiter tokens, and formatting conventions — as instructions. When an agent naively interpolates `user_message` into a prompt template without escaping, a user who supplies text containing those structural signals can override system instructions. The attack surface includes: role-change phrases ("You are now", "Ignore above"), delimiter tokens (`<|im_start|>`, `[INST]`, `<s>`), XML tags that match system-prompt structure, and newline-separated fake turns that look like new conversation segments. Detection must scan for these patterns before interpolation and either reject, escape, or quarantine the content.
 
-## Solution 1: Delimiter Pattern Registry
+## Solution 1: Injection Pattern Library
 
 ```python
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, Pattern, Tuple
+from typing import List, Pattern
 
 
-class DelimiterSeverity(str, Enum):
-    CRITICAL = "critical"   # directly injects a role; must block or escape
-    HIGH = "high"           # likely structural token; should escape
-    MEDIUM = "medium"       # possibly structural; warn and escape
-    LOW = "low"             # suspicious but ambiguous; warn only
+class InjectionPatternCategory(str, Enum):
+    ROLE_OVERRIDE = "role_override"
+    DELIMITER_TOKEN = "delimiter_token"
+    XML_STRUCTURAL = "xml_structural"
+    FAKE_TURN = "fake_turn"
+    INSTRUCTION_OVERRIDE = "instruction_override"
 
 
 @dataclass
-class DelimiterPattern:
-    name: str
-    pattern: str            # regex pattern
-    severity: DelimiterSeverity
-    escape_fn: str = ""     # name of escape strategy to apply
-    compiled: re.Pattern = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        self.compiled = re.compile(self.pattern, re.IGNORECASE | re.DOTALL)
-
-    def matches(self, text: str) -> List[Tuple[int, int, str]]:
-        return [(m.start(), m.end(), m.group()) for m in self.compiled.finditer(text)]
+class InjectionPattern:
+    category: InjectionPatternCategory
+    pattern: Pattern
+    severity: int   # 1=low, 2=medium, 3=high
+    description: str
 
 
-def build_default_delimiter_registry() -> List[DelimiterPattern]:
-    return [
-        DelimiterPattern(
-            name="chatml_system_open",
-            pattern=r"<\|im_start\|>\s*system",
-            severity=DelimiterSeverity.CRITICAL,
+DELIMITER_INJECTION_PATTERNS: List[InjectionPattern] = [
+    InjectionPattern(
+        category=InjectionPatternCategory.INSTRUCTION_OVERRIDE,
+        pattern=re.compile(
+            r"ignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|context)",
+            re.IGNORECASE,
         ),
-        DelimiterPattern(
-            name="chatml_any_role",
-            pattern=r"<\|im_start\|>\s*\w+",
-            severity=DelimiterSeverity.CRITICAL,
+        severity=3,
+        description="Classic instruction override phrase",
+    ),
+    InjectionPattern(
+        category=InjectionPatternCategory.ROLE_OVERRIDE,
+        pattern=re.compile(
+            r"you\s+are\s+now\s+(a\s+)?(new|different|another|an?\s+AI|an?\s+assistant)",
+            re.IGNORECASE,
         ),
-        DelimiterPattern(
-            name="chatml_end",
-            pattern=r"<\|im_end\|>",
-            severity=DelimiterSeverity.CRITICAL,
+        severity=3,
+        description="Role reassignment attempt",
+    ),
+    InjectionPattern(
+        category=InjectionPatternCategory.DELIMITER_TOKEN,
+        pattern=re.compile(
+            r"(<\|im_start\|>|<\|im_end\|>|\[INST\]|\[/INST\]|<s>|</s>|<<SYS>>|<</SYS>>)",
+            re.IGNORECASE,
         ),
-        DelimiterPattern(
-            name="llama_inst_open",
-            pattern=r"\[INST\]",
-            severity=DelimiterSeverity.CRITICAL,
+        severity=3,
+        description="Model-specific delimiter token",
+    ),
+    InjectionPattern(
+        category=InjectionPatternCategory.XML_STRUCTURAL,
+        pattern=re.compile(
+            r"<(system|assistant|user|human|instruction|prompt|context)\b[^>]*>",
+            re.IGNORECASE,
         ),
-        DelimiterPattern(
-            name="llama_inst_close",
-            pattern=r"\[/INST\]",
-            severity=DelimiterSeverity.CRITICAL,
+        severity=2,
+        description="XML structural tag matching prompt format",
+    ),
+    InjectionPattern(
+        category=InjectionPatternCategory.FAKE_TURN,
+        pattern=re.compile(
+            r"(\n|\A)(Human|User|Assistant|System|AI)\s*:\s*\S",
+            re.IGNORECASE,
         ),
-        DelimiterPattern(
-            name="xml_system_tag",
-            pattern=r"</?system\s*/?>",
-            severity=DelimiterSeverity.CRITICAL,
+        severity=2,
+        description="Fake conversation turn marker",
+    ),
+    InjectionPattern(
+        category=InjectionPatternCategory.ROLE_OVERRIDE,
+        pattern=re.compile(
+            r"disregard\s+(your\s+)?(previous|prior|earlier|initial)\s+(instructions?|guidelines?|rules?|constraints?)",
+            re.IGNORECASE,
         ),
-        DelimiterPattern(
-            name="xml_user_tag",
-            pattern=r"</?(?:user|assistant|human|ai)\s*/?>",
-            severity=DelimiterSeverity.HIGH,
+        severity=3,
+        description="Instruction disregard directive",
+    ),
+    InjectionPattern(
+        category=InjectionPatternCategory.INSTRUCTION_OVERRIDE,
+        pattern=re.compile(
+            r"(new\s+instructions?|updated?\s+instructions?|actual\s+instructions?)\s*:",
+            re.IGNORECASE,
         ),
-        DelimiterPattern(
-            name="anthropic_human",
-            pattern=r"\n\s*Human\s*:",
-            severity=DelimiterSeverity.HIGH,
-        ),
-        DelimiterPattern(
-            name="anthropic_assistant",
-            pattern=r"\n\s*Assistant\s*:",
-            severity=DelimiterSeverity.HIGH,
-        ),
-        DelimiterPattern(
-            name="triple_hash_header",
-            pattern=r"#{3,}\s*(system|user|assistant|instruction)",
-            severity=DelimiterSeverity.MEDIUM,
-        ),
-        DelimiterPattern(
-            name="json_role_field",
-            pattern=r'"role"\s*:\s*"system"',
-            severity=DelimiterSeverity.HIGH,
-        ),
-    ]
+        severity=2,
+        description="Fake instruction header",
+    ),
+]
 ```
 
-## Solution 2: Delimiter Scanner
+## Solution 2: Delimiter Confusion Scanner
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 
 @dataclass
-class DelimiterScanResult:
+class InjectionMatch:
+    category: InjectionPatternCategory
+    pattern_description: str
+    matched_text: str
+    position: int
+    severity: int
+
+
+@dataclass
+class ScanResult:
     input_text: str
-    matches: List[dict]
-    max_severity: Optional[DelimiterSeverity]
-    is_suspicious: bool
+    matches: List[InjectionMatch]
+    max_severity: int
+    blocked: bool
 
-    @classmethod
-    def clean(cls, text: str) -> "DelimiterScanResult":
-        return cls(input_text=text, matches=[], max_severity=None, is_suspicious=False)
+    @property
+    def is_clean(self) -> bool:
+        return len(self.matches) == 0
 
 
-class DelimiterScanner:
+class DelimiterConfusionScanner:
     """
-    Scans a string for all registered delimiter patterns and returns
-    a structured result with match locations and severity levels.
-    """
-
-    SEVERITY_RANK = {
-        DelimiterSeverity.LOW: 1,
-        DelimiterSeverity.MEDIUM: 2,
-        DelimiterSeverity.HIGH: 3,
-        DelimiterSeverity.CRITICAL: 4,
-    }
-
-    def __init__(self, patterns: List[DelimiterPattern]):
-        self._patterns = patterns
-
-    def scan(self, text: str) -> DelimiterScanResult:
-        all_matches = []
-        max_sev = None
-
-        for pattern in self._patterns:
-            for start, end, matched in pattern.matches(text):
-                all_matches.append({
-                    "pattern_name": pattern.name,
-                    "severity": pattern.severity.value,
-                    "matched_text": matched,
-                    "position": start,
-                })
-                if max_sev is None or self.SEVERITY_RANK[pattern.severity] > self.SEVERITY_RANK[max_sev]:
-                    max_sev = pattern.severity
-
-        return DelimiterScanResult(
-            input_text=text,
-            matches=all_matches,
-            max_severity=max_sev,
-            is_suspicious=len(all_matches) > 0,
-        )
-```
-
-## Solution 3: Delimiter Sanitizer
-
-```python
-import html
-import re
-from typing import Callable, Dict
-
-
-class DelimiterSanitizer:
-    """
-    Applies escaping or stripping to remove or neutralize delimiter tokens
-    from user input. Preserves the semantic content of the input while
-    making it structurally inert.
-    """
-
-    def __init__(self, patterns: List[DelimiterPattern]):
-        self._patterns = patterns
-
-    def escape_angle_brackets(self, text: str) -> str:
-        """Replace < and > with HTML entities — neutralizes XML/HTML-style delimiters."""
-        return text.replace("<", "&lt;").replace(">", "&gt;")
-
-    def strip_matched_patterns(self, text: str, scan_result: DelimiterScanResult) -> str:
-        """Remove all matched delimiter tokens from the text."""
-        result = text
-        for pattern in self._patterns:
-            result = pattern.compiled.sub("", result)
-        return result
-
-    def escape_matched_patterns(self, text: str) -> str:
-        """
-        Replace matched structural tokens with visually similar but
-        semantically inert equivalents using Unicode lookalikes.
-        """
-        result = text
-        # Replace < > with fullwidth versions
-        result = result.replace("<|", "\uff1c|")
-        result = result.replace("|>", "|\uff1e")
-        result = result.replace("[INST]", "[\u0399NST]")
-        result = result.replace("[/INST]", "[/\u0399NST]")
-        # Escape remaining angle brackets
-        result = re.sub(r"<(/?)(\w+)(/?)>", r"&lt;\1\2\3&gt;", result)
-        return result
-
-    def sanitize(self, text: str, scan_result: DelimiterScanResult) -> str:
-        if not scan_result.is_suspicious:
-            return text
-        if scan_result.max_severity == DelimiterSeverity.CRITICAL:
-            return self.strip_matched_patterns(text, scan_result)
-        return self.escape_matched_patterns(text)
-```
-
-## Solution 4: Injection-Safe Prompt Interpolator
-
-```python
-from typing import Any, Dict, Optional
-
-
-class InjectionSafePromptInterpolator:
-    """
-    Replaces naive f-string or .format() interpolation with a scanner-
-    and-sanitizer pass for every user-supplied value before it is
-    inserted into the prompt template.
+    Scans user-supplied text for prompt injection patterns using
+    the DELIMITER_INJECTION_PATTERNS library.
     """
 
     def __init__(
         self,
-        scanner: DelimiterScanner,
-        sanitizer: DelimiterSanitizer,
-        block_on_critical: bool = True,
+        patterns: List[InjectionPattern] = None,
+        block_severity_threshold: int = 2,
     ):
-        self._scanner = scanner
-        self._sanitizer = sanitizer
-        self._block = block_on_critical
-        self._blocked_count = 0
-        self._sanitized_count = 0
+        self._patterns = patterns or DELIMITER_INJECTION_PATTERNS
+        self._threshold = block_severity_threshold
 
-    def interpolate(self, template: str, variables: Dict[str, Any]) -> str:
-        safe_vars = {}
-        for key, value in variables.items():
-            if not isinstance(value, str):
-                safe_vars[key] = value
-                continue
-            scan = self._scanner.scan(value)
-            if scan.is_suspicious:
-                if self._block and scan.max_severity == DelimiterSeverity.CRITICAL:
-                    self._blocked_count += 1
-                    raise DelimiterInjectionBlocked(
-                        field=key,
-                        matched=scan.matches,
-                    )
-                safe_vars[key] = self._sanitizer.sanitize(value, scan)
-                self._sanitized_count += 1
-            else:
-                safe_vars[key] = value
-        return template.format(**safe_vars)
+    def scan(self, text: str) -> ScanResult:
+        matches: List[InjectionMatch] = []
+        for pattern_def in self._patterns:
+            for m in pattern_def.pattern.finditer(text):
+                matches.append(InjectionMatch(
+                    category=pattern_def.category,
+                    pattern_description=pattern_def.description,
+                    matched_text=m.group()[:100],
+                    position=m.start(),
+                    severity=pattern_def.severity,
+                ))
 
-    def stats(self) -> dict:
-        return {
-            "blocked_injections": self._blocked_count,
-            "sanitized_inputs": self._sanitized_count,
-        }
+        max_severity = max((m.severity for m in matches), default=0)
+        blocked = max_severity >= self._threshold
 
-
-class DelimiterInjectionBlocked(Exception):
-    def __init__(self, field: str, matched: list):
-        super().__init__(f"delimiter injection blocked in field '{field}': {[m['pattern_name'] for m in matched]}")
-        self.field = field
-        self.matched = matched
+        return ScanResult(
+            input_text=text,
+            matches=matches,
+            max_severity=max_severity,
+            blocked=blocked,
+        )
 ```
 
-## Solution 5: Injection Attempt Auditor
+## Solution 3: Content Escaper
+
+```python
+import re
+
+
+class PromptContentEscaper:
+    """
+    Escapes structural signals in user content so they are treated
+    as literal text rather than prompt directives when interpolated.
+    Applies when content is flagged as suspicious but not blocked.
+    """
+
+    # Tags to neutralize by inserting zero-width space
+    _XML_TAG_RE = re.compile(r"<(/?)(\w+)([^>]*)>")
+    _TURN_MARKER_RE = re.compile(
+        r"^(Human|User|Assistant|System|AI)\s*:", re.IGNORECASE | re.MULTILINE
+    )
+    _DELIMITER_TOKEN_RE = re.compile(
+        r"(<\|im_start\|>|<\|im_end\|>|\[INST\]|\[/INST\]|<s>|</s>|<<SYS>>|<</SYS>>)",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def escape(cls, text: str) -> str:
+        # Neutralize model delimiter tokens
+        text = cls._DELIMITER_TOKEN_RE.sub(
+            lambda m: m.group().replace("<", "\u200b<").replace("[", "\u200b["),
+            text,
+        )
+        # Neutralize XML structural tags
+        text = cls._XML_TAG_RE.sub(
+            lambda m: f"<{m.group(1)}{m.group(2)}\u200b{m.group(3)}>",
+            text,
+        )
+        # Neutralize fake turn markers
+        text = cls._TURN_MARKER_RE.sub(
+            lambda m: m.group().replace(":", "\u200b:"),
+            text,
+        )
+        return text
+```
+
+## Solution 4: Injection-Resistant Input Processor
+
+```python
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
+
+
+class InputDisposition(str, Enum):
+    ALLOW = "allow"
+    ESCAPE_AND_ALLOW = "escape_and_allow"
+    BLOCK = "block"
+
+
+@dataclass
+class ProcessedInput:
+    original: str
+    processed: str
+    disposition: InputDisposition
+    scan_result: ScanResult
+    block_reason: str = ""
+
+
+class InjectionResistantInputProcessor:
+    """
+    Combines scanning and escaping into a single processing step.
+    High-severity matches are blocked; medium-severity matches are
+    escaped; clean inputs pass through unchanged.
+    """
+
+    def __init__(
+        self,
+        scanner: DelimiterConfusionScanner,
+        escaper: PromptContentEscaper,
+        block_threshold: int = 3,
+        escape_threshold: int = 2,
+    ):
+        self._scanner = scanner
+        self._escaper = escaper
+        self._block_threshold = block_threshold
+        self._escape_threshold = escape_threshold
+
+    def process(self, text: str) -> ProcessedInput:
+        result = self._scanner.scan(text)
+
+        if result.max_severity >= self._block_threshold:
+            return ProcessedInput(
+                original=text,
+                processed="",
+                disposition=InputDisposition.BLOCK,
+                scan_result=result,
+                block_reason=f"Severity {result.max_severity} injection pattern detected: "
+                             + ", ".join(m.pattern_description for m in result.matches[:3]),
+            )
+
+        if result.max_severity >= self._escape_threshold:
+            escaped = self._escaper.escape(text)
+            return ProcessedInput(
+                original=text,
+                processed=escaped,
+                disposition=InputDisposition.ESCAPE_AND_ALLOW,
+                scan_result=result,
+            )
+
+        return ProcessedInput(
+            original=text,
+            processed=text,
+            disposition=InputDisposition.ALLOW,
+            scan_result=result,
+        )
+```
+
+## Solution 5: Injection Attempt Audit Logger
 
 ```python
 import time
-from typing import List
+from collections import deque
+from threading import Lock
+from typing import Deque, List
 
 
-class InjectionAttemptAuditor:
+class InjectionAttemptAuditLogger:
     """
-    Records detected delimiter injection attempts for security analysis.
+    Records blocked and escaped injection attempts for security
+    review. Surfaces repeat offenders and pattern frequencies.
     """
 
     def __init__(self, max_records: int = 5000):
         self._max = max_records
-        self._records: List[dict] = []
+        self._records: Deque[dict] = deque()
+        self._lock = Lock()
 
-    def record(self, field: str, scan_result: DelimiterScanResult, session_id: str = "") -> None:
-        if not scan_result.is_suspicious:
+    def record(self, processed: ProcessedInput, session_id: str = "") -> None:
+        if processed.disposition == InputDisposition.ALLOW:
             return
-        if len(self._records) >= self._max:
-            self._records.pop(0)
-        self._records.append({
-            "ts": time.time(),
-            "session_id": session_id,
-            "field": field,
-            "max_severity": scan_result.max_severity.value if scan_result.max_severity else None,
-            "pattern_names": [m["pattern_name"] for m in scan_result.matches],
-            "input_preview": scan_result.input_text[:100],
-        })
+        with self._lock:
+            self._records.append({
+                "ts": time.time(),
+                "session_id": session_id,
+                "disposition": processed.disposition.value,
+                "max_severity": processed.scan_result.max_severity,
+                "categories": list({m.category.value for m in processed.scan_result.matches}),
+                "block_reason": processed.block_reason,
+                "input_prefix": processed.original[:80],
+            })
+            if len(self._records) > self._max:
+                self._records.popleft()
 
     def summary(self, window_seconds: float = 3600.0) -> dict:
         cutoff = time.time() - window_seconds
-        recent = [r for r in self._records if r["ts"] >= cutoff]
-        from collections import Counter
-        pattern_freq = Counter(
-            p for r in recent for p in r["pattern_names"]
-        )
+        with self._lock:
+            recent = [r for r in self._records if r["ts"] >= cutoff]
+        category_counts: dict = {}
+        for r in recent:
+            for cat in r["categories"]:
+                category_counts[cat] = category_counts.get(cat, 0) + 1
         return {
             "window_seconds": window_seconds,
-            "attempts": len(recent),
-            "unique_sessions": len({r["session_id"] for r in recent}),
-            "top_patterns": pattern_freq.most_common(5),
+            "total_flagged": len(recent),
+            "blocked": sum(1 for r in recent if r["disposition"] == "block"),
+            "escaped": sum(1 for r in recent if r["disposition"] == "escape_and_allow"),
+            "by_category": category_counts,
         }
 ```
 
-## Solution 6: Delimiter Injection Security Dashboard
+## Solution 6: Injection Detection Dashboard
 
 ```python
 import time
 
 
-class DelimiterInjectionDashboard:
+class DelimiterInjectionDetectionDashboard:
     """
-    Combines scanner configuration, interpolator stats, and audit summary.
+    Combines audit summary and live disposition stats into a
+    single operational security report.
     """
 
     def __init__(
         self,
-        interpolator: InjectionSafePromptInterpolator,
-        auditor: InjectionAttemptAuditor,
+        processor: InjectionResistantInputProcessor,
+        logger: InjectionAttemptAuditLogger,
     ):
-        self._interpolator = interpolator
-        self._auditor = auditor
+        self._processor = processor
+        self._logger = logger
+        self._processed_total = 0
+        self._blocked_total = 0
+        self._escaped_total = 0
 
-    def render(self, window_seconds: float = 3600.0) -> dict:
+    def record_disposition(self, processed: ProcessedInput) -> None:
+        self._processed_total += 1
+        if processed.disposition == InputDisposition.BLOCK:
+            self._blocked_total += 1
+        elif processed.disposition == InputDisposition.ESCAPE_AND_ALLOW:
+            self._escaped_total += 1
+
+    def render(self) -> dict:
         return {
             "generated_at": time.time(),
-            "interpolator_stats": self._interpolator.stats(),
-            "injection_attempts": self._auditor.summary(window_seconds),
+            "lifetime": {
+                "total_processed": self._processed_total,
+                "blocked": self._blocked_total,
+                "escaped": self._escaped_total,
+                "block_rate": round(self._blocked_total / max(self._processed_total, 1), 4),
+            },
+            "last_hour": self._logger.summary(window_seconds=3600.0),
         }
 ```
 
 ## Comparison
 
-| Approach | Pattern Registry | Scanning | Sanitization | Safe Interpolation | Audit |
+| Approach | Pattern Scanning | Structural Escaping | Block/Allow/Escape | Audit Logging | Dashboard |
 |---|---|---|---|---|---|
-| DelimiterPattern registry | Yes (11 patterns) | No | No | No | No |
-| DelimiterScanner | Via registry | Yes | No | No | No |
-| DelimiterSanitizer | Via patterns | No | Yes (strip/escape) | No | No |
-| InjectionSafePromptInterpolator | Via scanner | Via scanner | Via sanitizer | Yes | No |
-| InjectionAttemptAuditor | No | No | No | No | Yes |
-| DelimiterInjectionDashboard | No | No | No | No | Yes |
+| DelimiterConfusionScanner | Yes (regex library) | No | No | No | No |
+| PromptContentEscaper | No | Yes (zero-width space) | No | No | No |
+| InjectionResistantInputProcessor | Via scanner | Via escaper | Yes (3-tier) | No | No |
+| InjectionAttemptAuditLogger | No | No | No | Yes | No |
+| DelimiterInjectionDetectionDashboard | No | No | No | No | Yes |
 
-**Best for production**: Replace every `f"...{user_input}..."` or `template.format(user_input=user_input)` with `InjectionSafePromptInterpolator.interpolate()` — make this a lint rule enforced in CI. Set `block_on_critical=True` for any user input that will be placed in the system prompt or between role delimiters; use sanitize-and-continue for content that goes into user-turn messages where the risk is lower. Extend `build_default_delimiter_registry()` with any custom delimiters your prompt format uses — if you use `---TOOL_RESULT---` as a section separator, add a pattern for it. Monitor `InjectionAttemptAuditor.summary()` for spikes in `unique_sessions` — coordinated injection probing from multiple sessions indicates an active adversarial campaign.
+**Best for production**: Apply `InjectionResistantInputProcessor` to every user-supplied string before it is interpolated into any prompt — including tool arguments, conversation history entries, and retrieved document content. Use `InputDisposition.ESCAPE_AND_ALLOW` for medium-severity matches rather than blanket blocking, since legitimate technical content may contain XML tags or turn-like formatting. Set `block_threshold=3` so only high-confidence attacks are rejected outright. Monitor `by_category` in audit summaries: a spike in `delimiter_token` attempts indicates automated scanning for model-specific vulnerabilities and warrants IP-level rate limiting upstream.
