@@ -1,303 +1,343 @@
 ---
 title: "Agent Doesn't Implement Tool Result Compression Before Context Injection"
-description: "Agents that inject raw tool results verbatim into the LLM context include structural overhead that consumes tokens without adding information: JSON keys repeated for every record, HTML tags surrounding article text, XML namespaces prefixing every element, and CSV headers repeated in multi-page results. Implement tool result compression that strips structural overhead, extracts the information-dense content, and encodes it in a compact format before context injection — reducing token consumption without losing the data the model needs."
+description: "Agents that inject raw tool results into the LLM context waste tokens on verbose formatting, redundant headers, and deeply nested JSON that the model could have processed from a compact representation. Implement tool result compression that strips irrelevant fields, flattens nested structures, truncates oversized arrays, and summarizes boilerplate sections — reducing context consumption without losing the information the agent needs to act."
 date: 2026-04-16
 difficulty: intermediate
 category: performance
 slug: agent-doesnt-implement-tool-result-compression-before-context-injection
-tags: [result-compression, structural-overhead, json-compaction, html-stripping, token-reduction, context-packing]
+tags: [context-compression, tool-result, token-efficiency, json-trimming, context-injection, llm-context]
 symptoms:
-  - "JSON tool results inject key names for every record when only values are needed"
-  - "Web scraper results include full HTML markup around the target content"
-  - "CSV data includes repeated headers across paginated results"
-  - "XML responses with deeply nested namespace prefixes consume 40% overhead tokens"
-  - "No distinction between structural tokens (keys, tags) and content tokens (values)"
+  - "Tool results consume 80% of the context window with verbose JSON the model rarely references"
+  - "Deeply nested API responses injected verbatim — most fields are never mentioned in the model's output"
+  - "Large arrays of records injected in full when only the first few are relevant"
+  - "HTTP response headers and metadata fields included in context alongside the payload"
+  - "No per-tool configuration for which fields to keep or drop before injection"
 ---
 
 ## Why This Happens
 
-Tools return data in formats designed for machine consumption, not LLM context efficiency. A JSON array of 50 objects with 8 fields each repeats all 8 field names 50 times. HTML wraps article text in dozens of structural tags. CSV paginated results include header rows on every page. These structural tokens — keys, tags, separators — are necessary for programmatic parsing but redundant when the LLM only needs the content values. Compression strips the structure and encodes the content in a more compact representation: a JSON array becomes a key-prefixed table, HTML becomes stripped plain text, CSV becomes a compact column-aligned block. The model receives the same information in fewer tokens.
+HTTP APIs return JSON designed for application consumption, not LLM context windows. A typical REST response includes pagination metadata, hypermedia links, audit timestamps, internal IDs, and deeply nested sub-objects — none of which the agent needs to reason about the task. Without a compression step, the raw result goes directly into the prompt, consuming tokens that could hold more tool calls, conversation history, or retrieved documents. Compression requires per-tool schema awareness: knowing which fields are load-bearing for the agent's decision and which are safe to strip or summarize.
 
-## Solution 1: Compression Policy
+## Solution 1: Field Projection Filter
 
 ```python
-from dataclasses import dataclass
-from enum import Enum
-from typing import Optional
-
-
-class CompressionFormat(str, Enum):
-    JSON_TABLE = "json_table"        # JSON array -> compact key:value table
-    HTML_STRIP = "html_strip"        # HTML -> plain text
-    XML_EXTRACT = "xml_extract"      # XML -> extracted values
-    CSV_COMPACT = "csv_compact"      # CSV -> no repeated headers
-    MARKDOWN_STRIP = "markdown_strip"  # Markdown -> plain text
-    PASSTHROUGH = "passthrough"       # no compression
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set
 
 
 @dataclass
-class CompressionPolicy:
-    format: CompressionFormat
-    max_items: Optional[int] = None     # for list formats: max records to include
-    key_allowlist: Optional[list] = None  # for JSON: only include these keys
-    preserve_structure: bool = False     # keep minimal structure (e.g., indented vs flat)
-    tokens_per_char: float = 0.25
+class FieldProjectionConfig:
+    keep_fields: Optional[Set[str]] = None     # if set, whitelist — drop all others
+    drop_fields: Set[str] = field(default_factory=set)  # explicit blacklist
+    max_string_length: int = 500               # truncate long string values
+    max_array_items: int = 20                  # truncate long arrays
+    drop_null_fields: bool = True
+    drop_empty_collections: bool = True
+
+
+class FieldProjectionFilter:
+    """
+    Applies keep/drop field rules to a dict, truncates strings and arrays,
+    and removes null/empty values — reducing JSON size before context injection.
+    """
+
+    def __init__(self, config: FieldProjectionConfig):
+        self._cfg = config
+
+    def apply(self, obj: Any, depth: int = 0) -> Any:
+        if isinstance(obj, dict):
+            return self._filter_dict(obj, depth)
+        if isinstance(obj, list):
+            trimmed = obj[: self._cfg.max_array_items]
+            result = [self.apply(item, depth) for item in trimmed]
+            if self._cfg.drop_empty_collections and not result:
+                return None
+            return result
+        if isinstance(obj, str) and len(obj) > self._cfg.max_string_length:
+            return obj[: self._cfg.max_string_length] + "…[truncated]"
+        return obj
+
+    def _filter_dict(self, obj: dict, depth: int) -> dict:
+        result = {}
+        for key, value in obj.items():
+            if key in self._cfg.drop_fields:
+                continue
+            if self._cfg.keep_fields is not None and key not in self._cfg.keep_fields:
+                continue
+            processed = self.apply(value, depth + 1)
+            if self._cfg.drop_null_fields and processed is None:
+                continue
+            if self._cfg.drop_empty_collections and processed in ([], {}):
+                continue
+            result[key] = processed
+        return result
 ```
 
-## Solution 2: JSON Table Compressor
+## Solution 2: JSON Structure Flattener
+
+```python
+from typing import Any, Dict, Optional
+
+
+class JSONStructureFlattener:
+    """
+    Flattens nested JSON objects into dot-notation keys up to a configurable depth.
+    Reduces nesting overhead and makes values directly readable without traversal.
+    Example: {"user": {"id": 1, "name": "Alice"}} -> {"user.id": 1, "user.name": "Alice"}
+    """
+
+    def __init__(self, max_depth: int = 3, separator: str = "."):
+        self._max_depth = max_depth
+        self._sep = separator
+
+    def flatten(self, obj: Any, prefix: str = "", depth: int = 0) -> Dict[str, Any]:
+        if not isinstance(obj, dict) or depth >= self._max_depth:
+            return {prefix: obj} if prefix else {"value": obj}
+
+        result: Dict[str, Any] = {}
+        for key, value in obj.items():
+            full_key = f"{prefix}{self._sep}{key}" if prefix else key
+            if isinstance(value, dict) and depth + 1 < self._max_depth:
+                result.update(self.flatten(value, full_key, depth + 1))
+            elif isinstance(value, list):
+                result[full_key] = value   # keep lists as-is
+            else:
+                result[full_key] = value
+        return result
+```
+
+## Solution 3: Boilerplate Section Summarizer
 
 ```python
 import json
 from typing import Any, Dict, List, Optional
 
 
-class JSONTableCompressor:
+_BOILERPLATE_KEYS = frozenset({
+    "links", "_links", "href", "self", "next", "prev", "first", "last",
+    "pagination", "paging", "meta", "_meta", "x-request-id", "x-trace-id",
+    "request_id", "trace_id", "deprecation", "sunset", "etag", "cache_control",
+    "rate_limit_remaining", "rate_limit_reset", "x-ratelimit-limit",
+})
+
+
+class BoilerplateSectionSummarizer:
     """
-    Compresses a JSON array of objects into a compact table format.
-    Instead of repeating key names per record, emits a header row
-    followed by value-only rows.
+    Detects and collapses known boilerplate sections (pagination, hypermedia links,
+    rate limit headers, tracing IDs) into a single summary token rather than
+    expanding them verbatim into the context.
     """
 
-    def compress(
+    def __init__(self, extra_boilerplate_keys: Optional[List[str]] = None):
+        self._boilerplate = _BOILERPLATE_KEYS | set(extra_boilerplate_keys or [])
+
+    def compress(self, obj: Dict[str, Any]) -> Dict[str, Any]:
+        result = {}
+        collapsed_count = 0
+        for key, value in obj.items():
+            if key.lower() in self._boilerplate:
+                collapsed_count += 1
+            else:
+                result[key] = value
+        if collapsed_count:
+            result["_compressed"] = f"[{collapsed_count} boilerplate field(s) removed]"
+        return result
+```
+
+## Solution 4: Per-Tool Compression Profile
+
+```python
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
+
+
+@dataclass
+class ToolCompressionProfile:
+    tool_name: str
+    keep_fields: Optional[set] = None
+    drop_fields: set = field(default_factory=set)
+    max_array_items: int = 20
+    max_string_length: int = 500
+    flatten_depth: int = 0              # 0 = no flattening
+    strip_boilerplate: bool = True
+    enabled: bool = True
+
+
+class PerToolCompressionProfileRegistry:
+    """
+    Stores per-tool compression profiles and returns the appropriate
+    profile for a given tool name, falling back to a default profile.
+    """
+
+    def __init__(self, default_profile: Optional[ToolCompressionProfile] = None):
+        self._profiles: Dict[str, ToolCompressionProfile] = {}
+        self._default = default_profile or ToolCompressionProfile(
+            tool_name="__default__",
+            max_array_items=20,
+            max_string_length=500,
+            strip_boilerplate=True,
+        )
+
+    def register(self, profile: ToolCompressionProfile) -> None:
+        self._profiles[profile.tool_name] = profile
+
+    def get(self, tool_name: str) -> ToolCompressionProfile:
+        return self._profiles.get(tool_name, self._default)
+```
+
+## Solution 5: Tool Result Compression Pipeline
+
+```python
+import json
+from typing import Any, Optional
+
+
+class ToolResultCompressionPipeline:
+    """
+    Applies field projection, boilerplate removal, and optional flattening
+    to a raw tool result before it is serialized into LLM context.
+    Reports original vs compressed token estimates.
+    """
+
+    def __init__(
         self,
-        data: Any,
-        policy: CompressionPolicy,
-    ) -> str:
-        if isinstance(data, str):
+        profile_registry: PerToolCompressionProfileRegistry,
+        tokens_per_char: float = 0.25,
+    ):
+        self._registry = profile_registry
+        self._tpc = tokens_per_char
+
+    def _to_dict(self, result: Any) -> Any:
+        if isinstance(result, str):
             try:
-                data = json.loads(data)
-            except json.JSONDecodeError:
-                return data
+                return json.loads(result)
+            except (json.JSONDecodeError, ValueError):
+                return result
+        return result
 
-        if isinstance(data, dict):
-            data = [data]
+    def compress(self, tool_name: str, raw_result: Any) -> dict:
+        profile = self._registry.get(tool_name)
+        if not profile.enabled:
+            serialized = json.dumps(raw_result, default=str)
+            tokens = int(len(serialized) * self._tpc)
+            return {
+                "compressed_result": raw_result,
+                "original_tokens_est": tokens,
+                "compressed_tokens_est": tokens,
+                "tokens_saved_est": 0,
+            }
 
-        if not isinstance(data, list) or not data:
-            return json.dumps(data, ensure_ascii=False)
+        obj = self._to_dict(raw_result)
+        original_serialized = json.dumps(obj, default=str)
+        original_tokens = int(len(original_serialized) * self._tpc)
 
-        # Limit records
-        records = data[:policy.max_items] if policy.max_items else data
-        if not isinstance(records[0], dict):
-            return "\n".join(str(r) for r in records)
+        # Stage 1: boilerplate
+        if profile.strip_boilerplate and isinstance(obj, dict):
+            summarizer = BoilerplateSectionSummarizer()
+            obj = summarizer.compress(obj)
 
-        # Determine columns
-        all_keys = list(records[0].keys())
-        if policy.key_allowlist:
-            keys = [k for k in all_keys if k in policy.key_allowlist]
-        else:
-            keys = all_keys
+        # Stage 2: field projection
+        proj_config = FieldProjectionConfig(
+            keep_fields=profile.keep_fields,
+            drop_fields=profile.drop_fields,
+            max_string_length=profile.max_string_length,
+            max_array_items=profile.max_array_items,
+        )
+        obj = FieldProjectionFilter(proj_config).apply(obj)
 
-        lines = [" | ".join(keys)]
-        lines.append("-" * len(lines[0]))
-        for record in records:
-            row = " | ".join(str(record.get(k, "")) for k in keys)
-            lines.append(row)
+        # Stage 3: flattening
+        if profile.flatten_depth > 0 and isinstance(obj, dict):
+            obj = JSONStructureFlattener(max_depth=profile.flatten_depth).flatten(obj)
 
-        if len(data) > len(records):
-            lines.append(f"[{len(data) - len(records)} more records omitted]")
-
-        return "\n".join(lines)
-```
-
-## Solution 3: HTML Strip Compressor
-
-```python
-import re
-from typing import Optional
-
-
-class HTMLStripCompressor:
-    """
-    Strips HTML markup and extracts readable text content.
-    Removes scripts, styles, navigation, and structural tags.
-    Collapses whitespace and preserves paragraph breaks.
-    """
-
-    REMOVE_TAGS = re.compile(
-        r"<(script|style|nav|header|footer|aside|noscript)[^>]*>.*?</\1>",
-        re.DOTALL | re.IGNORECASE,
-    )
-    TAG_PATTERN = re.compile(r"<[^>]+>")
-    WHITESPACE = re.compile(r"[ \t]{2,}")
-    NEWLINES = re.compile(r"\n{3,}")
-    HTML_ENTITIES = {
-        "&amp;": "&", "&lt;": "<", "&gt;": ">",
-        "&quot;": '"', "&nbsp;": " ", "&#39;": "'",
-    }
-
-    def compress(self, html: str, policy: CompressionPolicy) -> str:
-        # Remove structural noise sections
-        text = self.REMOVE_TAGS.sub("", html)
-        # Replace block elements with newlines before stripping
-        text = re.sub(r"</(p|div|li|h[1-6]|br|tr)>", "\n", text, flags=re.IGNORECASE)
-        # Strip remaining tags
-        text = self.TAG_PATTERN.sub("", text)
-        # Decode HTML entities
-        for entity, char in self.HTML_ENTITIES.items():
-            text = text.replace(entity, char)
-        # Normalize whitespace
-        text = self.WHITESPACE.sub(" ", text)
-        text = self.NEWLINES.sub("\n\n", text)
-        text = text.strip()
-
-        if policy.max_items:
-            # Treat max_items as max lines for HTML
-            lines = text.split("\n")
-            if len(lines) > policy.max_items:
-                text = "\n".join(lines[:policy.max_items])
-                text += f"\n[{len(lines) - policy.max_items} lines omitted]"
-
-        return text
-```
-
-## Solution 4: CSV Compact Compressor
-
-```python
-import csv
-import io
-from typing import Optional
-
-
-class CSVCompactCompressor:
-    """
-    Compresses CSV data by deduplicating headers across paginated results
-    and applying column filtering.
-    """
-
-    def compress(self, csv_text: str, policy: CompressionPolicy) -> str:
-        reader = csv.DictReader(io.StringIO(csv_text))
-        rows = list(reader)
-
-        if not rows:
-            return csv_text
-
-        keys = policy.key_allowlist or list(rows[0].keys())
-        if policy.max_items:
-            rows = rows[:policy.max_items]
-
-        lines = [" | ".join(keys)]
-        lines.append("-" * len(lines[0]))
-        for row in rows:
-            lines.append(" | ".join(str(row.get(k, "")) for k in keys))
-
-        return "\n".join(lines)
-```
-
-## Solution 5: Tool Result Compressor Registry
-
-```python
-from typing import Any, Dict
-
-
-class ToolResultCompressorRegistry:
-    """
-    Maps tool names to compression policies and dispatches
-    compression to the appropriate compressor.
-    """
-
-    def __init__(self):
-        self._policies: Dict[str, CompressionPolicy] = {}
-        self._json_compressor = JSONTableCompressor()
-        self._html_compressor = HTMLStripCompressor()
-        self._csv_compressor = CSVCompactCompressor()
-        self._default_policy = CompressionPolicy(format=CompressionFormat.PASSTHROUGH)
-
-    def register(self, tool_name: str, policy: CompressionPolicy) -> None:
-        self._policies[tool_name] = policy
-
-    def compress(self, tool_name: str, result: Any) -> dict:
-        policy = self._policies.get(tool_name, self._default_policy)
-        original = str(result) if not isinstance(result, str) else result
-        original_chars = len(original)
-
-        if policy.format == CompressionFormat.JSON_TABLE:
-            compressed = self._json_compressor.compress(result, policy)
-        elif policy.format == CompressionFormat.HTML_STRIP:
-            compressed = self._html_compressor.compress(original, policy)
-        elif policy.format == CompressionFormat.CSV_COMPACT:
-            compressed = self._csv_compressor.compress(original, policy)
-        else:
-            compressed = original
-
-        compressed_chars = len(compressed)
-        tokens_saved = int((original_chars - compressed_chars) * policy.tokens_per_char)
+        compressed_serialized = json.dumps(obj, default=str)
+        compressed_tokens = int(len(compressed_serialized) * self._tpc)
 
         return {
-            "compressed": compressed,
-            "original_chars": original_chars,
-            "compressed_chars": compressed_chars,
-            "chars_saved": original_chars - compressed_chars,
-            "tokens_saved_est": tokens_saved,
-            "format_applied": policy.format.value,
+            "compressed_result": obj,
+            "original_tokens_est": original_tokens,
+            "compressed_tokens_est": compressed_tokens,
+            "tokens_saved_est": max(0, original_tokens - compressed_tokens),
+            "compression_ratio": round(
+                compressed_tokens / max(original_tokens, 1), 3
+            ),
         }
 ```
 
-## Solution 6: Compression Savings Monitor
+## Solution 6: Compression Savings Tracker
 
 ```python
 import time
-from threading import Lock
 from typing import List
 
 
-class CompressionSavingsMonitor:
+class CompressionSavingsTracker:
     """
-    Tracks token savings from compression across all tool calls.
-    Surfaces which tools benefit most from compression.
+    Accumulates per-tool compression results and reports aggregate savings
+    and per-tool efficiency for optimization decisions.
     """
 
     def __init__(self):
-        self._events: List[dict] = []
-        self._lock = Lock()
+        self._records: List[dict] = []
+        self._recorded_at: List[float] = []
 
-    def record(self, tool_name: str, result: dict) -> None:
-        with self._lock:
-            self._events.append({
-                "tool_name": tool_name,
-                "tokens_saved": result.get("tokens_saved_est", 0),
-                "chars_saved": result.get("chars_saved", 0),
-                "format": result.get("format_applied", "passthrough"),
-                "ts": time.time(),
-            })
-            if len(self._events) > 50000:
-                self._events.pop(0)
+    def record(self, tool_name: str, pipeline_result: dict) -> None:
+        self._records.append({
+            "tool_name": tool_name,
+            "original": pipeline_result.get("original_tokens_est", 0),
+            "compressed": pipeline_result.get("compressed_tokens_est", 0),
+            "saved": pipeline_result.get("tokens_saved_est", 0),
+        })
+        self._recorded_at.append(time.time())
 
     def summary(self, window_seconds: float = 3600.0) -> dict:
         cutoff = time.time() - window_seconds
-        with self._lock:
-            recent = [e for e in self._events if e["ts"] >= cutoff]
-
+        recent = [
+            r for r, ts in zip(self._records, self._recorded_at) if ts >= cutoff
+        ]
         if not recent:
-            return {"window_seconds": window_seconds, "compressions": 0}
+            return {"window_seconds": window_seconds, "calls": 0}
 
-        from collections import defaultdict
-        by_tool: dict = defaultdict(lambda: {"count": 0, "saved": 0})
-        for e in recent:
-            by_tool[e["tool_name"]]["count"] += 1
-            by_tool[e["tool_name"]]["saved"] += e["tokens_saved"]
+        by_tool: dict = {}
+        for r in recent:
+            t = r["tool_name"]
+            if t not in by_tool:
+                by_tool[t] = {"calls": 0, "total_saved": 0, "total_original": 0}
+            by_tool[t]["calls"] += 1
+            by_tool[t]["total_saved"] += r["saved"]
+            by_tool[t]["total_original"] += r["original"]
 
-        total_saved = sum(e["tokens_saved"] for e in recent)
+        total_saved = sum(r["saved"] for r in recent)
+        total_original = sum(r["original"] for r in recent)
 
         return {
             "window_seconds": window_seconds,
-            "compressions": len(recent),
-            "total_tokens_saved": total_saved,
-            "by_tool": dict(sorted(
-                by_tool.items(),
-                key=lambda kv: kv[1]["saved"],
-                reverse=True,
-            )[:10]),
+            "calls": len(recent),
+            "total_tokens_saved_est": total_saved,
+            "savings_pct": round(total_saved / max(total_original, 1) * 100, 1),
+            "per_tool": {
+                t: {
+                    "calls": v["calls"],
+                    "total_saved": v["total_saved"],
+                    "savings_pct": round(
+                        v["total_saved"] / max(v["total_original"], 1) * 100, 1
+                    ),
+                }
+                for t, v in sorted(
+                    by_tool.items(), key=lambda x: x[1]["total_saved"], reverse=True
+                )
+            },
         }
 ```
 
 ## Comparison
 
-| Approach | JSON Compaction | HTML Stripping | CSV Dedup | Per-Tool Policy | Savings Tracking |
+| Approach | Field Whitelist/Blacklist | Boilerplate Removal | Array Truncation | Flattening | Savings Tracking |
 |---|---|---|---|---|---|
-| JSONTableCompressor | Yes (table format) | No | No | Via policy | No |
-| HTMLStripCompressor | No | Yes (tag removal) | No | Via policy | No |
-| CSVCompactCompressor | No | No | Yes | Via policy | No |
-| ToolResultCompressorRegistry | Via compressors | Via compressors | Via compressors | Yes | No |
-| CompressionSavingsMonitor | No | No | No | No | Yes |
+| FieldProjectionFilter | Yes (keep + drop) | No | Yes | No | No |
+| JSONStructureFlattener | No | No | No | Yes | No |
+| BoilerplateSectionSummarizer | No | Yes (key-based) | No | No | No |
+| PerToolCompressionProfileRegistry | Via profile | Via profile | Via profile | Via profile | No |
+| ToolResultCompressionPipeline | Via profile | Via summarizer | Via filter | Via flattener | Inline |
+| CompressionSavingsTracker | No | No | No | No | Yes (aggregate) |
 
-**Best for production**: Apply `CompressionFormat.JSON_TABLE` with `key_allowlist` for database query results — specifying only the columns the model actually needs eliminates both structural overhead and irrelevant fields in a single pass. Use `CompressionFormat.HTML_STRIP` for all web scraping tools by default, since HTML markup is never useful to the model and typically represents 30–60% of raw response size. Monitor `total_tokens_saved` in `CompressionSavingsMonitor`: consistently high values confirm that compression is working, while a drop after a tool update signals that the tool changed its output format and the compression policy needs to be updated.
+**Best for production**: Register per-tool profiles for the highest-volume tools first — a search tool returning 50 result objects with nested metadata is typically the biggest offender. Set `keep_fields` rather than `drop_fields` for external API tools where the schema can change: a whitelist approach means new fields are dropped by default rather than accidentally injected. Use `flatten_depth=2` for API responses that nest identifiers under `{"data": {"id": ..., "attributes": {...}}}` patterns — flattening eliminates one level of visual noise without losing values. Monitor `CompressionSavingsTracker.summary()`: tools with savings below 10% can have compression disabled without impact, while tools above 50% savings are worth investing in tighter `keep_fields` lists.
