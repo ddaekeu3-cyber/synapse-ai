@@ -1,318 +1,283 @@
 ---
 title: "Agent Doesn't Implement Tool Dependency Latency Attribution"
-description: "Agents that report only total session latency cannot answer 'which tool is making us slow?' or 'is the database slower than the search API?'. Implement tool dependency latency attribution that measures and accumulates wall-clock time per dependency, computes the fraction of total latency each dependency accounts for, and identifies which dependencies are on the critical path versus running in parallel."
+description: "Agents that measure total request latency but not per-dependency latency cannot answer why a request was slow: the total latency of 2 seconds could be 1.8 seconds of database query plus 0.2 seconds of agent processing, or 1.8 seconds of LLM inference plus 0.2 seconds of retrieval. Implement tool dependency latency attribution that records how much time each downstream dependency contributed to the total request latency, enabling targeted optimization of the slowest components."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-tool-dependency-latency-attribution
-tags: [latency-attribution, tool-latency, dependency-profiling, critical-path, performance-analysis, tracing]
+tags: [latency-attribution, dependency-profiling, waterfall-analysis, bottleneck-detection, distributed-tracing, tool-latency]
 symptoms:
-  - "Total session latency is high but no breakdown shows which tool is responsible"
-  - "Cannot tell whether slow sessions are caused by a specific external API or the LLM itself"
-  - "Parallel tool calls are not distinguished from sequential ones in latency reports"
-  - "SLO violation investigation starts from scratch because per-dependency timing is not recorded"
-  - "No critical path analysis — optimizing non-bottleneck tools wastes effort"
+  - "Total request latency is measured but which dependency caused slowness is unknown"
+  - "P99 latency spikes cannot be attributed to a specific tool or service"
+  - "All tools are optimized equally when one tool dominates 80% of total latency"
+  - "No waterfall view exists showing which tool calls overlapped vs were sequential"
+  - "Dependency latency data is scattered across individual tool logs with no aggregation"
 ---
 
 ## Why This Happens
 
-Most agents record total request time but not per-tool time. When multiple tools are called, their individual durations are never aggregated. Without attribution, every latency investigation requires manually reviewing logs and computing durations from timestamps. Attribution requires instrumenting each tool call with a start time, end time, and dependency label, then computing the critical path (the longest sequential chain of dependencies) to identify the bottleneck.
+Total latency is easy to measure: record a timestamp before the request and another after. Attribution is harder: it requires recording timestamps for each tool call within the request, computing how much time was spent in each dependency, and aggregating this across requests to find the slow path. Without attribution, optimization is guesswork — teams spend time optimizing the wrong component. Latency attribution produces a breakdown of total request time into dependency-attributed slices, identifying which dependency is the critical path and by how much.
 
-## Solution 1: Tool Call Timing Record
-
-```python
-import time
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
-
-
-class ExecutionMode(str, Enum):
-    SEQUENTIAL = "sequential"
-    PARALLEL = "parallel"
-    UNKNOWN = "unknown"
-
-
-@dataclass
-class ToolCallTimingRecord:
-    call_id: str
-    tool_name: str
-    dependency_type: str        # "llm" | "database" | "search" | "http" | "cache" | custom
-    started_at: float
-    ended_at: Optional[float] = None
-    duration_ms: Optional[float] = None
-    parent_call_id: Optional[str] = None
-    parallel_group: Optional[str] = None   # calls in same group ran concurrently
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    def finish(self, error: Optional[str] = None) -> None:
-        self.ended_at = time.time()
-        self.duration_ms = (self.ended_at - self.started_at) * 1000
-        self.error = error
-
-    @property
-    def is_complete(self) -> bool:
-        return self.ended_at is not None
-
-    @property
-    def had_error(self) -> bool:
-        return self.error is not None
-```
-
-## Solution 2: Session Latency Profiler
+## Solution 1: Dependency Span
 
 ```python
 import time
 import uuid
-from collections import defaultdict
-from contextlib import contextmanager
-from typing import Dict, Generator, List, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
-class SessionLatencyProfiler:
-    """
-    Instruments tool calls within a session with microsecond-resolution timing.
-    Tracks call hierarchy (parent/child) and parallel groups.
-    """
+@dataclass
+class DependencySpan:
+    span_id: str
+    dependency_name: str
+    operation: str
+    started_at: float
+    ended_at: Optional[float] = None
+    latency_ms: Optional[float] = None
+    is_error: bool = False
+    is_cached: bool = False
+    parent_span_id: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def __init__(self, session_id: str):
-        self.session_id = session_id
-        self.session_started_at = time.time()
-        self._records: List[ToolCallTimingRecord] = []
-        self._active_parallel_group: Optional[str] = None
-
-    @contextmanager
-    def measure(
-        self,
-        tool_name: str,
-        dependency_type: str = "unknown",
-        parent_call_id: Optional[str] = None,
-    ) -> Generator[ToolCallTimingRecord, None, None]:
-        call_id = str(uuid.uuid4())[:8]
-        record = ToolCallTimingRecord(
-            call_id=call_id,
-            tool_name=tool_name,
-            dependency_type=dependency_type,
+    @classmethod
+    def start(
+        cls,
+        dependency_name: str,
+        operation: str,
+        parent_span_id: str = "",
+    ) -> "DependencySpan":
+        return cls(
+            span_id=str(uuid.uuid4())[:12],
+            dependency_name=dependency_name,
+            operation=operation,
             started_at=time.time(),
-            parent_call_id=parent_call_id,
-            parallel_group=self._active_parallel_group,
-        )
-        self._records.append(record)
-        try:
-            yield record
-            record.finish()
-        except Exception as exc:
-            record.finish(error=str(exc))
-            raise
-
-    @contextmanager
-    def parallel_group(self) -> Generator[str, None, None]:
-        group_id = str(uuid.uuid4())[:8]
-        self._active_parallel_group = group_id
-        try:
-            yield group_id
-        finally:
-            self._active_parallel_group = None
-
-    @property
-    def session_duration_ms(self) -> float:
-        return (time.time() - self.session_started_at) * 1000
-
-    def all_records(self) -> List[ToolCallTimingRecord]:
-        return list(self._records)
-```
-
-## Solution 3: Latency Attribution Analyzer
-
-```python
-from dataclasses import dataclass
-from typing import Dict, List
-
-
-@dataclass
-class DependencyLatencyAttribution:
-    dependency_type: str
-    tool_calls: List[str]
-    total_duration_ms: float
-    call_count: int
-    avg_duration_ms: float
-    max_duration_ms: float
-    error_count: int
-    pct_of_session: float
-    is_parallel: bool
-
-
-class LatencyAttributionAnalyzer:
-    """
-    Aggregates tool call timing records into per-dependency attribution.
-    Distinguishes sequential time (adds to session latency) from parallel
-    time (overlaps — does not add to session latency directly).
-    """
-
-    def __init__(self, profiler: SessionLatencyProfiler):
-        self._profiler = profiler
-
-    def attribute(self) -> List[DependencyLatencyAttribution]:
-        records = [r for r in self._profiler.all_records() if r.is_complete]
-        if not records:
-            return []
-
-        session_ms = self._profiler.session_duration_ms
-        by_dep: Dict[str, List[ToolCallTimingRecord]] = {}
-        for r in records:
-            by_dep.setdefault(r.dependency_type, []).append(r)
-
-        attributions = []
-        for dep_type, dep_records in by_dep.items():
-            total_ms = sum(r.duration_ms for r in dep_records)
-            max_ms = max(r.duration_ms for r in dep_records)
-            errors = sum(1 for r in dep_records if r.had_error)
-            is_parallel = any(r.parallel_group is not None for r in dep_records)
-
-            attributions.append(DependencyLatencyAttribution(
-                dependency_type=dep_type,
-                tool_calls=[r.tool_name for r in dep_records],
-                total_duration_ms=round(total_ms, 2),
-                call_count=len(dep_records),
-                avg_duration_ms=round(total_ms / len(dep_records), 2),
-                max_duration_ms=round(max_ms, 2),
-                error_count=errors,
-                pct_of_session=round(total_ms / max(session_ms, 1) * 100, 2),
-                is_parallel=is_parallel,
-            ))
-
-        return sorted(attributions, key=lambda a: -a.total_duration_ms)
-
-    def top_bottleneck(self) -> str:
-        attrs = self.attribute()
-        if not attrs:
-            return "unknown"
-        sequential = [a for a in attrs if not a.is_parallel]
-        source = sequential if sequential else attrs
-        return source[0].dependency_type if source else "unknown"
-```
-
-## Solution 4: Critical Path Detector
-
-```python
-from dataclasses import dataclass
-from typing import List, Optional
-
-
-@dataclass
-class CriticalPathSegment:
-    tool_name: str
-    dependency_type: str
-    duration_ms: float
-    call_id: str
-
-
-class CriticalPathDetector:
-    """
-    Identifies the critical path in a session — the longest chain of
-    sequential tool calls that determined the overall session duration.
-    Parallel tool calls contribute their max duration, not their sum.
-    """
-
-    def detect(
-        self, profiler: SessionLatencyProfiler
-    ) -> List[CriticalPathSegment]:
-        records = [r for r in profiler.all_records() if r.is_complete]
-        if not records:
-            return []
-
-        # Group parallel records: take only the longest from each group
-        processed: List[ToolCallTimingRecord] = []
-        seen_groups = set()
-        for r in records:
-            if r.parallel_group:
-                if r.parallel_group in seen_groups:
-                    continue
-                group_recs = [x for x in records if x.parallel_group == r.parallel_group]
-                longest = max(group_recs, key=lambda x: x.duration_ms)
-                processed.append(longest)
-                seen_groups.add(r.parallel_group)
-            else:
-                processed.append(r)
-
-        # Sort by start time — critical path is the sequential chain
-        sequential = sorted(
-            [r for r in processed if r.parent_call_id is None],
-            key=lambda r: r.started_at,
+            parent_span_id=parent_span_id,
         )
 
-        return [
-            CriticalPathSegment(
-                tool_name=r.tool_name,
-                dependency_type=r.dependency_type,
-                duration_ms=round(r.duration_ms, 2),
-                call_id=r.call_id,
-            )
-            for r in sequential
-        ]
-
-    def critical_path_duration_ms(self, profiler: SessionLatencyProfiler) -> float:
-        return sum(s.duration_ms for s in self.detect(profiler))
+    def finish(self, is_error: bool = False, is_cached: bool = False) -> None:
+        self.ended_at = time.time()
+        self.latency_ms = round((self.ended_at - self.started_at) * 1000, 2)
+        self.is_error = is_error
+        self.is_cached = is_cached
 ```
 
-## Solution 5: Fleet-Level Attribution Aggregator
+## Solution 2: Request Latency Profile
 
 ```python
 import time
-from collections import defaultdict
-from typing import Dict, List
+import uuid
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 
-class FleetLatencyAttributionAggregator:
+@dataclass
+class RequestLatencyProfile:
+    request_id: str
+    session_id: str
+    started_at: float
+    ended_at: Optional[float] = None
+    spans: List[DependencySpan] = field(default_factory=list)
+    total_latency_ms: Optional[float] = None
+
+    @classmethod
+    def create(cls, session_id: str = "") -> "RequestLatencyProfile":
+        return cls(
+            request_id=str(uuid.uuid4())[:12],
+            session_id=session_id,
+            started_at=time.time(),
+        )
+
+    def add_span(self, span: DependencySpan) -> None:
+        self.spans.append(span)
+
+    def finish(self) -> None:
+        self.ended_at = time.time()
+        self.total_latency_ms = round((self.ended_at - self.started_at) * 1000, 2)
+
+    def attribution(self) -> Dict[str, float]:
+        """Returns {dependency_name: attributed_ms} for all spans."""
+        result: Dict[str, float] = {}
+        for span in self.spans:
+            if span.latency_ms is not None and not span.is_cached:
+                result[span.dependency_name] = result.get(span.dependency_name, 0.0) + span.latency_ms
+        return result
+
+    def critical_path_dependency(self) -> Optional[str]:
+        attr = self.attribution()
+        if not attr:
+            return None
+        return max(attr, key=attr.get)
+
+    def unattributed_ms(self) -> float:
+        if self.total_latency_ms is None:
+            return 0.0
+        attributed = sum(self.attribution().values())
+        return max(0.0, round(self.total_latency_ms - attributed, 2))
+```
+
+## Solution 3: Latency Attribution Recorder
+
+```python
+import threading
+import time
+from collections import defaultdict, deque
+from typing import Deque, Dict, List, Optional, Tuple
+
+
+class LatencyAttributionRecorder:
     """
-    Accumulates attribution data across many sessions to compute
-    fleet-level statistics: which dependency is slowest on average,
-    which accounts for the largest fraction of total fleet latency.
+    Accumulates request latency profiles and computes per-dependency
+    latency statistics across all recorded requests.
     """
 
-    def __init__(self, window_seconds: float = 3600.0):
+    def __init__(self, max_profiles: int = 5000, window_seconds: float = 3600.0):
+        self._max = max_profiles
         self._window = window_seconds
-        self._records: List[tuple] = []   # (timestamp, attribution)
+        self._profiles: Deque[Tuple[float, RequestLatencyProfile]] = deque()
+        self._lock = threading.Lock()
 
-    def record(self, attributions: List[DependencyLatencyAttribution]) -> None:
-        ts = time.time()
-        for attr in attributions:
-            self._records.append((ts, attr))
+    def record(self, profile: RequestLatencyProfile) -> None:
+        if profile.total_latency_ms is None:
+            return
+        with self._lock:
+            self._profiles.append((time.time(), profile))
+            if len(self._profiles) > self._max:
+                self._profiles.popleft()
 
-    def _trim(self) -> None:
-        cutoff = time.time() - self._window
-        self._records = [(ts, a) for ts, a in self._records if ts >= cutoff]
+    def dependency_stats(self, window_seconds: Optional[float] = None) -> Dict[str, dict]:
+        cutoff = time.time() - (window_seconds or self._window)
+        with self._lock:
+            recent = [p for ts, p in self._profiles if ts >= cutoff]
 
-    def fleet_attribution(self) -> List[dict]:
-        self._trim()
-        totals: Dict[str, dict] = defaultdict(lambda: {
-            "total_ms": 0.0,
-            "call_count": 0,
-            "error_count": 0,
-            "sessions": 0,
-        })
+        if not recent:
+            return {}
 
-        seen_sessions: Dict[str, set] = defaultdict(set)
-        for ts, attr in self._records:
-            dep = attr.dependency_type
-            totals[dep]["total_ms"] += attr.total_duration_ms
-            totals[dep]["call_count"] += attr.call_count
-            totals[dep]["error_count"] += attr.error_count
-            seen_sessions[dep].add(id(attr))   # proxy for unique sessions
+        dep_latencies: Dict[str, List[float]] = defaultdict(list)
+        dep_errors: Dict[str, int] = defaultdict(int)
+        dep_request_counts: Dict[str, int] = defaultdict(int)
 
-        grand_total = sum(v["total_ms"] for v in totals.values())
-        result = []
-        for dep, data in totals.items():
-            result.append({
-                "dependency_type": dep,
-                "total_ms": round(data["total_ms"], 1),
-                "call_count": data["call_count"],
-                "avg_ms_per_call": round(data["total_ms"] / max(data["call_count"], 1), 1),
-                "error_count": data["error_count"],
-                "pct_of_fleet_latency": round(data["total_ms"] / max(grand_total, 1) * 100, 2),
-            })
-        return sorted(result, key=lambda x: -x["total_ms"])
+        for profile in recent:
+            for span in profile.spans:
+                if span.latency_ms is not None:
+                    dep_latencies[span.dependency_name].append(span.latency_ms)
+                    dep_request_counts[span.dependency_name] += 1
+                    if span.is_error:
+                        dep_errors[span.dependency_name] += 1
+
+        result = {}
+        for dep, lats in dep_latencies.items():
+            sorted_lats = sorted(lats)
+            n = len(sorted_lats)
+            result[dep] = {
+                "call_count": dep_request_counts[dep],
+                "error_count": dep_errors[dep],
+                "avg_ms": round(sum(lats) / n, 2),
+                "p50_ms": sorted_lats[n // 2],
+                "p95_ms": sorted_lats[min(int(n * 0.95), n - 1)],
+                "p99_ms": sorted_lats[min(int(n * 0.99), n - 1)],
+                "total_ms": round(sum(lats), 2),
+            }
+        return result
+
+    def critical_path_distribution(self, window_seconds: Optional[float] = None) -> Dict[str, int]:
+        cutoff = time.time() - (window_seconds or self._window)
+        with self._lock:
+            recent = [p for ts, p in self._profiles if ts >= cutoff]
+
+        counts: Dict[str, int] = defaultdict(int)
+        for profile in recent:
+            cp = profile.critical_path_dependency()
+            if cp:
+                counts[cp] += 1
+        return dict(counts)
+```
+
+## Solution 4: Instrumented Tool Wrapper
+
+```python
+import asyncio
+import time
+from typing import Any, Callable, Optional
+
+
+class InstrumentedToolWrapper:
+    """
+    Wraps a tool function with span recording for latency attribution.
+    """
+
+    def __init__(
+        self,
+        dependency_name: str,
+        recorder: LatencyAttributionRecorder,
+    ):
+        self._dep = dependency_name
+        self._recorder = recorder
+
+    async def call(
+        self,
+        tool_fn: Callable,
+        profile: RequestLatencyProfile,
+        operation: str = "call",
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        span = DependencySpan.start(
+            dependency_name=self._dep,
+            operation=operation,
+            parent_span_id=profile.request_id,
+        )
+        is_error = False
+        try:
+            result = await tool_fn(*args, **kwargs)
+            return result
+        except Exception:
+            is_error = True
+            raise
+        finally:
+            span.finish(is_error=is_error)
+            profile.add_span(span)
+```
+
+## Solution 5: Latency Bottleneck Detector
+
+```python
+from typing import List, Optional
+
+
+class LatencyBottleneckDetector:
+    """
+    Identifies dependencies that consistently dominate request latency
+    and are candidates for optimization.
+    """
+
+    def __init__(
+        self,
+        recorder: LatencyAttributionRecorder,
+        bottleneck_fraction: float = 0.50,   # dep consuming >50% of total = bottleneck
+    ):
+        self._recorder = recorder
+        self._threshold = bottleneck_fraction
+
+    def find_bottlenecks(self, window_seconds: float = 3600.0) -> List[dict]:
+        stats = self._recorder.dependency_stats(window_seconds)
+        cp_dist = self._recorder.critical_path_distribution(window_seconds)
+        total_cp = sum(cp_dist.values()) or 1
+
+        bottlenecks = []
+        for dep, s in stats.items():
+            cp_rate = cp_dist.get(dep, 0) / total_cp
+            if cp_rate >= self._threshold:
+                bottlenecks.append({
+                    "dependency": dep,
+                    "critical_path_rate": round(cp_rate, 4),
+                    "p95_ms": s["p95_ms"],
+                    "p99_ms": s["p99_ms"],
+                    "call_count": s["call_count"],
+                    "recommendation": f"critical path {cp_rate*100:.0f}% of requests — optimize p95 ({s['p95_ms']}ms)",
+                })
+
+        return sorted(bottlenecks, key=lambda b: b["critical_path_rate"], reverse=True)
 ```
 
 ## Solution 6: Latency Attribution Dashboard
@@ -321,80 +286,38 @@ class FleetLatencyAttributionAggregator:
 import time
 
 
-class ToolDependencyLatencyDashboard:
+class LatencyAttributionDashboard:
     """
-    Per-session and fleet-level latency attribution view.
-    Identifies bottleneck dependencies and critical path for each session.
+    Combines per-dependency stats, critical path distribution,
+    and bottleneck analysis into a single performance view.
     """
 
     def __init__(
         self,
-        analyzer: LatencyAttributionAnalyzer,
-        critical_path_detector: CriticalPathDetector,
-        fleet_aggregator: FleetLatencyAttributionAggregator,
-        slo_ms: float = 10_000.0,
+        recorder: LatencyAttributionRecorder,
+        bottleneck_detector: LatencyBottleneckDetector,
     ):
-        self._analyzer = analyzer
-        self._cp = critical_path_detector
-        self._fleet = fleet_aggregator
-        self._slo = slo_ms
+        self._recorder = recorder
+        self._detector = bottleneck_detector
 
-    def render_session(self, profiler: SessionLatencyProfiler) -> dict:
-        attributions = self._analyzer.attribute()
-        self._fleet.record(attributions)
-        cp = self._cp.detect(profiler)
-        cp_ms = self._cp.critical_path_duration_ms(profiler)
-        session_ms = profiler.session_duration_ms
-
-        alerts = []
-        if session_ms > self._slo:
-            bottleneck = self._analyzer.top_bottleneck()
-            alerts.append({
-                "type": "slo_violation",
-                "session_ms": round(session_ms, 1),
-                "slo_ms": self._slo,
-                "bottleneck_dependency": bottleneck,
-            })
-
-        return {
-            "session_id": profiler.session_id,
-            "session_duration_ms": round(session_ms, 1),
-            "critical_path_ms": round(cp_ms, 1),
-            "parallel_savings_ms": round(
-                sum(a.total_duration_ms for a in attributions) - session_ms, 1
-            ),
-            "attribution": [
-                {
-                    "dependency": a.dependency_type,
-                    "total_ms": a.total_duration_ms,
-                    "calls": a.call_count,
-                    "pct": a.pct_of_session,
-                    "parallel": a.is_parallel,
-                }
-                for a in attributions
-            ],
-            "critical_path": [
-                {"tool": s.tool_name, "dep": s.dependency_type, "ms": s.duration_ms}
-                for s in cp
-            ],
-            "alerts": alerts,
-        }
-
-    def render_fleet(self) -> dict:
+    def render(self) -> dict:
         return {
             "generated_at": time.time(),
-            "fleet_attribution_1h": self._fleet.fleet_attribution(),
+            "dependency_stats": self._recorder.dependency_stats(window_seconds=3600.0),
+            "critical_path_distribution": self._recorder.critical_path_distribution(3600.0),
+            "bottlenecks": self._detector.find_bottlenecks(window_seconds=3600.0),
         }
 ```
 
 ## Comparison
 
-| Approach | Per-Call Timing | Parallel Detection | Critical Path | Fleet Aggregation |
-|---|---|---|---|---|
-| SessionLatencyProfiler | Yes | Yes (groups) | No | No |
-| LatencyAttributionAnalyzer | Via profiler | Yes | No (top-level only) | No |
-| CriticalPathDetector | Via profiler | Yes (max of group) | Yes | No |
-| FleetLatencyAttributionAggregator | No | No | No | Yes |
-| ToolDependencyLatencyDashboard | Via analyzer | Via detector | Via detector | Yes |
+| Approach | Per-Span Timing | Attribution Breakdown | Critical Path | Bottleneck Detection | Dashboard |
+|---|---|---|---|---|---|
+| DependencySpan | Yes (start/finish) | No | No | No | No |
+| RequestLatencyProfile | Via spans | Yes (per-dep) | Yes | No | No |
+| LatencyAttributionRecorder | No | Yes (aggregate) | Yes (distribution) | No | No |
+| InstrumentedToolWrapper | Yes (auto span) | No | No | No | No |
+| LatencyBottleneckDetector | No | No | Via recorder | Yes | No |
+| LatencyAttributionDashboard | No | No | No | No | Yes |
 
-**Best for production**: Use `SessionLatencyProfiler.measure()` as a context manager around every tool call. Use `parallel_group()` to mark all tool calls that fire concurrently — this is critical for correct critical path analysis. Emit `ToolDependencyLatencyDashboard.render_session()` at the end of every session and push it to your metrics system with `dependency_type` as a label. The fleet view shows which dependency type accumulates the most latency across all sessions — optimize that one first before touching anything else.
+**Best for production**: Instrument every tool call with `InstrumentedToolWrapper` — the overhead is a few microseconds of timing bookkeeping per call, negligible compared to the tool's own latency. Focus optimization effort on the dependency with the highest `critical_path_rate` rather than the highest average latency: a dependency with 500ms average that is the critical path 80% of the time contributes more to user-perceived latency than a 2000ms dependency that only runs in 5% of requests. Set a latency attribution SLO for the top dependency (e.g., database P95 < 200ms) and alert when the recorded P95 from `LatencyAttributionRecorder` exceeds it.
