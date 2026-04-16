@@ -1,751 +1,377 @@
 ---
-layout: solution
 title: "Agent Doesn't Implement Retry Budget to Prevent Retry Storms"
+description: "Agents with unbounded per-request retry logic amplify failures into retry storms: when a dependency degrades, every in-flight request retries simultaneously, producing 3–5× the original request volume and preventing recovery. Implement a retry budget that caps the total number of active retries across all requests, enforces a per-caller retry share, and sheds retries gracefully when the budget is exhausted rather than amplifying load."
+date: 2026-04-16
+difficulty: advanced
 category: reliability
-description: "Cap total retry attempts across all concurrent operations so that a downstream outage doesn't cause an exponential surge of retry traffic that worsens the incident."
-tags: [reliability, retry, retry-storm, backoff, budget, rate-limiting, resilience]
+slug: agent-doesnt-implement-retry-budget-to-prevent-retry-storms
+tags: [retry-budget, retry-storm, retry-amplification, backpressure, circuit-breaker, overload-protection]
+symptoms:
+  - "A 30-second LLM provider outage causes 5 minutes of elevated error rates from retry amplification"
+  - "Every failing request retries 3 times simultaneously, tripling load on an already degraded provider"
+  - "No global retry limit — 100 concurrent sessions each retry independently"
+  - "Retry count is per-request with no awareness of fleet-wide retry pressure"
+  - "Recovery time after outage is longer than the outage itself due to retry queues draining"
 ---
 
-# Agent Doesn't Implement Retry Budget to Prevent Retry Storms
+## Why This Happens
 
-## Problem
+Per-request retry logic is designed for isolated failures, not correlated failures. When a provider experiences latency, all concurrent requests begin retrying simultaneously. With 3 retries per request and 100 concurrent sessions, a 10-second outage generates 300 retry attempts that all fire at the same time, producing a request spike that extends the outage. A retry budget is a shared token pool: each retry attempt consumes a token; when the pool is empty, additional retries are rejected with a fast failure rather than queued. This transforms unbounded amplification into bounded, controlled degradation.
 
-When many agent requests fail simultaneously — due to a downstream outage, rate limit spike, or model overload — naive per-request retry logic causes every failed request to retry independently. This creates a "retry storm": the combined retry traffic can exceed the original load by 3–10x, making a partial outage into a total one and delaying recovery. A retry budget constrains total retry capacity across all concurrent operations.
-
-## Solutions
-
-### Option 1: Global Retry Token Bucket
-
-Maintain a shared token bucket that every retry must acquire from. When the bucket is exhausted, retries are dropped rather than executed.
+## Solution 1: Retry Budget Token Pool
 
 ```python
-import anthropic
-import asyncio
-import time
-import random
-from dataclasses import dataclass, field
-
-client = anthropic.AsyncAnthropic()
-
-RETRY_BUDGET_RPS      = 5.0   # max retries per second globally
-RETRY_BUDGET_BURST    = 10    # burst capacity
-MAX_RETRIES_PER_REQ   = 3
-
-
-@dataclass
-class RetryBudget:
-    rate: float
-    capacity: float
-    tokens: float = field(init=False)
-    last: float = field(default_factory=time.monotonic)
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-    def __post_init__(self) -> None:
-        self.tokens = self.capacity
-
-    async def acquire(self) -> bool:
-        async with self._lock:
-            now = time.monotonic()
-            self.tokens = min(self.capacity, self.tokens + (now - self.last) * self.rate)
-            self.last = now
-            if self.tokens >= 1.0:
-                self.tokens -= 1.0
-                return True
-            return False
-
-    @property
-    def available(self) -> float:
-        return self.tokens
-
-
-budget = RetryBudget(rate=RETRY_BUDGET_RPS, capacity=RETRY_BUDGET_BURST)
-
-
-async def call_with_budget_retry(request_id: int, prompt: str) -> dict:
-    base_delay = 0.5
-    last_error = ""
-
-    for attempt in range(MAX_RETRIES_PER_REQ + 1):
-        try:
-            resp = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=128,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return {
-                "request_id": request_id,
-                "status": "ok",
-                "attempts": attempt + 1,
-                "reply": resp.content[0].text[:60],
-            }
-        except (anthropic.RateLimitError, anthropic.APIStatusError) as e:
-            last_error = str(e)
-            if attempt >= MAX_RETRIES_PER_REQ:
-                break
-
-            # must acquire retry budget token
-            got_budget = await budget.acquire()
-            if not got_budget:
-                return {
-                    "request_id": request_id,
-                    "status": "budget_exhausted",
-                    "attempts": attempt + 1,
-                    "error": "Retry budget exhausted — dropping to protect downstream",
-                }
-
-            delay = base_delay * (2 ** attempt) + random.uniform(0, 0.5)
-            await asyncio.sleep(delay)
-
-    return {
-        "request_id": request_id,
-        "status": "failed",
-        "attempts": MAX_RETRIES_PER_REQ + 1,
-        "error": last_error,
-    }
-
-
-async def main() -> None:
-    # simulate 20 concurrent requests (some may encounter transient errors)
-    tasks = [
-        call_with_budget_retry(i, f"Summarize topic {i % 5} briefly.")
-        for i in range(20)
-    ]
-    results = await asyncio.gather(*tasks)
-    ok       = sum(1 for r in results if r["status"] == "ok")
-    dropped  = sum(1 for r in results if r["status"] == "budget_exhausted")
-    failed   = sum(1 for r in results if r["status"] == "failed")
-    print(f"OK={ok}, BudgetDropped={dropped}, Failed={failed}")
-    for r in results:
-        print(f"  [{r['request_id']:02d}] {r['status']} (attempts={r['attempts']})")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-# Expected Token Savings: Prevents 3–10x retry amplification during outages
-# Environment: ANTHROPIC_API_KEY must be set
-```
-
----
-
-### Option 2: Per-Error-Class Retry Budget with Counters
-
-Track retry budgets separately for different error types (rate limit, server error, timeout), allowing more retries for transient errors and fewer for sustained overload.
-
-```python
-import anthropic
 import asyncio
 import time
 from dataclasses import dataclass, field
-from enum import Enum
-
-client = anthropic.AsyncAnthropic()
-
-
-class ErrorClass(Enum):
-    RATE_LIMIT   = "rate_limit"
-    SERVER_ERROR = "server_error"
-    TIMEOUT      = "timeout"
-    UNKNOWN      = "unknown"
-
-
-# Max retries allowed per error class per sliding window
-ERROR_CLASS_BUDGET = {
-    ErrorClass.RATE_LIMIT:   20,  # transient, allow more
-    ErrorClass.SERVER_ERROR: 10,  # may indicate degradation
-    ErrorClass.TIMEOUT:       5,  # timeouts can pile up fast
-    ErrorClass.UNKNOWN:       3,
-}
-WINDOW_SECONDS = 30
+from typing import Optional
 
 
 @dataclass
-class PerClassBudget:
-    max_retries: int
-    window: int
-    timestamps: list = field(default_factory=list)
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-    async def acquire(self) -> bool:
-        async with self._lock:
-            now = time.monotonic()
-            self.timestamps = [t for t in self.timestamps if now - t < self.window]
-            if len(self.timestamps) < self.max_retries:
-                self.timestamps.append(now)
-                return True
-            return False
-
-    def remaining(self) -> int:
-        now = time.monotonic()
-        active = [t for t in self.timestamps if now - t < self.window]
-        return max(0, self.max_retries - len(active))
-
-
-class ErrorClassBudgetManager:
-    def __init__(self) -> None:
-        self._budgets = {
-            cls: PerClassBudget(max_retries=budget, window=WINDOW_SECONDS)
-            for cls, budget in ERROR_CLASS_BUDGET.items()
-        }
-
-    @staticmethod
-    def classify(exc: Exception) -> ErrorClass:
-        if isinstance(exc, anthropic.RateLimitError):
-            return ErrorClass.RATE_LIMIT
-        if isinstance(exc, anthropic.APIStatusError) and exc.status_code >= 500:
-            return ErrorClass.SERVER_ERROR
-        if isinstance(exc, asyncio.TimeoutError):
-            return ErrorClass.TIMEOUT
-        return ErrorClass.UNKNOWN
-
-    async def acquire(self, exc: Exception) -> tuple[bool, ErrorClass]:
-        cls = self.classify(exc)
-        allowed = await self._budgets[cls].acquire()
-        return allowed, cls
-
-    def status(self) -> dict:
-        return {
-            cls.value: self._budgets[cls].remaining()
-            for cls in ErrorClass
-        }
-
-
-manager = ErrorClassBudgetManager()
-
-
-async def resilient_call(request_id: int, prompt: str) -> dict:
-    max_attempts = 4
-    for attempt in range(max_attempts):
-        try:
-            resp = await asyncio.wait_for(
-                client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=128,
-                    messages=[{"role": "user", "content": prompt}],
-                ),
-                timeout=10.0,
-            )
-            return {"request_id": request_id, "status": "ok", "attempts": attempt + 1,
-                    "reply": resp.content[0].text[:60]}
-
-        except Exception as exc:
-            if attempt == max_attempts - 1:
-                return {"request_id": request_id, "status": "failed", "error": str(exc)[:60]}
-
-            allowed, error_class = await manager.acquire(exc)
-            if not allowed:
-                return {
-                    "request_id": request_id,
-                    "status":     "budget_exhausted",
-                    "error_class": error_class.value,
-                    "budget_status": manager.status(),
-                }
-
-            backoff = 0.5 * (2 ** attempt)
-            await asyncio.sleep(backoff)
-
-    return {"request_id": request_id, "status": "failed"}
-
-
-async def main() -> None:
-    results = await asyncio.gather(
-        *[resilient_call(i, f"Query {i}") for i in range(15)]
-    )
-    for r in results:
-        print(f"  [{r['request_id']:02d}] {r['status']}")
-    print(f"\nBudget remaining: {manager.status()}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-# Expected Token Savings: Rate-limit retries are allowed more room; timeout retries cut off quickly
-# Environment: ANTHROPIC_API_KEY must be set
-```
-
----
-
-### Option 3: Retry Budget with Admission Control and Jitter
-
-Combine a retry budget with admission control: when retries are scarce, only high-priority requests are allowed to retry.
-
-```python
-import anthropic
-import asyncio
-import random
-import time
-from dataclasses import dataclass, field
-
-client = anthropic.AsyncAnthropic()
-
-GLOBAL_RETRY_BUDGET  = 15   # max concurrent retry slots
-JITTER_MAX_SEC       = 1.0
-
-
-@dataclass
-class AdmissionControlledBudget:
-    total_slots: int
-    used: int = 0
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-    async def acquire(self, priority: str = "normal") -> bool:
-        async with self._lock:
-            # high-priority can use up to 100% of slots
-            # normal priority can only use up to 70%
-            limit = self.total_slots if priority == "high" else int(self.total_slots * 0.7)
-            if self.used < limit:
-                self.used += 1
-                return True
-            return False
-
-    async def release(self) -> None:
-        async with self._lock:
-            self.used = max(0, self.used - 1)
-
-    def utilization(self) -> float:
-        return self.used / self.total_slots if self.total_slots else 0.0
-
-
-budget = AdmissionControlledBudget(total_slots=GLOBAL_RETRY_BUDGET)
-
-
-async def call_with_admission(
-    request_id: int,
-    prompt: str,
-    priority: str = "normal",
-    max_retries: int = 3,
-) -> dict:
-    for attempt in range(max_retries + 1):
-        try:
-            resp = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=128,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return {
-                "request_id": request_id,
-                "priority":   priority,
-                "status":     "ok",
-                "attempts":   attempt + 1,
-                "reply":      resp.content[0].text[:60],
-            }
-        except (anthropic.RateLimitError, anthropic.APIStatusError) as e:
-            if attempt >= max_retries:
-                return {"request_id": request_id, "status": "failed", "error": str(e)[:60]}
-
-            admitted = await budget.acquire(priority=priority)
-            if not admitted:
-                return {
-                    "request_id":  request_id,
-                    "priority":    priority,
-                    "status":      "admission_denied",
-                    "utilization": f"{budget.utilization():.0%}",
-                }
-
-            jitter = random.uniform(0, JITTER_MAX_SEC)
-            backoff = 0.5 * (2 ** attempt) + jitter
-            try:
-                await asyncio.sleep(backoff)
-            finally:
-                await budget.release()
-
-    return {"request_id": request_id, "status": "failed"}
-
-
-async def main() -> None:
-    tasks = (
-        [call_with_admission(i, f"High priority task {i}", priority="high") for i in range(5)]
-        + [call_with_admission(i + 5, f"Normal task {i}", priority="normal") for i in range(15)]
-    )
-    results = await asyncio.gather(*tasks)
-    by_status: dict[str, int] = {}
-    for r in results:
-        by_status[r["status"]] = by_status.get(r["status"], 0) + 1
-        print(f"  [{r['request_id']:02d}][{r['priority']}] {r['status']}")
-    print(f"\nSummary: {by_status}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-# Expected Token Savings: High-priority requests keep retrying; low-priority shed load during outages
-# Environment: ANTHROPIC_API_KEY must be set
-```
-
----
-
-### Option 4: Retry Storm Detector with Automatic Backpressure
-
-Monitor the retry rate in real time; when it exceeds a threshold, automatically engage a backpressure mode that delays all retries.
-
-```python
-import anthropic
-import asyncio
-import time
-from collections import deque
-from dataclasses import dataclass, field
-
-client = anthropic.AsyncAnthropic()
-
-STORM_THRESHOLD_RPS  = 10.0   # retries/sec that triggers backpressure
-MEASURE_WINDOW       = 5.0    # seconds to measure retry rate
-BACKPRESSURE_DELAY   = 2.0    # extra delay in backpressure mode
-
-
-@dataclass
-class StormDetector:
-    threshold_rps: float
-    window: float
-    _retry_times: deque = field(default_factory=deque)
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    _backpressure: bool = False
-
-    async def record_retry(self) -> float:
-        """Record a retry attempt. Returns delay to apply (0 = normal, >0 = backpressure)."""
-        async with self._lock:
-            now = time.monotonic()
-            self._retry_times.append(now)
-            # evict old
-            while self._retry_times and self._retry_times[0] < now - self.window:
-                self._retry_times.popleft()
-
-            rps = len(self._retry_times) / self.window
-            self._backpressure = rps >= self.threshold_rps
-            delay = BACKPRESSURE_DELAY if self._backpressure else 0.0
-            return delay
-
-    @property
-    def in_backpressure(self) -> bool:
-        return self._backpressure
-
-    async def current_rps(self) -> float:
-        async with self._lock:
-            now = time.monotonic()
-            active = [t for t in self._retry_times if now - t < self.window]
-            return len(active) / self.window
-
-
-detector = StormDetector(threshold_rps=STORM_THRESHOLD_RPS, window=MEASURE_WINDOW)
-
-
-async def storm_safe_call(request_id: int, prompt: str, max_retries: int = 3) -> dict:
-    for attempt in range(max_retries + 1):
-        try:
-            resp = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=128,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return {
-                "request_id": request_id,
-                "status":     "ok",
-                "attempts":   attempt + 1,
-                "reply":      resp.content[0].text[:60],
-            }
-        except (anthropic.RateLimitError, anthropic.APIStatusError) as e:
-            if attempt >= max_retries:
-                return {"request_id": request_id, "status": "failed", "error": str(e)[:60]}
-
-            backpressure_delay = await detector.record_retry()
-            rps = await detector.current_rps()
-
-            base_delay = 0.5 * (2 ** attempt)
-            total_delay = base_delay + backpressure_delay
-
-            if backpressure_delay > 0:
-                print(f"  [req {request_id:02d}] BACKPRESSURE active (rps={rps:.1f}) — delay={total_delay:.1f}s")
-
-            await asyncio.sleep(total_delay)
-
-    return {"request_id": request_id, "status": "failed"}
-
-
-async def main() -> None:
-    # simulate 30 concurrent requests to trigger storm detection
-    tasks = [storm_safe_call(i, f"Question {i}") for i in range(30)]
-    results = await asyncio.gather(*tasks)
-    ok = sum(1 for r in results if r["status"] == "ok")
-    failed = sum(1 for r in results if r["status"] != "ok")
-    final_rps = await detector.current_rps()
-    print(f"\nOK={ok}, Failed={failed}, Final retry RPS={final_rps:.2f}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-# Expected Token Savings: Auto-detects and throttles retry storms before they cause cascading failure
-# Environment: ANTHROPIC_API_KEY must be set
-```
-
----
-
-### Option 5: Retry Budget with Prometheus-Style Metrics
-
-Track retry budget consumption as metrics (counters, gauges) for alerting and dashboards.
-
-```python
-import anthropic
-import asyncio
-import time
-from dataclasses import dataclass, field
-from threading import Lock
-
-client = anthropic.AsyncAnthropic()
-
-RETRY_RATE_LIMIT     = 8    # max retries per window
-WINDOW_SECONDS       = 10
-MAX_RETRIES_PER_REQ  = 3
-
-
-@dataclass
-class RetryMetrics:
-    _lock: Lock = field(default_factory=Lock)
-    total_attempts:      int = 0
-    total_retries:       int = 0
-    budget_exhausted:    int = 0
-    success_on_retry:    int = 0
-    failed_after_retry:  int = 0
-    retry_window:        list = field(default_factory=list)
-
-    def record_attempt(self) -> None:
-        with self._lock:
-            self.total_attempts += 1
-
-    def record_retry(self) -> bool:
-        """Returns True if retry is within budget."""
-        now = time.monotonic()
-        with self._lock:
-            self.retry_window = [t for t in self.retry_window if now - t < WINDOW_SECONDS]
-            if len(self.retry_window) < RETRY_RATE_LIMIT:
-                self.retry_window.append(now)
-                self.total_retries += 1
-                return True
-            self.budget_exhausted += 1
-            return False
-
-    def record_outcome(self, succeeded: bool, was_retry: bool) -> None:
-        with self._lock:
-            if was_retry and succeeded:
-                self.success_on_retry += 1
-            elif was_retry and not succeeded:
-                self.failed_after_retry += 1
-
-    def prometheus_text(self) -> str:
-        with self._lock:
-            retry_rps = len(self.retry_window) / WINDOW_SECONDS if self.retry_window else 0
-            lines = [
-                "# HELP agent_retry_total Total retry attempts",
-                f"agent_retry_total {self.total_retries}",
-                "# HELP agent_retry_budget_exhausted Retries dropped due to budget",
-                f"agent_retry_budget_exhausted {self.budget_exhausted}",
-                "# HELP agent_retry_rps Current retry rate per second",
-                f"agent_retry_rps {retry_rps:.3f}",
-                "# HELP agent_retry_success_total Successful recoveries via retry",
-                f"agent_retry_success_total {self.success_on_retry}",
-                "# HELP agent_retry_failed_total Requests that failed despite retries",
-                f"agent_retry_failed_total {self.failed_after_retry}",
-            ]
-        return "\n".join(lines)
-
-
-metrics = RetryMetrics()
-
-
-async def metered_call(request_id: int, prompt: str) -> dict:
-    metrics.record_attempt()
-    was_retry = False
-
-    for attempt in range(MAX_RETRIES_PER_REQ + 1):
-        try:
-            resp = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=128,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            metrics.record_outcome(succeeded=True, was_retry=was_retry)
-            return {"request_id": request_id, "status": "ok", "attempts": attempt + 1}
-
-        except (anthropic.RateLimitError, anthropic.APIStatusError) as e:
-            if attempt >= MAX_RETRIES_PER_REQ:
-                metrics.record_outcome(succeeded=False, was_retry=was_retry)
-                return {"request_id": request_id, "status": "failed"}
-
-            within_budget = metrics.record_retry()
-            if not within_budget:
-                return {"request_id": request_id, "status": "budget_exhausted"}
-
-            was_retry = True
-            await asyncio.sleep(0.5 * (2 ** attempt))
-
-    return {"request_id": request_id, "status": "failed"}
-
-
-async def main() -> None:
-    tasks = [metered_call(i, f"Prompt {i}") for i in range(25)]
-    results = await asyncio.gather(*tasks)
-    ok = sum(1 for r in results if r["status"] == "ok")
-    print(f"Results: OK={ok}/{len(results)}\n")
-    print(metrics.prometheus_text())
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-# Expected Token Savings: Metrics reveal retry storm onset before it causes full outage
-# Environment: ANTHROPIC_API_KEY must be set
-```
-
----
-
-### Option 6: Retry Budget with Hedging and Deadline Propagation
-
-Combine retry budgets with request hedging: if the primary request is slow, issue a secondary request using the retry budget, and cancel whichever finishes last.
-
-```python
-import anthropic
-import asyncio
-import time
-from dataclasses import dataclass, field
-
-client = anthropic.AsyncAnthropic()
-
-HEDGE_AFTER_MS       = 800    # issue hedge if primary hasn't responded
-DEADLINE_SECONDS     = 5.0    # absolute deadline per logical request
-HEDGE_BUDGET_SLOTS   = 5      # concurrent hedge requests allowed
-
-
-@dataclass
-class HedgeBudget:
-    slots: int
-    used: int = 0
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-    async def acquire(self) -> bool:
-        async with self._lock:
-            if self.used < self.slots:
-                self.used += 1
-                return True
-            return False
-
-    async def release(self) -> None:
-        async with self._lock:
-            self.used = max(0, self.used - 1)
-
-
-hedge_budget = HedgeBudget(slots=HEDGE_BUDGET_SLOTS)
-
-
-async def single_call(prompt: str, label: str) -> tuple[str, str]:
-    """Returns (label, reply_text)."""
-    resp = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=128,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return label, resp.content[0].text
-
-
-async def hedged_call(request_id: int, prompt: str) -> dict:
-    deadline = time.monotonic() + DEADLINE_SECONDS
-    start = time.monotonic()
-
-    primary_task = asyncio.create_task(single_call(prompt, "primary"))
-
-    # wait for hedge threshold
-    hedge_wait = HEDGE_AFTER_MS / 1000
-    done, _ = await asyncio.wait({primary_task}, timeout=hedge_wait)
-
-    if done:
-        label, reply = primary_task.result()
-        return {
-            "request_id": request_id,
-            "status":     "ok",
-            "source":     label,
-            "latency_ms": round((time.monotonic() - start) * 1000),
-            "reply":      reply[:60],
-            "hedged":     False,
-        }
-
-    # primary is slow — try hedge if budget allows
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
-        primary_task.cancel()
-        return {"request_id": request_id, "status": "deadline_exceeded"}
-
-    got_slot = await hedge_budget.acquire()
-    if not got_slot:
-        # no hedge budget — wait for primary
-        try:
-            label, reply = await asyncio.wait_for(primary_task, timeout=remaining)
-            return {
-                "request_id": request_id,
-                "status":     "ok",
-                "source":     "primary_no_hedge",
-                "latency_ms": round((time.monotonic() - start) * 1000),
-                "reply":      reply[:60],
-                "hedged":     False,
-            }
-        except asyncio.TimeoutError:
-            primary_task.cancel()
-            return {"request_id": request_id, "status": "deadline_exceeded"}
-
-    hedge_task = asyncio.create_task(single_call(prompt, "hedge"))
-    try:
-        done2, pending = await asyncio.wait(
-            {primary_task, hedge_task},
-            timeout=remaining,
-            return_when=asyncio.FIRST_COMPLETED,
+class RetryBudgetConfig:
+    total_budget: int = 100          # max concurrent active retries fleet-wide
+    per_caller_share: float = 0.10   # max fraction any single caller can hold
+    refill_rate_per_second: float = 5.0  # tokens refilled per second
+    budget_exhausted_action: str = "fail_fast"  # "fail_fast" | "shed_oldest"
+    min_tokens_for_retry: int = 1
+
+
+class RetryBudgetTokenPool:
+    """
+    Leaky-bucket token pool for retry budgets.
+    Tokens are consumed on retry attempt and refilled at a steady rate.
+    Per-caller limits prevent a single caller from exhausting the pool.
+    """
+
+    def __init__(self, config: RetryBudgetConfig) -> None:
+        self._config = config
+        self._tokens = float(config.total_budget)
+        self._last_refill = time.time()
+        self._per_caller_tokens: dict = {}
+        self._lock = asyncio.Lock()
+        self._total_granted = 0
+        self._total_rejected = 0
+
+    def _refill(self) -> None:
+        now = time.time()
+        elapsed = now - self._last_refill
+        self._tokens = min(
+            float(self._config.total_budget),
+            self._tokens + elapsed * self._config.refill_rate_per_second,
         )
-        for t in pending:
-            t.cancel()
+        self._last_refill = now
 
-        if not done2:
-            return {"request_id": request_id, "status": "deadline_exceeded"}
+    def _caller_limit(self) -> int:
+        return max(1, int(self._config.total_budget * self._config.per_caller_share))
 
-        label, reply = next(iter(done2)).result()
+    async def acquire(self, caller_id: str, tokens: int = 1) -> bool:
+        async with self._lock:
+            self._refill()
+
+            caller_used = self._per_caller_tokens.get(caller_id, 0)
+            if caller_used + tokens > self._caller_limit():
+                self._total_rejected += 1
+                return False
+
+            if self._tokens < tokens:
+                self._total_rejected += 1
+                return False
+
+            self._tokens -= tokens
+            self._per_caller_tokens[caller_id] = caller_used + tokens
+            self._total_granted += 1
+            return True
+
+    async def release(self, caller_id: str, tokens: int = 1) -> None:
+        async with self._lock:
+            used = self._per_caller_tokens.get(caller_id, 0)
+            self._per_caller_tokens[caller_id] = max(0, used - tokens)
+
+    def stats(self) -> dict:
+        total = self._total_granted + self._total_rejected
         return {
-            "request_id": request_id,
-            "status":     "ok",
-            "source":     label,
-            "latency_ms": round((time.monotonic() - start) * 1000),
-            "reply":      reply[:60],
-            "hedged":     True,
+            "available_tokens": round(self._tokens, 1),
+            "total_budget": self._config.total_budget,
+            "utilization_pct": round(
+                (self._config.total_budget - self._tokens) / max(self._config.total_budget, 1) * 100, 1
+            ),
+            "total_granted": self._total_granted,
+            "total_rejected": self._total_rejected,
+            "rejection_rate": round(self._total_rejected / max(total, 1), 4),
         }
-    finally:
-        await hedge_budget.release()
-
-
-async def main() -> None:
-    tasks = [hedged_call(i, f"Explain concept {i % 5} briefly.") for i in range(12)]
-    results = await asyncio.gather(*tasks)
-    hedged  = sum(1 for r in results if r.get("hedged"))
-    ok      = sum(1 for r in results if r["status"] == "ok")
-    avg_lat = sum(r.get("latency_ms", 0) for r in results if r["status"] == "ok") / max(ok, 1)
-
-    for r in results:
-        src = r.get("source", "-")
-        lat = r.get("latency_ms", 0)
-        print(f"  [{r['request_id']:02d}] {r['status']} src={src} latency={lat}ms")
-
-    print(f"\nOK={ok}, Hedged={hedged}, AvgLatency={avg_lat:.0f}ms")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-# Expected Token Savings: Hedging uses 2x tokens on slow requests but reduces p99 latency by 40–60%
-# Environment: ANTHROPIC_API_KEY must be set
 ```
 
----
+## Solution 2: Budget-Aware Retry Policy
+
+```python
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class BudgetAwareRetryPolicy:
+    max_attempts: int = 3
+    base_delay_seconds: float = 0.5
+    max_delay_seconds: float = 30.0
+    jitter_factor: float = 0.25        # random jitter as fraction of delay
+    retryable_status_codes: frozenset = frozenset({429, 500, 502, 503, 504})
+    retryable_exception_types: tuple = ()
+    require_budget: bool = True        # if False, skip budget check
+
+    def is_retryable(self, exc: Exception, http_status: Optional[int] = None) -> bool:
+        if http_status in self.retryable_status_codes:
+            return True
+        if self.retryable_exception_types and isinstance(exc, self.retryable_exception_types):
+            return True
+        error_str = str(exc).lower()
+        return any(kw in error_str for kw in ("timeout", "connection", "temporarily"))
+
+    def delay_seconds(self, attempt: int) -> float:
+        import random
+        base = min(
+            self.base_delay_seconds * (2 ** (attempt - 1)),
+            self.max_delay_seconds,
+        )
+        jitter = base * self.jitter_factor * random.random()
+        return base + jitter
+```
+
+## Solution 3: Budget-Controlled Retry Executor
+
+```python
+import asyncio
+from typing import Any, Callable, Optional
+
+
+class BudgetControlledRetryExecutor:
+    """
+    Wraps async calls with retry logic gated by the global retry budget.
+    When the budget is exhausted, raises immediately rather than retrying.
+    Releases budget tokens when retries complete (success or final failure).
+    """
+
+    def __init__(
+        self,
+        budget_pool: RetryBudgetTokenPool,
+        policy: BudgetAwareRetryPolicy,
+    ) -> None:
+        self._pool = budget_pool
+        self._policy = policy
+
+    async def execute(
+        self,
+        caller_id: str,
+        fn: Callable,
+        *args: Any,
+        http_status_fn: Optional[Callable[[Exception], Optional[int]]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """
+        Executes fn with budget-gated retry.
+        http_status_fn: optional callable that extracts HTTP status from an exception.
+        """
+        last_exc = None
+
+        for attempt in range(1, self._policy.max_attempts + 1):
+            try:
+                return await fn(*args, **kwargs)
+            except Exception as exc:
+                last_exc = exc
+                http_status = http_status_fn(exc) if http_status_fn else None
+
+                if attempt >= self._policy.max_attempts:
+                    break
+
+                if not self._policy.is_retryable(exc, http_status):
+                    break
+
+                if self._policy.require_budget:
+                    granted = await self._pool.acquire(caller_id)
+                    if not granted:
+                        # Budget exhausted — fail fast instead of retrying
+                        raise RuntimeError(
+                            f"Retry budget exhausted for caller '{caller_id}' — "
+                            f"fast-failing instead of retrying"
+                        ) from exc
+
+                delay = self._policy.delay_seconds(attempt)
+                try:
+                    await asyncio.sleep(delay)
+                finally:
+                    if self._policy.require_budget:
+                        await self._pool.release(caller_id)
+
+        raise last_exc
+```
+
+## Solution 4: Retry Pressure Monitor
+
+```python
+import time
+from typing import List
+
+
+class RetryPressureMonitor:
+    """
+    Tracks retry pressure signals — rejection rate, pool utilization,
+    and per-caller saturation — and fires alerts when pressure is high.
+    """
+
+    def __init__(
+        self,
+        pool: RetryBudgetTokenPool,
+        rejection_rate_alert: float = 0.10,
+        utilization_alert_pct: float = 80.0,
+    ) -> None:
+        self._pool = pool
+        self._rejection_threshold = rejection_rate_alert
+        self._utilization_threshold = utilization_alert_pct
+
+    def check(self) -> List[dict]:
+        stats = self._pool.stats()
+        alerts = []
+
+        if stats["rejection_rate"] >= self._rejection_threshold:
+            alerts.append({
+                "type": "high_retry_rejection_rate",
+                "rejection_rate": stats["rejection_rate"],
+                "threshold": self._rejection_threshold,
+                "severity": "warning",
+                "message": (
+                    f"Retry budget rejecting {stats['rejection_rate']*100:.1f}% of retry attempts — "
+                    "system under retry pressure. Consider increasing budget or reducing call volume."
+                ),
+            })
+
+        if stats["utilization_pct"] >= self._utilization_threshold:
+            alerts.append({
+                "type": "retry_budget_saturated",
+                "utilization_pct": stats["utilization_pct"],
+                "threshold": self._utilization_threshold,
+                "severity": "critical" if stats["utilization_pct"] >= 95 else "warning",
+                "message": f"Retry budget at {stats['utilization_pct']:.1f}% capacity",
+            })
+
+        return alerts
+
+    def report(self) -> dict:
+        return {
+            "generated_at": time.time(),
+            "stats": self._pool.stats(),
+            "alerts": self.check(),
+        }
+```
+
+## Solution 5: Retry Storm Circuit Breaker
+
+```python
+import time
+from enum import Enum
+from typing import Optional
+
+
+class StormCircuitState(str, Enum):
+    CLOSED = "closed"     # normal operation
+    OPEN = "open"         # all retries blocked
+    HALF_OPEN = "half_open"  # test probe allowed
+
+
+class RetryStormCircuitBreaker:
+    """
+    Opens when the retry rejection rate exceeds a threshold,
+    blocking all retries until pressure drops and a recovery
+    probe succeeds. Prevents the pool from being constantly hammered.
+    """
+
+    def __init__(
+        self,
+        monitor: RetryPressureMonitor,
+        open_threshold_rejection_rate: float = 0.20,
+        recovery_window_seconds: float = 30.0,
+        probe_success_threshold: int = 3,
+    ) -> None:
+        self._monitor = monitor
+        self._open_threshold = open_threshold_rejection_rate
+        self._recovery_window = recovery_window_seconds
+        self._probe_threshold = probe_success_threshold
+        self._state = StormCircuitState.CLOSED
+        self._opened_at: Optional[float] = None
+        self._probe_successes = 0
+
+    def is_open(self) -> bool:
+        if self._state == StormCircuitState.CLOSED:
+            return False
+        if self._state == StormCircuitState.OPEN:
+            if time.time() - (self._opened_at or 0) > self._recovery_window:
+                self._state = StormCircuitState.HALF_OPEN
+                self._probe_successes = 0
+            return True
+        return False   # HALF_OPEN allows probes
+
+    def record_outcome(self, succeeded: bool) -> None:
+        if self._state == StormCircuitState.HALF_OPEN:
+            if succeeded:
+                self._probe_successes += 1
+                if self._probe_successes >= self._probe_threshold:
+                    self._state = StormCircuitState.CLOSED
+            else:
+                self._state = StormCircuitState.OPEN
+                self._opened_at = time.time()
+
+    def evaluate(self) -> None:
+        stats = self._monitor._pool.stats()
+        if (self._state == StormCircuitState.CLOSED
+                and stats["rejection_rate"] >= self._open_threshold):
+            self._state = StormCircuitState.OPEN
+            self._opened_at = time.time()
+
+    def state(self) -> StormCircuitState:
+        return self._state
+```
+
+## Solution 6: Retry Budget Dashboard
+
+```python
+import time
+
+
+class RetryBudgetDashboard:
+    """
+    Combines pool stats, pressure monitor, and circuit breaker state
+    into a single retry infrastructure operational view.
+    """
+
+    def __init__(
+        self,
+        pool: RetryBudgetTokenPool,
+        monitor: RetryPressureMonitor,
+        circuit_breaker: RetryStormCircuitBreaker,
+    ) -> None:
+        self._pool = pool
+        self._monitor = monitor
+        self._circuit_breaker = circuit_breaker
+
+    def render(self) -> dict:
+        self._circuit_breaker.evaluate()
+        stats = self._pool.stats()
+        alerts = self._monitor.check()
+
+        return {
+            "generated_at": time.time(),
+            "retry_budget": stats,
+            "circuit_breaker_state": self._circuit_breaker.state().value,
+            "active_alerts": alerts,
+        }
+```
 
 ## Comparison
 
-| Option | Strategy | Storm Prevention | Priority Support | Metrics | Best For |
-|--------|----------|-----------------|-----------------|---------|----------|
-| 1 | Global token bucket | High | No | No | Simple single-service agents |
-| 2 | Per-error-class budget | High | No | Partial | Mixed error environments |
-| 3 | Admission control + jitter | High | Yes | No | Multi-priority workloads |
-| 4 | Storm detector + backpressure | Highest | No | Rate gauge | Proactive auto-throttling |
-| 5 | Prometheus-style metrics | High | No | Full | Production observability |
-| 6 | Hedging + deadline budget | Medium | Implicit | Latency | Latency-sensitive SLOs |
+| Approach | Token Pool | Per-Caller Limit | Retry Gating | Storm Detection | Circuit Breaker |
+|---|---|---|---|---|---|
+| RetryBudgetTokenPool | Yes (leaky bucket) | Yes | No | No | No |
+| BudgetControlledRetryExecutor | Via pool | Via pool | Yes | No | No |
+| RetryPressureMonitor | No | No | No | Yes | No |
+| RetryStormCircuitBreaker | No | No | No | Via monitor | Yes |
+| RetryBudgetDashboard | No | No | No | No | Via breaker |
+
+**Best for production**: Set `total_budget` to 10–20% of your peak concurrent request volume — if you handle 500 concurrent requests at peak, a budget of 50–100 retry tokens is appropriate. Use `per_caller_share=0.10` to prevent any single session from consuming more than 10% of the pool. Set `refill_rate_per_second` to match your provider's recovery rate after incidents — if your provider recovers in 30 seconds, refilling 5 tokens/second ensures the budget is full again within that window. Open the circuit breaker at 20% rejection rate — by that point, retries are making things worse rather than helping recovery.
