@@ -1,330 +1,343 @@
 ---
 title: "Agent Doesn't Implement Session Abandonment Rate Tracking"
-description: "Agents that do not track session abandonment — users who start a conversation but leave before reaching a conclusion — have no visibility into a key signal of user frustration: high abandonment rates after the first agent response indicate the response was irrelevant, confusing, or too slow; high abandonment on specific question types indicates a capability gap. Implement session abandonment rate tracking that detects abandoned sessions, classifies them by abandonment stage, and surfaces abandonment trends by category and time of day."
+description: "Agents that measure only successful task completions miss a critical signal: sessions where the user stopped interacting before the task finished. High abandonment rates indicate that the agent is too slow, too verbose, making too many tool calls, or producing incorrect intermediate results that cause users to give up. Implement session abandonment rate tracking that classifies sessions as completed, abandoned, or errored, and surfaces abandonment patterns by task type, latency bucket, and tool failure events."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-session-abandonment-rate-tracking
-tags: [abandonment-rate, session-analytics, user-frustration, drop-off-tracking, ux-observability, session-quality]
+tags: [session-abandonment, user-experience, completion-rate, task-success, engagement, ux-observability]
 symptoms:
-  - "No metric exists for sessions that end before a satisfying conclusion"
-  - "High user churn is observed but cannot be attributed to specific agent behaviors"
-  - "Cannot determine at which turn users most commonly abandon sessions"
-  - "No distinction between completed sessions and abandoned sessions in analytics"
-  - "Abandonment after the first agent response goes undetected"
+  - "Completion rate looks healthy but user satisfaction is low — abandoned sessions not counted"
+  - "No way to know if users are giving up during long tool-call chains"
+  - "Slow responses correlated with re-sent queries not detected"
+  - "Task types with high abandonment rate not distinguished from successful ones"
+  - "Error sessions and abandonment sessions counted together or not at all"
 ---
 
 ## Why This Happens
 
-Session completion metrics count sessions that end in a successful outcome. Abandonment is the complement: sessions that end without one. Most logging systems record the start and end of sessions but not whether the user left satisfied or frustrated. Without an explicit abandonment signal — detected from session timeout, lack of user follow-up after an agent response, or a sudden session close — the operator sees only that sessions ended, not why. Abandonment tracking requires defining what constitutes an abandoned session (timeout after last agent response, user closed tab, explicit frustration signal), recording it, and breaking it down by stage (after turn 1, after turn 3, during tool execution) to identify where the agent most commonly loses users.
+Session completion metrics count sessions that reached a final agent response. Sessions where the user closed the window, navigated away, sent a new query before the agent finished, or simply waited too long and gave up are not represented. This creates optimistic completion rates: if 30% of sessions are abandoned, measuring only completed sessions over-reports quality by up to 43%. Abandonment tracking requires a session lifecycle model with explicit state transitions, a timeout or signal mechanism that marks sessions as abandoned when activity stops, and correlation of abandonment with preceding events (slow tool calls, error messages, excessive turns).
 
-## Solution 1: Abandonment Signal
+## Solution 1: Session Lifecycle State
 
 ```python
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
-class AbandonmentStage(str, Enum):
-    BEFORE_FIRST_RESPONSE = "before_first_response"  # user left before agent replied
-    AFTER_FIRST_RESPONSE = "after_first_response"    # most critical: first reply didn't land
-    MID_CONVERSATION = "mid_conversation"            # left partway through
-    DURING_TOOL_EXECUTION = "during_tool_execution"  # left while agent was working
-    AFTER_LONG_RESPONSE = "after_long_response"      # response too long or complex
-    UNKNOWN = "unknown"
-
-
-class AbandonmentReason(str, Enum):
-    TIMEOUT = "timeout"               # no user activity within window
-    EXPLICIT_EXIT = "explicit_exit"   # user explicitly closed or navigated away
-    ERROR_STORM = "error_storm"       # multiple tool errors in session
-    SLOW_RESPONSE = "slow_response"   # response took too long before abandonment
-    INFERRED = "inferred"             # heuristic detection
+class SessionState(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"       # user left without final response
+    ERRORED = "errored"           # agent terminated due to error
+    TIMED_OUT = "timed_out"       # no activity for inactivity_timeout
 
 
 @dataclass
-class AbandonmentRecord:
-    session_id: str
-    stage: AbandonmentStage
-    reason: AbandonmentReason
-    turn_count: int
-    session_duration_seconds: float
-    last_agent_response_latency_ms: Optional[float]
-    goal_category: str = "general"
-    recorded_at: float = field(default_factory=time.time)
+class SessionEvent:
+    event_type: str    # "user_message" | "agent_response" | "tool_call" | "tool_error"
+    timestamp: float = field(default_factory=time.time)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SessionRecord:
+    session_id: str
+    started_at: float = field(default_factory=time.time)
+    ended_at: Optional[float] = None
+    state: SessionState = SessionState.ACTIVE
+    events: List[SessionEvent] = field(default_factory=list)
+    task_type: str = ""
+    user_id: str = ""
+    final_agent_responded: bool = False
+    abandonment_reason: str = ""
+
+    @property
+    def duration_seconds(self) -> Optional[float]:
+        if self.ended_at:
+            return round(self.ended_at - self.started_at, 2)
+        return round(time.time() - self.started_at, 2)
+
+    @property
+    def turn_count(self) -> int:
+        return sum(1 for e in self.events if e.event_type == "user_message")
+
+    @property
+    def tool_error_count(self) -> int:
+        return sum(1 for e in self.events if e.event_type == "tool_error")
+
+    def add_event(self, event_type: str, **metadata) -> None:
+        self.events.append(SessionEvent(event_type=event_type, metadata=metadata))
 ```
 
-## Solution 2: Abandonment Detector
+## Solution 2: Session Tracker
 
 ```python
 import time
-from typing import Optional
+from threading import Lock
+from typing import Dict, List, Optional
 
 
-class AbandonmentDetector:
+class SessionTracker:
     """
-    Determines whether a session should be classified as abandoned
-    based on session state at closure time.
+    Maintains active session records and transitions sessions
+    to terminal states (completed, abandoned, errored, timed_out).
     """
 
     def __init__(
         self,
-        timeout_seconds: float = 300.0,
-        slow_response_threshold_ms: float = 10000.0,
-        error_storm_threshold: int = 3,
+        inactivity_timeout_seconds: float = 120.0,
+        max_sessions: int = 10000,
     ):
-        self._timeout = timeout_seconds
-        self._slow_threshold = slow_response_threshold_ms
-        self._error_storm = error_storm_threshold
+        self._timeout = inactivity_timeout_seconds
+        self._max = max_sessions
+        self._sessions: Dict[str, SessionRecord] = {}
+        self._closed: List[SessionRecord] = []
+        self._lock = Lock()
 
-    def classify(
-        self,
-        session_id: str,
-        turn_count: int,
-        agent_turns: int,
-        duration_seconds: float,
-        last_activity_seconds_ago: float,
-        last_latency_ms: Optional[float],
-        error_count: int,
-        goal_completed: bool,
-        goal_category: str = "general",
-    ) -> Optional[AbandonmentRecord]:
-        if goal_completed:
-            return None   # not an abandonment
-
-        if last_activity_seconds_ago < 30:
-            return None   # session too recent to classify
-
-        # Determine reason
-        if last_activity_seconds_ago >= self._timeout:
-            reason = AbandonmentReason.TIMEOUT
-        elif error_count >= self._error_storm:
-            reason = AbandonmentReason.ERROR_STORM
-        elif last_latency_ms and last_latency_ms >= self._slow_threshold:
-            reason = AbandonmentReason.SLOW_RESPONSE
-        else:
-            reason = AbandonmentReason.INFERRED
-
-        # Determine stage
-        if agent_turns == 0:
-            stage = AbandonmentStage.BEFORE_FIRST_RESPONSE
-        elif turn_count <= 2:
-            stage = AbandonmentStage.AFTER_FIRST_RESPONSE
-        elif last_latency_ms and last_latency_ms >= self._slow_threshold:
-            stage = AbandonmentStage.AFTER_LONG_RESPONSE
-        else:
-            stage = AbandonmentStage.MID_CONVERSATION
-
-        return AbandonmentRecord(
-            session_id=session_id,
-            stage=stage,
-            reason=reason,
-            turn_count=turn_count,
-            session_duration_seconds=duration_seconds,
-            last_agent_response_latency_ms=last_latency_ms,
-            goal_category=goal_category,
+    def start_session(
+        self, session_id: str, user_id: str = "", task_type: str = ""
+    ) -> SessionRecord:
+        record = SessionRecord(
+            session_id=session_id, user_id=user_id, task_type=task_type
         )
+        with self._lock:
+            self._sessions[session_id] = record
+        return record
+
+    def record_event(self, session_id: str, event_type: str, **metadata) -> None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session:
+                session.add_event(event_type, **metadata)
+
+    def complete_session(self, session_id: str) -> Optional[SessionRecord]:
+        with self._lock:
+            session = self._sessions.pop(session_id, None)
+            if session:
+                session.state = SessionState.COMPLETED
+                session.ended_at = time.time()
+                session.final_agent_responded = True
+                self._closed.append(session)
+            return session
+
+    def abandon_session(self, session_id: str, reason: str = "") -> Optional[SessionRecord]:
+        with self._lock:
+            session = self._sessions.pop(session_id, None)
+            if session:
+                session.state = SessionState.ABANDONED
+                session.ended_at = time.time()
+                session.abandonment_reason = reason
+                self._closed.append(session)
+            return session
+
+    def error_session(self, session_id: str, error: str = "") -> Optional[SessionRecord]:
+        with self._lock:
+            session = self._sessions.pop(session_id, None)
+            if session:
+                session.state = SessionState.ERRORED
+                session.ended_at = time.time()
+                session.abandonment_reason = error
+                self._closed.append(session)
+            return session
+
+    def sweep_inactive(self) -> List[SessionRecord]:
+        cutoff = time.time() - self._timeout
+        timed_out = []
+        with self._lock:
+            inactive_ids = [
+                sid for sid, s in self._sessions.items()
+                if s.events and s.events[-1].timestamp < cutoff
+            ]
+            for sid in inactive_ids:
+                session = self._sessions.pop(sid)
+                session.state = SessionState.TIMED_OUT
+                session.ended_at = time.time()
+                session.abandonment_reason = "inactivity_timeout"
+                self._closed.append(session)
+                timed_out.append(session)
+        return timed_out
+
+    def active_count(self) -> int:
+        with self._lock:
+            return len(self._sessions)
+
+    def closed_sessions(self, limit: int = 1000) -> List[SessionRecord]:
+        with self._lock:
+            return self._closed[-limit:]
 ```
 
-## Solution 3: Abandonment Rate Recorder
+## Solution 3: Abandonment Rate Calculator
 
 ```python
 import time
-import threading
-from collections import defaultdict, deque
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 
-class AbandonmentRateRecorder:
+class AbandonmentRateCalculator:
     """
-    Accumulates abandonment records and computes rates broken down
-    by stage, reason, and goal category.
+    Computes abandonment rates from closed session records.
+    Segments by task type, latency bucket, and preceding error events.
     """
 
-    def __init__(self, max_records: int = 50000):
-        self._max = max_records
-        self._records: Deque[Tuple[float, AbandonmentRecord]] = deque()
-        self._completions: Deque[float] = deque()   # timestamps of completed sessions
-        self._lock = threading.Lock()
-
-    def record_abandonment(self, record: AbandonmentRecord) -> None:
-        with self._lock:
-            self._records.append((time.time(), record))
-            if len(self._records) > self._max:
-                self._records.popleft()
-
-    def record_completion(self) -> None:
-        with self._lock:
-            self._completions.append(time.time())
-            if len(self._completions) > self._max:
-                self._completions.popleft()
-
-    def abandonment_rate(self, window_seconds: float = 3600.0) -> Optional[float]:
+    def calculate(
+        self,
+        sessions: List[SessionRecord],
+        window_seconds: float = 3600.0,
+    ) -> dict:
         cutoff = time.time() - window_seconds
-        with self._lock:
-            abandoned = sum(1 for ts, _ in self._records if ts >= cutoff)
-            completed = sum(1 for ts in self._completions if ts >= cutoff)
-        total = abandoned + completed
-        if total == 0:
-            return None
-        return round(abandoned / total, 4)
-
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        with self._lock:
-            recent = [(ts, r) for ts, r in self._records if ts >= cutoff]
-            completed = sum(1 for ts in self._completions if ts >= cutoff)
-
+        recent = [
+            s for s in sessions
+            if s.ended_at and s.ended_at >= cutoff
+        ]
         if not recent:
-            total = completed
-            return {
-                "window_seconds": window_seconds,
-                "abandoned": 0,
-                "completed": completed,
-                "total": total,
-                "abandonment_rate": 0.0,
-            }
+            return {"window_seconds": window_seconds, "sessions": 0}
 
-        records = [r for _, r in recent]
-        by_stage: Dict[str, int] = defaultdict(int)
-        by_reason: Dict[str, int] = defaultdict(int)
-        by_category: Dict[str, int] = defaultdict(int)
+        completed = [s for s in recent if s.state == SessionState.COMPLETED]
+        abandoned = [s for s in recent if s.state in (
+            SessionState.ABANDONED, SessionState.TIMED_OUT
+        )]
+        errored = [s for s in recent if s.state == SessionState.ERRORED]
 
-        for r in records:
-            by_stage[r.stage.value] += 1
-            by_reason[r.reason.value] += 1
-            by_category[r.goal_category] += 1
+        abandonment_rate = len(abandoned) / max(len(recent), 1)
 
-        total = len(records) + completed
-        avg_turn = sum(r.turn_count for r in records) / len(records)
+        # By task type
+        by_task: Dict[str, dict] = {}
+        for s in recent:
+            t = s.task_type or "unknown"
+            if t not in by_task:
+                by_task[t] = {"total": 0, "abandoned": 0}
+            by_task[t]["total"] += 1
+            if s.state in (SessionState.ABANDONED, SessionState.TIMED_OUT):
+                by_task[t]["abandoned"] += 1
+
+        # Abandonment after tool errors
+        abandoned_after_error = sum(
+            1 for s in abandoned if s.tool_error_count > 0
+        )
 
         return {
             "window_seconds": window_seconds,
-            "abandoned": len(records),
-            "completed": completed,
-            "total": total,
-            "abandonment_rate": round(len(records) / max(total, 1), 4),
-            "by_stage": dict(by_stage),
-            "by_reason": dict(by_reason),
-            "by_category": dict(by_category),
-            "avg_turns_at_abandonment": round(avg_turn, 2),
+            "total_sessions": len(recent),
+            "completed": len(completed),
+            "abandoned": len(abandoned),
+            "errored": len(errored),
+            "abandonment_rate_pct": round(abandonment_rate * 100, 2),
+            "abandoned_after_tool_error_pct": round(
+                abandoned_after_error / max(len(abandoned), 1) * 100, 1
+            ),
+            "by_task_type": {
+                t: {
+                    "abandonment_rate_pct": round(
+                        v["abandoned"] / max(v["total"], 1) * 100, 1
+                    ),
+                    "total": v["total"],
+                }
+                for t, v in by_task.items()
+            },
         }
 ```
 
-## Solution 4: Session Closure Handler
+## Solution 4: Abandonment Latency Correlator
 
 ```python
-import time
-from typing import Callable, Optional
+from typing import List
 
 
-class SessionClosureHandler:
+class AbandonmentLatencyCorrelator:
     """
-    Called when a session closes (timeout or explicit exit).
-    Classifies the session as abandoned or completed and records it.
+    Correlates session abandonment with duration at abandonment time.
+    Identifies whether slow sessions are disproportionately abandoned.
     """
 
-    def __init__(
-        self,
-        detector: AbandonmentDetector,
-        recorder: AbandonmentRateRecorder,
-        audit_fn: Optional[Callable[[dict], None]] = None,
-    ):
-        self._detector = detector
-        self._recorder = recorder
-        self._audit = audit_fn or (lambda ev: None)
+    def __init__(self, latency_buckets: List[float] = None):
+        self._buckets = latency_buckets or [10.0, 30.0, 60.0, 120.0, 300.0]
 
-    def handle_closure(
-        self,
-        session_id: str,
-        turn_count: int,
-        agent_turns: int,
-        started_at: float,
-        last_activity_at: float,
-        last_latency_ms: Optional[float],
-        error_count: int,
-        goal_completed: bool,
-        goal_category: str = "general",
-    ) -> dict:
-        duration = time.time() - started_at
-        idle = time.time() - last_activity_at
+    def correlate(self, sessions: List[SessionRecord]) -> dict:
+        bucket_labels = [f"<{int(b)}s" for b in self._buckets] + [
+            f">={int(self._buckets[-1])}s"
+        ]
+        bucket_stats = {label: {"total": 0, "abandoned": 0} for label in bucket_labels}
 
-        record = self._detector.classify(
-            session_id=session_id,
-            turn_count=turn_count,
-            agent_turns=agent_turns,
-            duration_seconds=duration,
-            last_activity_seconds_ago=idle,
-            last_latency_ms=last_latency_ms,
-            error_count=error_count,
-            goal_completed=goal_completed,
-            goal_category=goal_category,
-        )
+        for s in sessions:
+            if s.ended_at is None:
+                continue
+            duration = s.ended_at - s.started_at
+            label = bucket_labels[-1]
+            for i, threshold in enumerate(self._buckets):
+                if duration < threshold:
+                    label = bucket_labels[i]
+                    break
+            bucket_stats[label]["total"] += 1
+            if s.state in (SessionState.ABANDONED, SessionState.TIMED_OUT):
+                bucket_stats[label]["abandoned"] += 1
 
-        if record is not None:
-            self._recorder.record_abandonment(record)
-            self._audit({
-                "event": "session_abandoned",
-                "session_id": session_id,
-                "stage": record.stage.value,
-                "reason": record.reason.value,
-                "turn_count": turn_count,
-                "timestamp": time.time(),
-            })
-            return {"outcome": "abandoned", "stage": record.stage.value}
-        else:
-            self._recorder.record_completion()
-            return {"outcome": "completed"}
+        return {
+            "latency_buckets": {
+                label: {
+                    "total": v["total"],
+                    "abandonment_rate_pct": round(
+                        v["abandoned"] / max(v["total"], 1) * 100, 1
+                    ),
+                }
+                for label, v in bucket_stats.items()
+            }
+        }
 ```
 
-## Solution 5: Abandonment Trend Analyzer
+## Solution 5: Inactivity Sweep Scheduler
 
 ```python
+import asyncio
 import time
 from typing import Optional
 
 
-class AbandonmentTrendAnalyzer:
+class InactivitySweepScheduler:
     """
-    Detects abandonment rate increases by comparing recent window
-    against a baseline window, signaling regression.
+    Periodically runs the session tracker sweep to transition
+    inactive sessions to TIMED_OUT state without waiting for
+    an explicit close signal from the application.
     """
 
     def __init__(
         self,
-        recorder: AbandonmentRateRecorder,
-        regression_threshold_pct: float = 20.0,
+        tracker: SessionTracker,
+        sweep_interval_seconds: float = 30.0,
     ):
-        self._recorder = recorder
-        self._threshold = regression_threshold_pct / 100.0
+        self._tracker = tracker
+        self._interval = sweep_interval_seconds
+        self._task: Optional[asyncio.Task] = None
+        self._total_swept = 0
 
-    def check_regression(
-        self,
-        baseline_window: float = 86400.0,
-        recent_window: float = 3600.0,
-    ) -> dict:
-        baseline_rate = self._recorder.abandonment_rate(baseline_window)
-        recent_rate = self._recorder.abandonment_rate(recent_window)
+    async def start(self) -> None:
+        self._task = asyncio.create_task(self._loop())
 
-        if baseline_rate is None or recent_rate is None:
-            return {"status": "insufficient_data"}
+    async def stop(self) -> None:
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
 
-        change = (recent_rate - baseline_rate) / max(baseline_rate, 0.001)
-        regressed = change > self._threshold
+    async def _loop(self) -> None:
+        while True:
+            swept = self._tracker.sweep_inactive()
+            self._total_swept += len(swept)
+            await asyncio.sleep(self._interval)
 
+    def stats(self) -> dict:
         return {
-            "status": "regression" if regressed else "ok",
-            "baseline_rate": baseline_rate,
-            "recent_rate": recent_rate,
-            "change_pct": round(change * 100, 1),
-            "regressed": regressed,
+            "total_swept": self._total_swept,
+            "sweep_interval_seconds": self._interval,
         }
 ```
 
-## Solution 6: Abandonment Dashboard
+## Solution 6: Session Abandonment Dashboard
 
 ```python
 import time
@@ -332,35 +345,42 @@ import time
 
 class SessionAbandonmentDashboard:
     """
-    Combines abandonment summary, trend analysis, and stage breakdown
-    into a single UX health report.
+    Combines abandonment rates, latency correlation, active session count,
+    and sweep statistics into a single user-experience observability view.
     """
 
     def __init__(
         self,
-        recorder: AbandonmentRateRecorder,
-        analyzer: AbandonmentTrendAnalyzer,
+        tracker: SessionTracker,
+        calculator: AbandonmentRateCalculator,
+        correlator: AbandonmentLatencyCorrelator,
+        sweep_scheduler: InactivitySweepScheduler,
     ):
-        self._recorder = recorder
-        self._analyzer = analyzer
+        self._tracker = tracker
+        self._calc = calculator
+        self._correlator = correlator
+        self._sweep = sweep_scheduler
 
     def render(self) -> dict:
+        closed = self._tracker.closed_sessions(limit=5000)
         return {
             "generated_at": time.time(),
-            "last_1h": self._recorder.summary(window_seconds=3600.0),
-            "last_24h": self._recorder.summary(window_seconds=86400.0),
-            "trend": self._analyzer.check_regression(),
+            "active_sessions": self._tracker.active_count(),
+            "abandonment_1h": self._calc.calculate(closed, 3600.0),
+            "abandonment_24h": self._calc.calculate(closed, 86400.0),
+            "latency_correlation": self._correlator.correlate(closed[-500:]),
+            "sweep_stats": self._sweep.stats(),
         }
 ```
 
 ## Comparison
 
-| Approach | Stage Classification | Reason Detection | Rate Calculation | Trend Detection | Dashboard |
+| Approach | Session Lifecycle | Abandonment Classification | Latency Correlation | Inactivity Sweep | Dashboard |
 |---|---|---|---|---|---|
-| AbandonmentDetector | Yes (5 stages) | Yes (4 reasons) | No | No | No |
-| AbandonmentRateRecorder | No | No | Yes | No | No |
-| SessionClosureHandler | Via detector | Via detector | Via recorder | No | Yes (audit) |
-| AbandonmentTrendAnalyzer | No | No | Via recorder | Yes | No |
+| SessionTracker | Yes (full state machine) | Via state | No | Yes (sweep_inactive) | No |
+| AbandonmentRateCalculator | No | Yes (by type/error) | No | No | No |
+| AbandonmentLatencyCorrelator | No | No | Yes | No | No |
+| InactivitySweepScheduler | No | No | No | Yes (async) | No |
 | SessionAbandonmentDashboard | No | No | No | No | Yes |
 
-**Best for production**: Alert when `AFTER_FIRST_RESPONSE` abandonment rate exceeds 30% — this is the highest-value signal of agent quality, indicating that the first reply consistently fails to engage users. Track abandonment rate separately for `SLOW_RESPONSE` reason: if this exceeds 15%, the latency problem is directly causing user loss, not just degrading experience. Compare `by_category` abandonment rates to identify which task types the agent handles poorly — categories with >50% abandonment rate are candidates for capability improvements or user expectation management.
+**Best for production**: Set `inactivity_timeout_seconds=120` — two minutes of silence after the last user message reliably signals abandonment without false-positiving on users who are reading a long agent response. Distinguish `ABANDONED` (user sent a new message or closed the session explicitly) from `TIMED_OUT` (inactivity) in your reporting — timed-out sessions where the agent was still generating a response indicate slow generation, while timed-out sessions where the agent had already responded indicate the user was unsatisfied with the answer. Monitor `abandonment_rate_pct` by `task_type`: if a specific task type exceeds 40% abandonment while others are below 15%, that task type's agent behavior (verbosity, tool chain depth, accuracy) warrants targeted investigation. Correlate `abandoned_after_tool_error_pct` above 50% with specific tool names — this reliably identifies which tool failures drive users away.
