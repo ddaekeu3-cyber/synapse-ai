@@ -1,273 +1,197 @@
 ---
 title: "Agent Doesn't Implement Cross-Session Data Isolation"
-description: "Agents that share in-memory caches, tool result stores, or conversation context between sessions allow one user's data to leak into another user's response — a shared embedding cache returns results seeded by a different user's private documents, or a shared tool result cache exposes financial data across session boundaries. Implement cross-session data isolation that namespaces all shared state by session and user identity, enforces isolation at read time, and audits cross-boundary access attempts."
+description: "Agents that share mutable state across concurrent user sessions — cached tool results, conversation summaries, embedding stores, or LRU caches keyed by content rather than session — allow one user's data to bleed into another user's context. A cached database result from user A's privileged query can be served to user B whose access level does not permit that data. Implement session-scoped data isolation that ensures every cache, buffer, and store is keyed by session ID and never shares data across sessions."
 date: 2026-04-16
-difficulty: intermediate
+difficulty: advanced
 category: security
 slug: agent-doesnt-implement-cross-session-data-isolation
-tags: [session-isolation, data-isolation, multi-tenant, cache-isolation, context-leakage, access-control]
+tags: [session-isolation, data-leakage, cache-isolation, multi-tenant-security, session-scoping, concurrent-sessions]
 symptoms:
-  - "User B receives tool results that were cached from User A's session"
-  - "Shared embedding cache is keyed only on query text — private documents match across users"
-  - "No per-user namespace in the tool result store — results are globally accessible"
-  - "Conversation history from Session A appears in Session B's context"
-  - "No audit log when a session accesses data that was originally created for another session"
+  - "Cached tool results from a privileged session are served to an unprivileged session"
+  - "Conversation summaries from one user appear in another user's context"
+  - "LRU cache keyed by query text returns results from another user's query"
+  - "Shared embedding store allows one session to retrieve documents loaded by another"
+  - "In-memory buffers persist across session boundaries due to object reuse"
 ---
 
 ## Why This Happens
 
-Caches and stores optimized for performance use content-based keys — a hash of the query text, the tool name, or the document. These keys are correct for public data but catastrophically wrong for private data: two users asking the same question about their respective private documents get identical cache keys, and whichever user's result was cached first is returned to the other. Isolation requires injecting user and session identity into every cache key and enforcing read-time ownership checks.
+Performance optimizations that share state across sessions — caches keyed by content hash, shared embedding stores, session-agnostic LRU caches — trade security isolation for efficiency. When multiple users share an agent instance, any data in a shared cache is accessible to any session that produces the same cache key, regardless of the requesting session's access level. The fix requires either session-scoping all caches (each session gets its own isolated store) or including the session's access level in the cache key so that cross-session cache hits only occur between sessions with identical permissions.
 
-## Solution 1: Isolation Identity
+## Solution 1: Session Identity
 
 ```python
-from dataclasses import dataclass
-from typing import Optional
+import time
+import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import FrozenSet, Optional, Set
 
 
-@dataclass(frozen=True)
-class IsolationIdentity:
-    user_id: str
-    session_id: str
-    tenant_id: Optional[str] = None   # for multi-tenant deployments
+class AccessLevel(str, Enum):
+    PUBLIC = "public"
+    USER = "user"
+    PREMIUM = "premium"
+    ADMIN = "admin"
 
-    def namespace(self) -> str:
-        parts = [self.user_id, self.session_id]
-        if self.tenant_id:
-            parts = [self.tenant_id] + parts
-        return ":".join(parts)
 
-    def user_namespace(self) -> str:
-        """Namespace shared across sessions for the same user."""
-        if self.tenant_id:
-            return f"{self.tenant_id}:{self.user_id}"
-        return self.user_id
+@dataclass
+class SessionIdentity:
+    session_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    user_id: str = ""
+    access_level: AccessLevel = AccessLevel.USER
+    tenant_id: str = ""
+    created_at: float = field(default_factory=time.time)
+    permissions: FrozenSet[str] = field(default_factory=frozenset)
 
-    def tenant_namespace(self) -> str:
-        """Namespace shared across all users in a tenant."""
-        return self.tenant_id or self.user_id
+    def isolation_key(self) -> str:
+        """Key that two sessions must share to allow cross-session cache hits."""
+        return f"{self.tenant_id}:{self.access_level.value}:{','.join(sorted(self.permissions))}"
+
+    def can_share_with(self, other: "SessionIdentity") -> bool:
+        """Returns True only if both sessions have identical access profiles."""
+        return self.isolation_key() == other.isolation_key()
 ```
 
-## Solution 2: Isolation-Enforced Cache
+## Solution 2: Session-Scoped Cache
 
 ```python
-import hashlib
-import json
 import time
-from typing import Any, Dict, Optional
+from threading import Lock
+from typing import Any, Dict, Optional, Tuple
 
 
-class IsolationEnforcedCache:
+class SessionScopedCache:
     """
-    A key-value cache that namespaces all entries by IsolationIdentity.
-    Read operations verify ownership; cross-boundary reads raise IsolationViolationError.
+    Cache partitioned by session_id. Each session has its own isolated
+    namespace; cross-session lookups are impossible by design.
     """
 
-    def __init__(self, ttl_seconds: float = 3600.0, max_entries: int = 4096) -> None:
-        self._ttl = ttl_seconds
-        self._max = max_entries
-        self._store: Dict[str, dict] = {}   # full_key -> {value, owner_namespace, stored_at}
-        self._violations: list = []
+    def __init__(
+        self,
+        max_entries_per_session: int = 200,
+        session_ttl_seconds: float = 3600.0,
+    ):
+        self._max_per_session = max_entries_per_session
+        self._session_ttl = session_ttl_seconds
+        self._data: Dict[str, Dict[str, Tuple[Any, float]]] = {}
+        self._session_created: Dict[str, float] = {}
+        self._lock = Lock()
 
-    def _full_key(self, identity: IsolationIdentity, key: str) -> str:
-        ns = identity.namespace()
-        h = hashlib.sha256(f"{ns}:{key}".encode()).hexdigest()[:20]
-        return h
-
-    def _is_expired(self, entry: dict) -> bool:
-        return time.time() - entry["stored_at"] > self._ttl
+    def get(self, session_id: str, key: str) -> Optional[Any]:
+        with self._lock:
+            session_data = self._data.get(session_id, {})
+            entry = session_data.get(key)
+            if entry is None:
+                return None
+            value, expires_at = entry
+            if time.time() > expires_at:
+                del session_data[key]
+                return None
+            return value
 
     def put(
-        self,
-        identity: IsolationIdentity,
-        key: str,
-        value: Any,
-        scope: str = "session",   # "session" | "user" | "tenant"
-    ) -> None:
-        if len(self._store) >= self._max:
-            self._evict_oldest()
-        ns = identity.session_id if scope == "session" else (
-            identity.user_namespace() if scope == "user" else identity.tenant_namespace()
-        )
-        full_key = self._full_key(identity, key)
-        self._store[full_key] = {
-            "value": value,
-            "owner_namespace": ns,
-            "scope": scope,
-            "stored_at": time.time(),
-        }
-
-    def get(
-        self,
-        identity: IsolationIdentity,
-        key: str,
-    ) -> Optional[Any]:
-        full_key = self._full_key(identity, key)
-        entry = self._store.get(full_key)
-        if not entry or self._is_expired(entry):
-            if entry:
-                del self._store[full_key]
-            return None
-        return entry["value"]
-
-    def _evict_oldest(self) -> None:
-        if not self._store:
-            return
-        oldest = min(self._store, key=lambda k: self._store[k]["stored_at"])
-        del self._store[oldest]
-
-    def violation_count(self) -> int:
-        return len(self._violations)
-```
-
-## Solution 3: Session Context Store
-
-```python
-import time
-from typing import Any, Dict, List, Optional
-
-
-class IsolatedSessionContextStore:
-    """
-    Stores per-session conversation context with strict session-boundary enforcement.
-    Sessions cannot read each other's context even if they share a user_id.
-    """
-
-    def __init__(self) -> None:
-        self._contexts: Dict[str, dict] = {}   # session_id -> context data
-        self._access_log: List[dict] = []
-
-    def _log_access(
         self,
         session_id: str,
-        accessor_identity: IsolationIdentity,
-        allowed: bool,
+        key: str,
+        value: Any,
+        ttl_seconds: float = 300.0,
     ) -> None:
-        self._access_log.append({
-            "ts": time.time(),
-            "session_id": session_id,
-            "accessor_session": accessor_identity.session_id,
-            "accessor_user": accessor_identity.user_id,
-            "allowed": allowed,
-        })
+        with self._lock:
+            if session_id not in self._data:
+                self._data[session_id] = {}
+                self._session_created[session_id] = time.time()
 
-    def write(self, identity: IsolationIdentity, data: Dict[str, Any]) -> None:
-        if identity.session_id not in self._contexts:
-            self._contexts[identity.session_id] = {
-                "owner_user_id": identity.user_id,
-                "owner_tenant_id": identity.tenant_id,
-                "created_at": time.time(),
-                "data": {},
+            session_data = self._data[session_id]
+            if len(session_data) >= self._max_per_session:
+                # Evict oldest entry
+                oldest_key = min(session_data, key=lambda k: session_data[k][1])
+                del session_data[oldest_key]
+
+            session_data[key] = (value, time.time() + ttl_seconds)
+
+    def invalidate_session(self, session_id: str) -> None:
+        with self._lock:
+            self._data.pop(session_id, None)
+            self._session_created.pop(session_id, None)
+
+    def evict_expired_sessions(self) -> int:
+        now = time.time()
+        with self._lock:
+            expired = [
+                sid for sid, created in self._session_created.items()
+                if now - created > self._session_ttl
+            ]
+            for sid in expired:
+                self._data.pop(sid, None)
+                self._session_created.pop(sid, None)
+            return len(expired)
+
+    def stats(self) -> dict:
+        with self._lock:
+            total_entries = sum(len(d) for d in self._data.values())
+            return {
+                "active_sessions": len(self._data),
+                "total_cached_entries": total_entries,
             }
-        self._contexts[identity.session_id]["data"].update(data)
-        self._contexts[identity.session_id]["updated_at"] = time.time()
-
-    def read(self, identity: IsolationIdentity) -> Optional[Dict[str, Any]]:
-        ctx = self._contexts.get(identity.session_id)
-        if not ctx:
-            return None
-
-        # Enforce ownership
-        owner_user = ctx.get("owner_user_id")
-        owner_tenant = ctx.get("owner_tenant_id")
-
-        user_match = owner_user == identity.user_id
-        tenant_match = (owner_tenant is None or owner_tenant == identity.tenant_id)
-
-        if not (user_match and tenant_match):
-            self._log_access(identity.session_id, identity, allowed=False)
-            raise PermissionError(
-                f"Session '{identity.session_id}' is owned by user '{owner_user}', "
-                f"not '{identity.user_id}'"
-            )
-
-        self._log_access(identity.session_id, identity, allowed=True)
-        return dict(ctx["data"])
-
-    def delete(self, identity: IsolationIdentity) -> None:
-        ctx = self._contexts.get(identity.session_id)
-        if ctx and ctx.get("owner_user_id") == identity.user_id:
-            del self._contexts[identity.session_id]
-
-    def access_log(self, denied_only: bool = False) -> List[dict]:
-        if denied_only:
-            return [e for e in self._access_log if not e["allowed"]]
-        return list(self._access_log)
 ```
 
-## Solution 4: Isolated Tool Result Store
+## Solution 3: Access-Level Keyed Shared Cache
 
 ```python
 import hashlib
-import json
 import time
-from typing import Any, Dict, Optional
+from threading import Lock
+from typing import Any, Dict, Optional, Tuple
 
 
-class IsolatedToolResultStore:
+class AccessKeyedSharedCache:
     """
-    Caches tool results namespaced by IsolationIdentity.
-    Public tools (no user data) can use a shared namespace;
-    private tools always use per-session or per-user namespace.
+    Shared cache that includes the session's access profile in the key.
+    Two sessions can share a cache entry only if they have identical
+    access profiles — preventing privilege elevation via cache hits.
     """
 
-    PUBLIC_TOOLS = frozenset(["web_search", "calculator", "weather", "currency_convert"])
+    def __init__(self, max_entries: int = 5000):
+        self._max = max_entries
+        self._data: Dict[str, Tuple[Any, float]] = {}
+        self._lock = Lock()
 
-    def __init__(self, ttl_seconds: float = 300.0) -> None:
-        self._ttl = ttl_seconds
-        self._store: Dict[str, dict] = {}
+    def _scoped_key(self, session: SessionIdentity, content_key: str) -> str:
+        isolation = session.isolation_key()
+        return hashlib.sha256(f"{isolation}:{content_key}".encode()).hexdigest()[:24]
 
-    def _make_key(
-        self,
-        identity: IsolationIdentity,
-        tool_name: str,
-        args: Dict[str, Any],
-        is_public: bool,
-    ) -> str:
-        args_hash = hashlib.sha256(
-            json.dumps(args, sort_keys=True).encode()
-        ).hexdigest()[:16]
-        if is_public:
-            return f"public:{tool_name}:{args_hash}"
-        return f"{identity.user_namespace()}:{tool_name}:{args_hash}"
+    def get(self, session: SessionIdentity, content_key: str) -> Optional[Any]:
+        scoped = self._scoped_key(session, content_key)
+        with self._lock:
+            entry = self._data.get(scoped)
+            if entry is None:
+                return None
+            value, expires_at = entry
+            if time.time() > expires_at:
+                del self._data[scoped]
+                return None
+            return value
 
     def put(
         self,
-        identity: IsolationIdentity,
-        tool_name: str,
-        args: Dict[str, Any],
-        result: Any,
+        session: SessionIdentity,
+        content_key: str,
+        value: Any,
+        ttl_seconds: float = 300.0,
     ) -> None:
-        is_public = tool_name in self.PUBLIC_TOOLS
-        key = self._make_key(identity, tool_name, args, is_public)
-        self._store[key] = {
-            "result": result,
-            "is_public": is_public,
-            "stored_at": time.time(),
-            "owner": identity.user_id if not is_public else None,
-        }
-
-    def get(
-        self,
-        identity: IsolationIdentity,
-        tool_name: str,
-        args: Dict[str, Any],
-    ) -> Optional[Any]:
-        is_public = tool_name in self.PUBLIC_TOOLS
-        key = self._make_key(identity, tool_name, args, is_public)
-        entry = self._store.get(key)
-        if not entry:
-            return None
-        if time.time() - entry["stored_at"] > self._ttl:
-            del self._store[key]
-            return None
-        # For private results, verify ownership
-        if not entry["is_public"] and entry.get("owner") != identity.user_id:
-            return None   # silently miss — no cross-user access
-        return entry["result"]
+        scoped = self._scoped_key(session, content_key)
+        with self._lock:
+            if len(self._data) >= self._max:
+                # Simple eviction: remove expired entries first
+                now = time.time()
+                stale = [k for k, (_, exp) in self._data.items() if exp < now]
+                for k in stale[:100]:
+                    del self._data[k]
+            self._data[scoped] = (value, time.time() + ttl_seconds)
 ```
 
-## Solution 5: Isolation Violation Detector
+## Solution 4: Isolation Violation Detector
 
 ```python
 import time
@@ -276,55 +200,90 @@ from typing import List
 
 class IsolationViolationDetector:
     """
-    Monitors access logs and cache violation counts across all isolation
-    components to detect active data leakage patterns.
+    Detects attempts to access another session's data by monitoring
+    for cache key construction patterns that bypass session scoping.
+    Flags code paths that use content-only keys without session context.
     """
 
-    def __init__(
+    def __init__(self):
+        self._violations: List[dict] = []
+
+    def record_unscoped_access(
         self,
-        session_store: IsolatedSessionContextStore,
-        cache: IsolationEnforcedCache,
-        alert_threshold: int = 3,
+        session_id: str,
+        cache_name: str,
+        key: str,
+        context: str = "",
     ) -> None:
-        self._session_store = session_store
-        self._cache = cache
-        self._threshold = alert_threshold
+        """
+        Call this when a cache lookup occurs without session context.
+        Use as a canary in legacy cache code paths.
+        """
+        self._violations.append({
+            "ts": time.time(),
+            "session_id": session_id,
+            "cache_name": cache_name,
+            "key_preview": key[:30],
+            "context": context,
+        })
 
-    def check(self) -> List[dict]:
-        alerts = []
-        denied = self._session_store.access_log(denied_only=True)
-
-        if len(denied) >= self._threshold:
-            from collections import Counter
-            by_accessor = Counter(e["accessor_user"] for e in denied)
-            alerts.append({
-                "type": "cross_session_access_attempts",
-                "count": len(denied),
-                "top_offenders": dict(by_accessor.most_common(3)),
-                "severity": "critical",
-                "message": f"{len(denied)} denied cross-session access attempts detected",
-            })
-
-        if self._cache.violation_count() >= self._threshold:
-            alerts.append({
-                "type": "cache_isolation_violations",
-                "count": self._cache.violation_count(),
-                "severity": "critical",
-                "message": "Cache isolation boundary violations detected",
-            })
-
-        return alerts
-
-    def report(self) -> dict:
+    def summary(self, window_seconds: float = 3600.0) -> dict:
+        cutoff = time.time() - window_seconds
+        recent = [v for v in self._violations if v["ts"] >= cutoff]
+        from collections import Counter
+        by_cache = Counter(v["cache_name"] for v in recent)
         return {
-            "generated_at": time.time(),
-            "denied_access_attempts": len(self._session_store.access_log(denied_only=True)),
-            "cache_violations": self._cache.violation_count(),
-            "alerts": self.check(),
+            "window_seconds": window_seconds,
+            "unscoped_accesses": len(recent),
+            "by_cache": dict(by_cache.most_common(5)),
         }
 ```
 
-## Solution 6: Isolation Dashboard
+## Solution 5: Session Data Lifecycle Manager
+
+```python
+import time
+from typing import List
+
+
+class SessionDataLifecycleManager:
+    """
+    Coordinates cleanup of all session-scoped stores when a session ends.
+    Prevents data accumulation from abandoned sessions.
+    """
+
+    def __init__(self):
+        self._stores: List[SessionScopedCache] = []
+        self._terminated_sessions: List[dict] = []
+
+    def register_store(self, store: SessionScopedCache) -> None:
+        self._stores.append(store)
+
+    def on_session_end(self, session_id: str, reason: str = "normal") -> None:
+        for store in self._stores:
+            store.invalidate_session(session_id)
+        self._terminated_sessions.append({
+            "ts": time.time(),
+            "session_id": session_id,
+            "reason": reason,
+        })
+
+    def run_gc(self) -> dict:
+        evicted = sum(store.evict_expired_sessions() for store in self._stores)
+        return {
+            "stores_cleaned": len(self._stores),
+            "sessions_evicted": evicted,
+        }
+
+    def summary(self) -> dict:
+        return {
+            "registered_stores": len(self._stores),
+            "total_terminated_sessions": len(self._terminated_sessions),
+            "store_stats": [s.stats() for s in self._stores],
+        }
+```
+
+## Solution 6: Cross-Session Isolation Dashboard
 
 ```python
 import time
@@ -332,46 +291,34 @@ import time
 
 class CrossSessionIsolationDashboard:
     """
-    Combines isolation enforcement stats and violation detection
-    into a security operational view.
+    Combines session-scoped cache stats, violation detection,
+    and lifecycle management into a single security view.
     """
 
     def __init__(
         self,
-        detector: IsolationViolationDetector,
-        session_store: IsolatedSessionContextStore,
-    ) -> None:
-        self._detector = detector
-        self._session_store = session_store
+        lifecycle_manager: SessionDataLifecycleManager,
+        violation_detector: IsolationViolationDetector,
+    ):
+        self._lifecycle = lifecycle_manager
+        self._detector = violation_detector
 
-    def render(self) -> dict:
-        report = self._detector.report()
-        all_access = self._session_store.access_log()
-        denied = [e for e in all_access if not e["allowed"]]
-
+    def render(self, window_seconds: float = 3600.0) -> dict:
         return {
             "generated_at": time.time(),
-            "access_log_summary": {
-                "total_accesses": len(all_access),
-                "denied_accesses": len(denied),
-                "denial_rate": round(len(denied) / max(len(all_access), 1), 4),
-            },
-            "violation_summary": {
-                "cache_violations": report["cache_violations"],
-                "session_denials": report["denied_access_attempts"],
-            },
-            "active_alerts": report["alerts"],
+            "lifecycle": self._lifecycle.summary(),
+            "isolation_violations": self._detector.summary(window_seconds),
         }
 ```
 
 ## Comparison
 
-| Approach | Cache Isolation | Session Isolation | Tool Result Isolation | Violation Detection | Dashboard |
+| Approach | Session Partitioning | Access-Level Keying | Violation Detection | Lifecycle GC | Dashboard |
 |---|---|---|---|---|---|
-| IsolationEnforcedCache | Yes (namespaced keys) | No | No | Partial | No |
-| IsolatedSessionContextStore | No | Yes (ownership check) | No | Yes (access log) | No |
-| IsolatedToolResultStore | No | No | Yes (public/private split) | No | No |
-| IsolationViolationDetector | Via cache | Via session store | No | Yes | No |
-| CrossSessionIsolationDashboard | No | No | No | Via detector | Yes |
+| SessionScopedCache | Yes (hard partition) | No | No | Yes | No |
+| AccessKeyedSharedCache | No | Yes (HMAC-keyed) | No | No | No |
+| IsolationViolationDetector | No | No | Yes | No | No |
+| SessionDataLifecycleManager | Via stores | No | No | Yes | No |
+| CrossSessionIsolationDashboard | No | No | No | No | Yes |
 
-**Best for production**: Never use content-only cache keys for any data that could contain user-specific information — always include `user_id` in the key hash. Define a clear list of `PUBLIC_TOOLS` whose results are safe to share across users (calculators, public web search) and treat everything else as private by default. Log every denied cross-session access attempt immediately — a burst of denials from a single user indicates either a bug or an active attempt to enumerate other users' data. Run `IsolationViolationDetector.check()` on every request, not just periodically, so that the first violation triggers an alert within seconds.
+**Best for production**: Default to `SessionScopedCache` for all tool result caches — the performance overhead of session partitioning is negligible compared to the security benefit. Use `AccessKeyedSharedCache` only for truly access-level-neutral content like public documentation or cached LLM model metadata, where sharing is safe and the access profile is provably equivalent. Register all session-scoped stores with `SessionDataLifecycleManager` and call `on_session_end()` in your session termination handler — expired sessions should not accumulate indefinitely. Run `IsolationViolationDetector` alerts in all environments: any `unscoped_accesses > 0` in production is a P1 security finding requiring immediate code review.
