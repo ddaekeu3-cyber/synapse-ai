@@ -1,45 +1,43 @@
 ---
 title: "Agent Doesn't Implement Response Caching with Semantic Invalidation"
-description: "Agents that cache responses by exact query string miss the majority of cache opportunities — semantically equivalent questions ('What is the capital of France?' and 'France capital?') produce separate cache entries. Conversely, caches that never invalidate return stale answers after source documents change. Implement response caching with semantic similarity matching for cache lookup and dependency-tracked invalidation when referenced documents are updated."
+description: "Agents that cache responses only by exact input hash miss the vast majority of cacheable queries — two users asking 'what's the weather in Paris?' and 'Paris weather today?' receive separate LLM calls despite being semantically equivalent. Implement response caching with semantic similarity matching for cache lookup and domain-aware invalidation that expires cached responses when underlying data changes."
 date: 2026-04-16
 difficulty: advanced
 category: performance
 slug: agent-doesnt-implement-response-caching-with-semantic-invalidation
-tags: [semantic-cache, cache-invalidation, response-caching, embedding-similarity, rag-cache, dependency-tracking]
+tags: [response-caching, semantic-cache, cache-invalidation, similarity-lookup, llm-cache, cache-freshness]
 symptoms:
-  - "Cache hit rate below 5% because every question is slightly differently worded"
-  - "Cached response returns a stale answer after the source document was updated"
-  - "Semantically identical queries from different users each trigger a fresh LLM call"
-  - "No tracking of which documents each cached answer depends on"
-  - "Manual cache flush required after every document update"
+  - "Paraphrased versions of the same question each trigger a full LLM call"
+  - "Cache hit rate is below 5% because only exact-match queries hit the cache"
+  - "No mechanism to invalidate cached responses when the underlying data they describe changes"
+  - "Cached responses are served indefinitely even when the facts they contain are stale"
+  - "High LLM cost despite many users asking similar questions"
 ---
 
 ## Why This Happens
 
-Exact-match caching fails for natural language because users phrase the same question differently. Semantic caching uses embedding similarity to find cache entries that are close enough to the current query — within a configurable cosine similarity threshold. Invalidation is the harder problem: a cached answer about "company headcount" becomes stale when the headcount document is updated. Dependency tracking records which document IDs contributed to each cached answer, so when any of those documents change, the affected cache entries are invalidated automatically.
+Exact-match caching keys on the raw query string, so even minor paraphrasing causes a cache miss. Semantic caching keys on the embedding of the query and considers two queries a cache hit if their embeddings are within a cosine similarity threshold. Invalidation is harder than lookup: a cached response about stock prices becomes stale when the market closes; a cached response about a user's account balance becomes stale on any account activity. Semantic invalidation requires tagging each cached entry with the data domains it depends on and expiring those entries when the domain signals a data change.
 
 ## Solution 1: Semantic Cache Entry
 
 ```python
-import hashlib
 import time
+import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, List, Optional
 
 
 @dataclass
 class SemanticCacheEntry:
-    entry_id: str
-    query_text: str
-    query_embedding: List[float]
-    response_text: str
-    document_dependencies: Set[str]   # document_ids this response drew from
-    tool_dependencies: Set[str]       # tool names used to produce this response
+    cache_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    query: str = ""
+    query_embedding: List[float] = field(default_factory=list)
+    response: Any = None
+    domain_tags: List[str] = field(default_factory=list)  # e.g. ["weather", "paris"]
     created_at: float = field(default_factory=time.time)
-    last_accessed_at: float = field(default_factory=time.time)
+    ttl_seconds: float = 300.0
     access_count: int = 0
-    ttl_seconds: float = 3600.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    last_accessed_at: float = field(default_factory=time.time)
 
     def is_expired(self) -> bool:
         return time.time() - self.created_at > self.ttl_seconds
@@ -47,341 +45,325 @@ class SemanticCacheEntry:
     def touch(self) -> None:
         self.access_count += 1
         self.last_accessed_at = time.time()
-
-    def age_seconds(self) -> float:
-        return time.time() - self.created_at
 ```
 
-## Solution 2: Embedding Similarity Matcher
+## Solution 2: Semantic Response Cache
 
 ```python
 import math
-from typing import List, Optional, Tuple
-
-
-def cosine_similarity(a: List[float], b: List[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    mag_a = math.sqrt(sum(x * x for x in a))
-    mag_b = math.sqrt(sum(x * x for x in b))
-    return dot / (mag_a * mag_b + 1e-9)
-
-
-class EmbeddingSimilarityMatcher:
-    """
-    Finds cache entries whose query embedding is within a similarity
-    threshold of the incoming query embedding.
-    Uses linear scan — replace with ANN index for >10k entries.
-    """
-
-    def __init__(self, similarity_threshold: float = 0.92):
-        self._threshold = similarity_threshold
-
-    def find_match(
-        self,
-        query_embedding: List[float],
-        candidates: List[SemanticCacheEntry],
-    ) -> Optional[Tuple[SemanticCacheEntry, float]]:
-        """Returns (best_entry, similarity) or None if no match above threshold."""
-        best: Optional[Tuple[SemanticCacheEntry, float]] = None
-        for entry in candidates:
-            if entry.is_expired():
-                continue
-            sim = cosine_similarity(query_embedding, entry.query_embedding)
-            if sim >= self._threshold:
-                if best is None or sim > best[1]:
-                    best = (entry, sim)
-        return best
-
-    def find_all_matches(
-        self,
-        query_embedding: List[float],
-        candidates: List[SemanticCacheEntry],
-        top_k: int = 5,
-    ) -> List[Tuple[SemanticCacheEntry, float]]:
-        results = [
-            (entry, cosine_similarity(query_embedding, entry.query_embedding))
-            for entry in candidates
-            if not entry.is_expired()
-        ]
-        results = [(e, s) for e, s in results if s >= self._threshold]
-        results.sort(key=lambda x: -x[1])
-        return results[:top_k]
-```
-
-## Solution 3: Dependency Tracker
-
-```python
-from typing import Dict, Set
-
-
-class CacheDependencyTracker:
-    """
-    Tracks which cache entries depend on which documents.
-    When a document is updated, the tracker returns all affected entry IDs
-    so they can be invalidated.
-    """
-
-    def __init__(self):
-        # document_id -> set of entry_ids that depend on it
-        self._doc_to_entries: Dict[str, Set[str]] = {}
-        # entry_id -> set of document_ids it depends on
-        self._entry_to_docs: Dict[str, Set[str]] = {}
-
-    def register(self, entry: SemanticCacheEntry) -> None:
-        for doc_id in entry.document_dependencies:
-            self._doc_to_entries.setdefault(doc_id, set()).add(entry.entry_id)
-        self._entry_to_docs[entry.entry_id] = set(entry.document_dependencies)
-
-    def unregister(self, entry_id: str) -> None:
-        docs = self._entry_to_docs.pop(entry_id, set())
-        for doc_id in docs:
-            self._doc_to_entries.get(doc_id, set()).discard(entry_id)
-
-    def entries_depending_on(self, document_id: str) -> Set[str]:
-        return set(self._doc_to_entries.get(document_id, set()))
-
-    def stats(self) -> dict:
-        return {
-            "tracked_entries": len(self._entry_to_docs),
-            "tracked_documents": len(self._doc_to_entries),
-        }
-```
-
-## Solution 4: Semantic Response Cache
-
-```python
-import asyncio
 import time
-import uuid
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from threading import Lock
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 class SemanticResponseCache:
     """
-    Caches LLM responses keyed by query embedding similarity.
-    Supports dependency-tracked invalidation: when a document changes,
-    all entries that drew from it are automatically evicted.
+    Caches agent responses keyed by query embedding.
+    Performs approximate nearest-neighbor lookup using cosine similarity.
+    Supports domain-tag-based invalidation.
     """
 
     def __init__(
         self,
-        matcher: EmbeddingSimilarityMatcher,
-        dep_tracker: CacheDependencyTracker,
-        max_entries: int = 5_000,
-        default_ttl_seconds: float = 3600.0,
+        embed_fn: Callable[[str], List[float]],
+        similarity_threshold: float = 0.92,
+        max_entries: int = 5000,
     ):
-        self._matcher = matcher
-        self._deps = dep_tracker
-        self._entries: Dict[str, SemanticCacheEntry] = {}
+        self._embed_fn = embed_fn
+        self._threshold = similarity_threshold
         self._max = max_entries
-        self._default_ttl = default_ttl_seconds
+        self._entries: Dict[str, SemanticCacheEntry] = {}
+        self._lock = Lock()
         self._hits = 0
         self._misses = 0
-        self._invalidations = 0
 
-    async def get(
-        self,
-        query_embedding: List[float],
-    ) -> Optional[Tuple[SemanticCacheEntry, float]]:
-        candidates = list(self._entries.values())
-        match = self._matcher.find_match(query_embedding, candidates)
-        if match:
-            entry, sim = match
-            entry.touch()
-            self._hits += 1
-            return entry, sim
+    @staticmethod
+    def _cosine(a: List[float], b: List[float]) -> float:
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(x * x for x in b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    def get(self, query: str) -> Optional[Tuple[Any, float]]:
+        """Returns (response, similarity) or None on miss."""
+        query_emb = self._embed_fn(query)
+        now = time.time()
+
+        with self._lock:
+            best_sim = 0.0
+            best_entry: Optional[SemanticCacheEntry] = None
+
+            for entry in self._entries.values():
+                if entry.is_expired():
+                    continue
+                sim = self._cosine(query_emb, entry.query_embedding)
+                if sim > best_sim:
+                    best_sim = sim
+                    best_entry = entry
+
+            if best_entry and best_sim >= self._threshold:
+                best_entry.touch()
+                self._hits += 1
+                return best_entry.response, round(best_sim, 4)
+
         self._misses += 1
         return None
 
-    async def put(
+    def set(
         self,
-        query_text: str,
-        query_embedding: List[float],
-        response_text: str,
-        document_dependencies: Set[str] = None,
-        tool_dependencies: Set[str] = None,
-        ttl_seconds: Optional[float] = None,
-        metadata: dict = None,
-    ) -> SemanticCacheEntry:
-        if len(self._entries) >= self._max:
-            self._evict_lru()
-
+        query: str,
+        response: Any,
+        domain_tags: List[str] = None,
+        ttl_seconds: float = 300.0,
+    ) -> None:
+        query_emb = self._embed_fn(query)
         entry = SemanticCacheEntry(
-            entry_id=str(uuid.uuid4())[:12],
-            query_text=query_text,
-            query_embedding=query_embedding,
-            response_text=response_text,
-            document_dependencies=document_dependencies or set(),
-            tool_dependencies=tool_dependencies or set(),
-            ttl_seconds=ttl_seconds or self._default_ttl,
-            metadata=metadata or {},
+            query=query,
+            query_embedding=query_emb,
+            response=response,
+            domain_tags=domain_tags or [],
+            ttl_seconds=ttl_seconds,
         )
-        self._entries[entry.entry_id] = entry
-        self._deps.register(entry)
-        return entry
-
-    def invalidate_by_document(self, document_id: str) -> int:
-        affected = self._deps.entries_depending_on(document_id)
-        removed = 0
-        for entry_id in affected:
-            if self._entries.pop(entry_id, None):
-                self._deps.unregister(entry_id)
-                removed += 1
-        self._invalidations += removed
-        return removed
-
-    def invalidate_entry(self, entry_id: str) -> bool:
-        if self._entries.pop(entry_id, None):
-            self._deps.unregister(entry_id)
-            self._invalidations += 1
-            return True
-        return False
-
-    def evict_expired(self) -> int:
-        expired = [eid for eid, e in self._entries.items() if e.is_expired()]
-        for eid in expired:
-            self._entries.pop(eid, None)
-            self._deps.unregister(eid)
-        return len(expired)
+        with self._lock:
+            if len(self._entries) >= self._max:
+                self._evict_lru()
+            self._entries[entry.cache_id] = entry
 
     def _evict_lru(self) -> None:
         if not self._entries:
             return
-        lru = min(self._entries.values(), key=lambda e: e.last_accessed_at)
-        self._entries.pop(lru.entry_id, None)
-        self._deps.unregister(lru.entry_id)
+        lru_id = min(self._entries, key=lambda k: self._entries[k].last_accessed_at)
+        del self._entries[lru_id]
+
+    def hit_rate(self) -> float:
+        total = self._hits + self._misses
+        return round(self._hits / max(total, 1), 4)
 
     def stats(self) -> dict:
-        total = self._hits + self._misses
+        with self._lock:
+            active = sum(1 for e in self._entries.values() if not e.is_expired())
         return {
             "entries": len(self._entries),
-            "max_entries": self._max,
+            "active_entries": active,
             "hits": self._hits,
             "misses": self._misses,
-            "hit_rate": round(self._hits / max(total, 1), 4),
-            "invalidations": self._invalidations,
+            "hit_rate": self.hit_rate(),
         }
 ```
 
-## Solution 5: Cache-Aware Query Executor
+## Solution 3: Domain Tag Invalidator
 
 ```python
-from typing import Any, Callable, List, Optional, Set
+import time
+from threading import Lock
+from typing import Dict, List
 
 
-class CacheAwareQueryExecutor:
+class DomainTagInvalidator:
     """
-    Wraps query execution with semantic cache lookup and population.
-    On cache miss, executes the query, records document dependencies,
-    and populates the cache for future similar queries.
+    Invalidates cache entries by domain tag when underlying data changes.
+    Supports both immediate invalidation and scheduled future expiry.
+    """
+
+    def __init__(self, cache: SemanticResponseCache):
+        self._cache = cache
+        self._invalidation_log: List[dict] = []
+        self._lock = Lock()
+
+    def invalidate_domain(self, domain_tag: str) -> int:
+        """Immediately expire all entries tagged with domain_tag."""
+        invalidated = 0
+        with self._cache._lock:
+            for entry in self._cache._entries.values():
+                if domain_tag in entry.domain_tags and not entry.is_expired():
+                    # Force expiry by setting created_at to past
+                    entry.ttl_seconds = 0
+                    invalidated += 1
+
+        self._invalidation_log.append({
+            "domain": domain_tag,
+            "invalidated_count": invalidated,
+            "invalidated_at": time.time(),
+        })
+        return invalidated
+
+    def invalidate_domains(self, domain_tags: List[str]) -> Dict[str, int]:
+        return {tag: self.invalidate_domain(tag) for tag in domain_tags}
+
+    def schedule_invalidation(
+        self,
+        domain_tag: str,
+        delay_seconds: float,
+    ) -> None:
+        import threading
+        timer = threading.Timer(
+            delay_seconds,
+            self.invalidate_domain,
+            args=[domain_tag],
+        )
+        timer.daemon = True
+        timer.start()
+
+    def invalidation_history(self, limit: int = 20) -> List[dict]:
+        return self._invalidation_log[-limit:]
+```
+
+## Solution 4: Cache-Backed Response Generator
+
+```python
+import time
+from typing import Any, Callable, Dict, List, Optional
+
+
+class CacheBackedResponseGenerator:
+    """
+    Checks the semantic cache before calling the LLM.
+    Caches successful responses with domain tags for future invalidation.
     """
 
     def __init__(
         self,
         cache: SemanticResponseCache,
-        embed_fn: Callable,    # async fn(text: str) -> List[float]
-        min_similarity_to_cache: float = 0.85,
+        generate_fn: Callable,
+        domain_classifier: Optional[Callable[[str], List[str]]] = None,
+        default_ttl_seconds: float = 300.0,
     ):
         self._cache = cache
-        self._embed = embed_fn
-        self._min_sim = min_similarity_to_cache
+        self._generate = generate_fn
+        self._domain_classifier = domain_classifier
+        self._default_ttl = default_ttl_seconds
+        self._call_log: List[dict] = []
 
-    async def execute(
+    async def generate(
         self,
-        query_text: str,
-        execute_fn: Callable,   # async fn(query) -> (response, doc_ids, tool_names)
-        force_refresh: bool = False,
+        query: str,
+        context: Optional[str] = None,
     ) -> dict:
-        query_embedding = await self._embed(query_text)
+        start = time.time()
+        cache_result = self._cache.get(query)
 
-        if not force_refresh:
-            match = await self._cache.get(query_embedding)
-            if match:
-                entry, similarity = match
-                return {
-                    "response": entry.response_text,
-                    "cache_hit": True,
-                    "similarity": round(similarity, 4),
-                    "entry_id": entry.entry_id,
-                    "entry_age_seconds": round(entry.age_seconds(), 1),
-                }
+        if cache_result is not None:
+            response, similarity = cache_result
+            elapsed_ms = round((time.time() - start) * 1000, 2)
+            self._call_log.append({"cache_hit": True, "elapsed_ms": elapsed_ms})
+            return {
+                "response": response,
+                "cache_hit": True,
+                "similarity": similarity,
+                "elapsed_ms": elapsed_ms,
+            }
 
-        # Cache miss — execute and cache
-        response, doc_ids, tool_names = await execute_fn(query_text)
+        response = await self._generate(query, context)
+        elapsed_ms = round((time.time() - start) * 1000, 2)
 
-        entry = await self._cache.put(
-            query_text=query_text,
-            query_embedding=query_embedding,
-            response_text=response,
-            document_dependencies=set(doc_ids),
-            tool_dependencies=set(tool_names),
+        domain_tags = []
+        if self._domain_classifier:
+            domain_tags = self._domain_classifier(query)
+
+        self._cache.set(
+            query=query,
+            response=response,
+            domain_tags=domain_tags,
+            ttl_seconds=self._default_ttl,
         )
+
+        self._call_log.append({"cache_hit": False, "elapsed_ms": elapsed_ms})
         return {
             "response": response,
             "cache_hit": False,
-            "entry_id": entry.entry_id,
-            "doc_dependencies": list(doc_ids),
+            "similarity": None,
+            "elapsed_ms": elapsed_ms,
+            "domain_tags": domain_tags,
+        }
+
+    def cost_savings_estimate(self, cost_per_llm_call: float = 0.002) -> dict:
+        hits = sum(1 for r in self._call_log if r["cache_hit"])
+        return {
+            "total_calls": len(self._call_log),
+            "cache_hits": hits,
+            "estimated_savings_usd": round(hits * cost_per_llm_call, 4),
         }
 ```
 
-## Solution 6: Cache Health Monitor
+## Solution 5: Freshness Policy Manager
+
+```python
+from typing import Dict, Optional
+
+
+DOMAIN_TTL_POLICIES: Dict[str, float] = {
+    "weather": 600.0,        # 10 minutes
+    "stock_price": 60.0,     # 1 minute
+    "news": 1800.0,          # 30 minutes
+    "account_balance": 30.0, # 30 seconds
+    "documentation": 86400.0, # 24 hours
+    "static_fact": 604800.0, # 7 days
+}
+
+
+class FreshnessPolicyManager:
+    """
+    Returns the appropriate TTL for a cache entry based on domain tags.
+    Uses the shortest TTL among all applicable domains.
+    """
+
+    def __init__(self, custom_policies: Dict[str, float] = None):
+        self._policies = {**DOMAIN_TTL_POLICIES, **(custom_policies or {})}
+        self._default_ttl = 300.0
+
+    def ttl_for_domains(self, domain_tags: list) -> float:
+        applicable = [
+            self._policies[tag]
+            for tag in domain_tags
+            if tag in self._policies
+        ]
+        return min(applicable) if applicable else self._default_ttl
+
+    def register(self, domain: str, ttl_seconds: float) -> None:
+        self._policies[domain] = ttl_seconds
+```
+
+## Solution 6: Semantic Cache Dashboard
 
 ```python
 import time
 
 
-class SemanticCacheHealthMonitor:
+class SemanticCacheDashboard:
     """
-    Monitors cache efficiency, invalidation frequency, and entry freshness.
-    Recommends tuning when hit rate or similarity threshold is misconfigured.
+    Combines cache statistics, invalidation history, and
+    cost savings estimates into a single operational view.
     """
 
     def __init__(
         self,
         cache: SemanticResponseCache,
-        target_hit_rate: float = 0.40,
+        invalidator: DomainTagInvalidator,
+        generator: CacheBackedResponseGenerator,
     ):
         self._cache = cache
-        self._target = target_hit_rate
+        self._invalidator = invalidator
+        self._generator = generator
 
-    def check(self) -> dict:
-        stats = self._cache.stats()
-        expired = self._cache.evict_expired()
-        alerts = []
-
-        if stats["hit_rate"] < self._target and (stats["hits"] + stats["misses"]) > 100:
-            alerts.append({
-                "type": "low_hit_rate",
-                "value": stats["hit_rate"],
-                "target": self._target,
-                "recommendation": "lower similarity_threshold or increase max_entries",
-            })
-
-        if stats["invalidations"] > stats["hits"] * 2:
-            alerts.append({
-                "type": "high_invalidation_rate",
-                "invalidations": stats["invalidations"],
-                "hits": stats["hits"],
-                "recommendation": "documents change frequently — reduce TTL or use shorter-lived entries",
-            })
-
+    def render(self) -> dict:
         return {
             "generated_at": time.time(),
-            "healthy": len(alerts) == 0,
-            "cache_stats": stats,
-            "expired_evicted": expired,
-            "alerts": alerts,
+            "cache_stats": self._cache.stats(),
+            "recent_invalidations": self._invalidator.invalidation_history(limit=5),
+            "cost_savings": self._generator.cost_savings_estimate(),
         }
 ```
 
 ## Comparison
 
-| Approach | Semantic Matching | Dependency Tracking | Invalidation | TTL Expiry |
-|---|---|---|---|---|
-| EmbeddingSimilarityMatcher | Yes (cosine) | No | No | No |
-| CacheDependencyTracker | No | Yes | Via entries_depending_on | No |
-| SemanticResponseCache | Via matcher | Via tracker | Yes (by doc) | Yes |
-| CacheAwareQueryExecutor | Via cache | Via execute_fn | No | No |
-| SemanticCacheHealthMonitor | No | No | No | Via evict_expired |
+| Approach | Semantic Lookup | Domain Invalidation | TTL Policy | Cost Tracking | Dashboard |
+|---|---|---|---|---|---|
+| SemanticResponseCache | Yes (cosine sim) | No | Per-entry TTL | No | No |
+| DomainTagInvalidator | No | Yes (tag-based) | No | No | No |
+| CacheBackedResponseGenerator | Via cache | Via invalidator | Via freshness | Yes | No |
+| FreshnessPolicyManager | No | No | Yes (domain TTLs) | No | No |
+| SemanticCacheDashboard | No | No | No | Via generator | Yes |
 
-**Best for production**: Set `similarity_threshold=0.92` as a starting point — too low produces incorrect cache hits (different questions returning same answer); too high kills hit rate. Track `document_dependencies` for every cached answer by recording which chunk IDs from the vector store were retrieved. Trigger `invalidate_by_document()` in your document ingestion pipeline when any document is updated — this ensures cached answers are never stale. Target hit rate ≥ 40% for a knowledge-base agent with a stable corpus; expect 10–20% for a general-purpose agent with dynamic context.
+**Best for production**: Set `similarity_threshold=0.92` as a starting point — at this level, paraphrases of the same question reliably hit the cache while semantically different questions do not. Tag every cached entry with domain labels and use `FreshnessPolicyManager` to apply the shortest applicable TTL rather than a global default. Register a data-change webhook from your data sources (market data feed, weather API, user account service) to call `DomainTagInvalidator.invalidate_domain()` immediately on data updates — this gives sub-second invalidation latency instead of waiting for TTL expiry for time-critical domains.

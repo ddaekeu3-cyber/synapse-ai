@@ -1,22 +1,22 @@
 ---
 title: "Agent Doesn't Implement Dead Letter Queue for Failed Tool Calls"
-description: "Agents that discard failed tool calls after retry exhaustion lose the work silently: the user gets a degraded response, the failure is logged once, and the original intent is gone. Implement a dead letter queue that captures failed tool calls with full context, supports manual or automated replay, and provides visibility into what work was lost and why."
+description: "Agents that discard failed tool calls after exhausting retries lose the information needed to diagnose systematic failures, replay missed operations after a fix, and meet audit requirements for incomplete actions. Implement a dead letter queue that captures persistently failed tool calls with full context, supports replay after fixes, and surfaces failure patterns for operational review."
 date: 2026-04-16
-difficulty: intermediate
+difficulty: advanced
 category: reliability
 slug: agent-doesnt-implement-dead-letter-queue-for-failed-tool-calls
-tags: [dead-letter-queue, dlq, failed-tool-calls, replay, fault-tolerance, work-preservation]
+tags: [dead-letter-queue, failed-tool-calls, replay, fault-tolerance, error-recovery, dlq]
 symptoms:
-  - "Failed tool calls are logged and discarded — no way to retry them after the session ends"
-  - "Cannot audit which tool calls failed over the past 24 hours and why"
-  - "Transient failures (network blip, provider restart) permanently lose the work"
-  - "No mechanism to replay a failed batch of tool calls after a dependency recovers"
-  - "Post-incident review cannot reconstruct what operations were dropped"
+  - "Failed tool calls are silently discarded after retry exhaustion with no record"
+  - "Cannot replay a batch of failed operations after fixing the underlying issue"
+  - "No visibility into which tool calls are failing persistently vs. transiently"
+  - "Audit logs show tool call attempts but not the full argument payload of failures"
+  - "Systematic tool failures go undetected until a user complaint surfaces them"
 ---
 
 ## Why This Happens
 
-The standard retry loop exhausts attempts and raises the final exception to the caller. If the caller catches it and continues (graceful degradation), the failed operation is gone. There is no record of what was attempted, no way to retry it later, and no visibility into the failure pattern. A dead letter queue captures the failed call at the point of final failure — preserving the tool name, arguments, error, and retry history — and stores it durably so it can be inspected, replayed, or escalated. This converts silent data loss into a visible, actionable queue.
+Retry logic in most agents terminates with an exception that propagates to the caller and is either logged at the response layer or silently dropped. The failed call's full context — arguments, session ID, error history, attempt count — is never persisted. This means systematic failures (a broken API endpoint, a schema change in a downstream service) cannot be detected by pattern analysis, and individual failed calls cannot be replayed once the underlying issue is fixed. A dead letter queue captures the full failure context at the point of final retry exhaustion and stores it durably for replay and analysis.
 
 ## Solution 1: Dead Letter Entry
 
@@ -24,215 +24,133 @@ The standard retry loop exhausts attempts and raises the final exception to the 
 import time
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 
-class DLQEntryStatus(str, Enum):
-    PENDING = "pending"         # waiting for replay or manual action
-    REPLAYING = "replaying"     # currently being retried
-    RESOLVED = "resolved"       # replayed successfully
-    ABANDONED = "abandoned"     # manually marked as unresolvable
-
-
 @dataclass
-class FailedAttempt:
+class ToolCallAttempt:
     attempt_number: int
+    started_at: float
     error_type: str
     error_message: str
-    attempted_at: float
+    duration_ms: float
 
 
 @dataclass
-class DLQEntry:
-    entry_id: str
-    tool_name: str
-    args: Dict[str, Any]
-    session_id: str
-    failed_attempts: List[FailedAttempt]
-    status: DLQEntryStatus = DLQEntryStatus.PENDING
-    created_at: float = field(default_factory=time.time)
-    last_updated_at: float = field(default_factory=time.time)
-    replay_count: int = 0
-    resolved_at: Optional[float] = None
-    abandonment_reason: Optional[str] = None
+class DeadLetterEntry:
+    entry_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
+    tool_name: str = ""
+    arguments: Dict[str, Any] = field(default_factory=dict)
+    session_id: str = ""
+    original_call_id: str = ""
+    failed_at: float = field(default_factory=time.time)
+    attempts: List[ToolCallAttempt] = field(default_factory=list)
+    final_error: str = ""
+    replayed: bool = False
+    replay_succeeded: Optional[bool] = None
+    replayed_at: Optional[float] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    @classmethod
-    def create(
-        cls,
-        tool_name: str,
-        args: Dict[str, Any],
-        session_id: str,
-        failed_attempts: List[FailedAttempt],
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> "DLQEntry":
-        return cls(
-            entry_id=uuid.uuid4().hex,
-            tool_name=tool_name,
-            args=args,
-            session_id=session_id,
-            failed_attempts=failed_attempts,
-            metadata=metadata or {},
-        )
+    def total_attempts(self) -> int:
+        return len(self.attempts)
 
-    def last_error(self) -> Optional[str]:
-        if not self.failed_attempts:
-            return None
-        return self.failed_attempts[-1].error_message
-
-    def age_seconds(self) -> float:
-        return time.time() - self.created_at
+    def first_error_type(self) -> str:
+        return self.attempts[0].error_type if self.attempts else ""
 ```
 
 ## Solution 2: Dead Letter Queue Store
 
 ```python
+import json
 import threading
 import time
-from typing import Callable, Dict, List, Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 
 
 class DeadLetterQueueStore:
     """
-    In-process DLQ store with filtering, status management, and eviction.
-    For production, back this with a database or persistent queue.
+    Persists dead letter entries to a local JSONL file.
+    Supports querying by tool name, time window, and replay status.
     """
 
-    def __init__(
-        self,
-        max_entries: int = 10_000,
-        evict_after_seconds: float = 86400.0 * 7,  # 7 days
-    ):
-        self._entries: Dict[str, DLQEntry] = {}
-        self._max = max_entries
-        self._evict_after = evict_after_seconds
+    def __init__(self, path: str = "/tmp/agent_dlq.jsonl"):
+        self._path = Path(path)
         self._lock = threading.Lock()
 
-    def put(self, entry: DLQEntry) -> None:
-        with self._lock:
-            if len(self._entries) >= self._max:
-                self._evict_oldest()
-            self._entries[entry.entry_id] = entry
-
-    def get(self, entry_id: str) -> Optional[DLQEntry]:
-        return self._entries.get(entry_id)
-
-    def list_pending(self, tool_name: Optional[str] = None) -> List[DLQEntry]:
-        return [
-            e for e in self._entries.values()
-            if e.status == DLQEntryStatus.PENDING
-            and (tool_name is None or e.tool_name == tool_name)
-        ]
-
-    def list_all(self, status: Optional[DLQEntryStatus] = None) -> List[DLQEntry]:
-        return [
-            e for e in self._entries.values()
-            if status is None or e.status == status
-        ]
-
-    def mark_resolved(self, entry_id: str) -> None:
-        entry = self._entries.get(entry_id)
-        if entry:
-            entry.status = DLQEntryStatus.RESOLVED
-            entry.resolved_at = time.time()
-            entry.last_updated_at = time.time()
-
-    def mark_abandoned(self, entry_id: str, reason: str) -> None:
-        entry = self._entries.get(entry_id)
-        if entry:
-            entry.status = DLQEntryStatus.ABANDONED
-            entry.abandonment_reason = reason
-            entry.last_updated_at = time.time()
-
-    def _evict_oldest(self) -> None:
-        cutoff = time.time() - self._evict_after
-        stale = [
-            eid for eid, e in self._entries.items()
-            if e.created_at < cutoff
-            and e.status in (DLQEntryStatus.RESOLVED, DLQEntryStatus.ABANDONED)
-        ]
-        for eid in stale[:max(1, len(stale) // 2)]:
-            del self._entries[eid]
-
-    def summary(self) -> dict:
-        by_status: Dict[str, int] = {}
-        by_tool: Dict[str, int] = {}
-        for e in self._entries.values():
-            by_status[e.status] = by_status.get(e.status, 0) + 1
-            if e.status == DLQEntryStatus.PENDING:
-                by_tool[e.tool_name] = by_tool.get(e.tool_name, 0) + 1
-        return {
-            "total": len(self._entries),
-            "by_status": by_status,
-            "pending_by_tool": dict(sorted(by_tool.items(), key=lambda x: -x[1])),
+    def enqueue(self, entry: DeadLetterEntry) -> None:
+        record = {
+            "entry_id": entry.entry_id,
+            "tool_name": entry.tool_name,
+            "arguments": entry.arguments,
+            "session_id": entry.session_id,
+            "original_call_id": entry.original_call_id,
+            "failed_at": entry.failed_at,
+            "final_error": entry.final_error,
+            "total_attempts": entry.total_attempts(),
+            "first_error_type": entry.first_error_type(),
+            "attempts": [
+                {
+                    "attempt_number": a.attempt_number,
+                    "error_type": a.error_type,
+                    "error_message": a.error_message,
+                    "duration_ms": a.duration_ms,
+                }
+                for a in entry.attempts
+            ],
+            "replayed": entry.replayed,
+            "replay_succeeded": entry.replay_succeeded,
+            "metadata": entry.metadata,
         }
+        with self._lock:
+            with open(self._path, "a") as f:
+                f.write(json.dumps(record) + "\n")
+
+    def load_pending(
+        self,
+        tool_name: Optional[str] = None,
+        since: Optional[float] = None,
+        limit: int = 100,
+    ) -> List[dict]:
+        if not self._path.exists():
+            return []
+        entries = []
+        with self._lock:
+            with open(self._path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("replayed"):
+                        continue
+                    if tool_name and entry.get("tool_name") != tool_name:
+                        continue
+                    if since and entry.get("failed_at", 0) < since:
+                        continue
+                    entries.append(entry)
+                    if len(entries) >= limit:
+                        break
+        return entries
+
+    def mark_replayed(self, entry_id: str, succeeded: bool) -> None:
+        # In production: use a database with update support
+        # For file-based store: append a replay record
+        record = {
+            "entry_id": entry_id,
+            "replayed": True,
+            "replay_succeeded": succeeded,
+            "replayed_at": time.time(),
+        }
+        with self._lock:
+            with open(self._path, "a") as f:
+                f.write(json.dumps({"_replay_update": record}) + "\n")
 ```
 
-## Solution 3: DLQ-Integrated Tool Executor
-
-```python
-import asyncio
-import time
-from typing import Any, Callable, Dict, Optional
-
-
-class DLQIntegratedToolExecutor:
-    """
-    Wraps tool calls with retry logic and deposits to the DLQ on final failure.
-    Records each failed attempt with error details for replay context.
-    """
-
-    def __init__(
-        self,
-        dlq: DeadLetterQueueStore,
-        max_retries: int = 3,
-        retry_delay_seconds: float = 1.0,
-    ):
-        self._dlq = dlq
-        self._max_retries = max_retries
-        self._retry_delay = retry_delay_seconds
-
-    async def call(
-        self,
-        tool_name: str,
-        tool_fn: Callable,
-        args: Dict[str, Any],
-        session_id: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Any:
-        failed_attempts: list = []
-
-        for attempt in range(self._max_retries + 1):
-            try:
-                return await tool_fn(**args)
-            except Exception as exc:
-                failed_attempts.append(FailedAttempt(
-                    attempt_number=attempt + 1,
-                    error_type=type(exc).__name__,
-                    error_message=str(exc)[:300],
-                    attempted_at=time.time(),
-                ))
-                if attempt < self._max_retries:
-                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
-
-        # All retries exhausted — deposit to DLQ
-        entry = DLQEntry.create(
-            tool_name=tool_name,
-            args=args,
-            session_id=session_id,
-            failed_attempts=failed_attempts,
-            metadata=metadata or {},
-        )
-        self._dlq.put(entry)
-        raise RuntimeError(
-            f"Tool '{tool_name}' failed after {self._max_retries + 1} attempts "
-            f"and was sent to DLQ (entry_id={entry.entry_id}). "
-            f"Last error: {failed_attempts[-1].error_message}"
-        )
-```
-
-## Solution 4: DLQ Replay Engine
+## Solution 3: DLQ-Backed Tool Call Executor
 
 ```python
 import asyncio
@@ -240,213 +158,218 @@ import time
 from typing import Any, Callable, Dict, List, Optional
 
 
-class DLQReplayEngine:
+class DLQBackedToolCallExecutor:
     """
-    Replays pending DLQ entries for a given tool or all tools.
-    Marks entries resolved on success or re-increments replay_count on failure.
-    Supports rate-limited batch replay to avoid thundering-herd after an outage.
+    Executes tool calls with retry logic and routes persistently
+    failed calls to the dead letter queue store.
     """
 
     def __init__(
         self,
-        dlq: DeadLetterQueueStore,
-        tool_registry: Dict[str, Callable],
-        max_concurrent: int = 4,
-        replay_delay_seconds: float = 0.5,
+        dlq_store: DeadLetterQueueStore,
+        max_retries: int = 3,
+        base_delay_seconds: float = 1.0,
     ):
-        self._dlq = dlq
-        self._registry = tool_registry
-        self._semaphore = asyncio.Semaphore(max_concurrent)
-        self._replay_delay = replay_delay_seconds
+        self._dlq = dlq_store
+        self._max_retries = max_retries
+        self._base_delay = base_delay_seconds
+        self._dlq_count = 0
 
-    async def replay_entry(self, entry: DLQEntry) -> bool:
-        tool_fn = self._registry.get(entry.tool_name)
-        if tool_fn is None:
-            self._dlq.mark_abandoned(entry.entry_id, f"tool '{entry.tool_name}' not in registry")
-            return False
+    async def execute(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        execute_fn: Callable,
+        session_id: str = "",
+        call_id: str = "",
+    ) -> Any:
+        attempts: List[ToolCallAttempt] = []
+        last_error = ""
 
-        entry.status = DLQEntryStatus.REPLAYING
-        entry.replay_count += 1
-        entry.last_updated_at = time.time()
-
-        async with self._semaphore:
+        for attempt_n in range(1, self._max_retries + 2):
+            start = time.time()
             try:
-                await tool_fn(**entry.args)
-                self._dlq.mark_resolved(entry.entry_id)
-                return True
+                result = await execute_fn(tool_name, arguments)
+                return result
             except Exception as exc:
-                entry.status = DLQEntryStatus.PENDING
-                entry.failed_attempts.append(FailedAttempt(
-                    attempt_number=len(entry.failed_attempts) + 1,
+                duration_ms = round((time.time() - start) * 1000, 2)
+                last_error = str(exc)
+                attempts.append(ToolCallAttempt(
+                    attempt_number=attempt_n,
+                    started_at=start,
                     error_type=type(exc).__name__,
-                    error_message=str(exc)[:300],
-                    attempted_at=time.time(),
+                    error_message=last_error,
+                    duration_ms=duration_ms,
                 ))
-                entry.last_updated_at = time.time()
-                return False
+                if attempt_n <= self._max_retries:
+                    delay = self._base_delay * (2 ** (attempt_n - 1))
+                    await asyncio.sleep(delay)
 
-    async def replay_all_pending(
-        self, tool_name: Optional[str] = None, max_replay_count: int = 3
+        # All retries exhausted — send to DLQ
+        entry = DeadLetterEntry(
+            tool_name=tool_name,
+            arguments=arguments,
+            session_id=session_id,
+            original_call_id=call_id,
+            attempts=attempts,
+            final_error=last_error,
+        )
+        self._dlq.enqueue(entry)
+        self._dlq_count += 1
+        raise RuntimeError(
+            f"Tool '{tool_name}' failed after {len(attempts)} attempts and was sent to DLQ. "
+            f"Entry ID: {entry.entry_id}"
+        )
+
+    def dlq_count(self) -> int:
+        return self._dlq_count
+```
+
+## Solution 4: DLQ Replay Manager
+
+```python
+import asyncio
+import time
+from typing import Any, Callable, Dict, List
+
+
+class DLQReplayManager:
+    """
+    Replays pending dead letter entries after a fix has been deployed.
+    Records replay outcomes and marks entries as resolved.
+    """
+
+    def __init__(
+        self,
+        store: DeadLetterQueueStore,
+        execute_fn: Callable,
+    ):
+        self._store = store
+        self._execute_fn = execute_fn
+
+    async def replay_all(
+        self,
+        tool_name: str = None,
+        since: float = None,
+        limit: int = 50,
     ) -> dict:
-        pending = [
-            e for e in self._dlq.list_pending(tool_name)
-            if e.replay_count < max_replay_count
-        ]
-        results = {"attempted": len(pending), "resolved": 0, "still_failed": 0}
+        pending = self._store.load_pending(
+            tool_name=tool_name,
+            since=since,
+            limit=limit,
+        )
 
-        for entry in pending:
-            success = await self.replay_entry(entry)
-            if success:
-                results["resolved"] += 1
+        results = {"replayed": 0, "succeeded": 0, "failed": 0, "entries": []}
+
+        for entry_data in pending:
+            tool = entry_data["tool_name"]
+            args = entry_data["arguments"]
+            entry_id = entry_data["entry_id"]
+
+            try:
+                await self._execute_fn(tool, args)
+                succeeded = True
+            except Exception:
+                succeeded = False
+
+            self._store.mark_replayed(entry_id, succeeded)
+            results["replayed"] += 1
+            if succeeded:
+                results["succeeded"] += 1
             else:
-                results["still_failed"] += 1
-            await asyncio.sleep(self._replay_delay)
+                results["failed"] += 1
+            results["entries"].append({
+                "entry_id": entry_id,
+                "tool_name": tool,
+                "succeeded": succeeded,
+            })
 
         return results
 ```
 
-## Solution 5: DLQ Alert Manager
+## Solution 5: DLQ Pattern Analyzer
 
 ```python
 import time
-from typing import Callable, List, Optional
+from collections import Counter
+from typing import List, Optional
 
 
-class DLQAlertManager:
+class DLQPatternAnalyzer:
     """
-    Fires alerts when the DLQ accumulates too many entries or
-    when specific high-priority tools have pending failures.
+    Analyzes dead letter entries to surface systematic failure patterns:
+    which tools fail most often, which error types dominate, and
+    whether failure rate is increasing over time.
     """
 
-    def __init__(
+    def analyze(
         self,
-        dlq: DeadLetterQueueStore,
-        pending_warning_threshold: int = 10,
-        pending_critical_threshold: int = 50,
-        age_warning_seconds: float = 3600.0,
-        cooldown_seconds: float = 300.0,
-    ):
-        self._dlq = dlq
-        self._warn_threshold = pending_warning_threshold
-        self._crit_threshold = pending_critical_threshold
-        self._age_warn = age_warning_seconds
-        self._cooldown = cooldown_seconds
-        self._last_fired: dict = {}
-        self._handlers: List[Callable[[dict], None]] = []
+        entries: List[dict],
+        window_seconds: float = 86400.0,
+    ) -> dict:
+        cutoff = time.time() - window_seconds
+        recent = [e for e in entries if e.get("failed_at", 0) >= cutoff]
 
-    def add_handler(self, fn: Callable[[dict], None]) -> None:
-        self._handlers.append(fn)
+        if not recent:
+            return {"window_seconds": window_seconds, "failures": 0}
 
-    def _can_fire(self, key: str) -> bool:
-        last = self._last_fired.get(key, 0)
-        if time.time() - last >= self._cooldown:
-            self._last_fired[key] = time.time()
-            return True
-        return False
-
-    def _fire(self, alert: dict) -> None:
-        for h in self._handlers:
-            try:
-                h(alert)
-            except Exception:
-                pass
-
-    def check(self) -> List[dict]:
-        summary = self._dlq.summary()
-        pending_count = summary["by_status"].get(DLQEntryStatus.PENDING, 0)
-        alerts = []
-
-        if pending_count >= self._crit_threshold and self._can_fire("dlq:critical"):
-            alert = {
-                "type": "dlq_critical",
-                "severity": "critical",
-                "pending": pending_count,
-                "message": f"DLQ has {pending_count} pending entries (critical threshold {self._crit_threshold})",
-            }
-            alerts.append(alert)
-            self._fire(alert)
-        elif pending_count >= self._warn_threshold and self._can_fire("dlq:warning"):
-            alert = {
-                "type": "dlq_warning",
-                "severity": "warning",
-                "pending": pending_count,
-                "message": f"DLQ has {pending_count} pending entries",
-            }
-            alerts.append(alert)
-            self._fire(alert)
-
-        # Check for old pending entries
-        old_entries = [
-            e for e in self._dlq.list_pending()
-            if e.age_seconds() > self._age_warn
-        ]
-        if old_entries and self._can_fire("dlq:stale"):
-            alert = {
-                "type": "dlq_stale_entries",
-                "severity": "warning",
-                "count": len(old_entries),
-                "oldest_seconds": round(max(e.age_seconds() for e in old_entries), 0),
-                "message": f"{len(old_entries)} DLQ entries older than {self._age_warn}s without replay",
-            }
-            alerts.append(alert)
-            self._fire(alert)
-
-        return alerts
-```
-
-## Solution 6: DLQ Dashboard
-
-```python
-import time
-
-
-class DLQDashboard:
-    """Combines DLQ summary, pending entries, and alert state."""
-
-    def __init__(
-        self,
-        dlq: DeadLetterQueueStore,
-        alert_manager: DLQAlertManager,
-    ):
-        self._dlq = dlq
-        self._alerts = alert_manager
-
-    def render(self) -> dict:
-        summary = self._dlq.summary()
-        alerts = self._alerts.check()
-        recent_pending = sorted(
-            self._dlq.list_pending(),
-            key=lambda e: e.created_at,
-            reverse=True,
-        )[:10]
+        tool_counts: Counter = Counter(e["tool_name"] for e in recent)
+        error_counts: Counter = Counter(
+            e.get("first_error_type", "Unknown") for e in recent
+        )
+        avg_attempts = sum(e.get("total_attempts", 1) for e in recent) / len(recent)
 
         return {
+            "window_seconds": window_seconds,
+            "failures": len(recent),
+            "pending_replay": sum(1 for e in recent if not e.get("replayed")),
+            "top_failing_tools": dict(tool_counts.most_common(5)),
+            "top_error_types": dict(error_counts.most_common(5)),
+            "avg_attempts_before_dlq": round(avg_attempts, 2),
+        }
+```
+
+## Solution 6: DLQ Operations Dashboard
+
+```python
+import time
+
+
+class DLQOperationsDashboard:
+    """
+    Combines DLQ depth, pattern analysis, and replay statistics
+    into a single operational view for on-call engineers.
+    """
+
+    def __init__(
+        self,
+        store: DeadLetterQueueStore,
+        executor: DLQBackedToolCallExecutor,
+        analyzer: DLQPatternAnalyzer,
+    ):
+        self._store = store
+        self._executor = executor
+        self._analyzer = analyzer
+
+    def render(self) -> dict:
+        pending = self._store.load_pending(limit=5000)
+        analysis = self._analyzer.analyze(pending)
+        return {
             "generated_at": time.time(),
-            "summary": summary,
-            "recent_pending": [
-                {
-                    "entry_id": e.entry_id,
-                    "tool_name": e.tool_name,
-                    "session_id": e.session_id,
-                    "age_seconds": round(e.age_seconds(), 0),
-                    "replay_count": e.replay_count,
-                    "last_error": e.last_error(),
-                }
-                for e in recent_pending
-            ],
-            "alerts": alerts,
-            "healthy": len(alerts) == 0 and summary["by_status"].get(DLQEntryStatus.PENDING, 0) == 0,
+            "total_dlq_entries_sent": self._executor.dlq_count(),
+            "pending_replay_count": analysis.get("pending_replay", 0),
+            "pattern_analysis": analysis,
         }
 ```
 
 ## Comparison
 
-| Approach | Entry Capture | Status Management | Replay Support | Alerts | Dashboard |
+| Approach | Failure Capture | Persistent Storage | Replay Support | Pattern Analysis | Dashboard |
 |---|---|---|---|---|---|
-| DeadLetterQueueStore | Yes | Yes (4 states) | No | No | No |
-| DLQIntegratedToolExecutor | Yes (on final failure) | No | No | No | No |
-| DLQReplayEngine | No | Via store | Yes (batch + rate-limited) | No | No |
-| DLQAlertManager | No | No | No | Yes (threshold + age) | No |
-| DLQDashboard | No | No | No | Via manager | Yes |
+| DeadLetterQueueStore | No | Yes (JSONL) | Via mark_replayed | No | No |
+| DLQBackedToolCallExecutor | Yes (on retry exhaust) | Via store | No | No | No |
+| DLQReplayManager | No | No | Yes (batch replay) | No | No |
+| DLQPatternAnalyzer | No | No | No | Yes (tool+error) | No |
+| DLQOperationsDashboard | No | No | No | Via analyzer | Yes |
 
-**Best for production**: Use `DLQIntegratedToolExecutor` for all non-critical tool calls — critical tools should still propagate exceptions immediately. Set `max_retries=3` with exponential backoff before DLQ deposit. After an infrastructure incident (provider outage, database restart), call `DLQReplayEngine.replay_all_pending()` with `max_replay_count=3` to drain the queue without re-depositing entries that have already been retried many times. Wire `DLQAlertManager` to PagerDuty with `pending_critical_threshold=50` — a DLQ growing past 50 entries indicates a systemic failure requiring immediate attention, not just a transient blip.
+**Best for production**: Use a Redis list or database table as the DLQ backend in multi-instance deployments — the file-based store is single-instance only. Store the full `arguments` dict in the DLQ entry so replay is possible without any additional context retrieval. Alert when `pending_replay_count` exceeds 20 — this indicates a systematic failure affecting multiple sessions and should be escalated to the on-call engineer immediately. Run `DLQReplayManager.replay_all()` after every fix deployment that addresses a known tool failure: this recovers missed operations and verifies that the fix actually works under production conditions before the incident is closed.
