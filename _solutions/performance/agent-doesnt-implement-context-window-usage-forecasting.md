@@ -1,273 +1,268 @@
 ---
 title: "Agent Doesn't Implement Context Window Usage Forecasting"
-description: "Agents that don't track context window consumption until it is full are forced to handle context overflow as an error at runtime — truncating mid-conversation, losing tool results, or failing entirely. Implement context window usage forecasting that estimates token consumption at each step, projects when the window will be exhausted given the current trajectory, and triggers proactive summarization or compaction before overflow."
+description: "Agents that add tool results and conversation history to context without forecasting remaining capacity hit the context limit mid-execution: the agent begins assembling context for an 8-step plan and fails on step 6 when the window fills, having already consumed tokens on steps 1-5. Implement context window usage forecasting that estimates token consumption before each step and decides early whether to truncate, summarize, or abort rather than discovering the limit at execution time."
 date: 2026-04-16
 difficulty: intermediate
 category: performance
 slug: agent-doesnt-implement-context-window-usage-forecasting
-tags: [context-window, token-forecasting, context-overflow, proactive-summarization, window-management, token-budget]
+tags: [context-window, token-forecasting, capacity-planning, context-overflow-prevention, adaptive-truncation, token-budget]
 symptoms:
-  - "Agent hits context limit mid-conversation and fails with a token overflow error"
-  - "Tool results are silently truncated because the context window filled unexpectedly"
-  - "No warning before the context limit is reached — only a hard failure"
-  - "Long conversations degrade because there is no budget for new information"
-  - "Cannot predict how many more turns are possible before overflow"
+  - "Agent fails mid-execution when context window is exhausted after 6 of 8 planned steps"
+  - "No estimate of how many tokens each planned step will consume"
+  - "Context overflow discovered at LLM call time — too late to recover gracefully"
+  - "Long conversation histories fill the window before tool results can be added"
+  - "No signal that context pressure is building until the hard limit is hit"
 ---
 
 ## Why This Happens
 
-Context window limits are a hard constraint, but most agents only discover they've exceeded the limit when the API returns a 400 error. By then, the conversation state may be corrupted — some messages truncated, some tool results missing. Forecasting requires tracking token consumption at each turn, modeling the growth rate (tokens added per turn), and projecting the number of turns remaining. When the forecast drops below a threshold, the agent can proactively summarize earlier turns or compact tool results, preserving space for future content.
+Context window limits are discovered at call time when the tokenized prompt exceeds the model's limit. Agents that build context incrementally — adding conversation history, then tool results, then instructions — have no mechanism to predict whether the next addition will exceed the limit. Forecasting requires maintaining a running token estimate for all committed context, estimating the cost of each planned addition before committing it, and taking a corrective action (truncate history, summarize, skip optional content) when the forecast shows the limit will be exceeded.
 
-## Solution 1: Token Usage Snapshot
+## Solution 1: Context Usage Snapshot
 
 ```python
-import time
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, Optional
 
 
 @dataclass
-class TurnTokenSnapshot:
-    turn_index: int
-    timestamp: float
-    system_tokens: int
-    conversation_tokens: int
-    tool_result_tokens: int
-    total_tokens: int
-    context_limit: int
-    tokens_remaining: int
-    utilization: float   # total / limit
+class ContextUsageSnapshot:
+    model_context_limit: int
+    committed_tokens: int
+    reserved_tokens: int          # reserved for response generation
+    segments: Dict[str, int] = field(default_factory=dict)
+    # segment_name → token_count
 
-    @classmethod
-    def create(
-        cls,
-        turn_index: int,
-        system_tokens: int,
-        conversation_tokens: int,
-        tool_result_tokens: int,
-        context_limit: int,
-    ) -> "TurnTokenSnapshot":
-        total = system_tokens + conversation_tokens + tool_result_tokens
-        remaining = max(0, context_limit - total)
-        return cls(
-            turn_index=turn_index,
-            timestamp=time.time(),
-            system_tokens=system_tokens,
-            conversation_tokens=conversation_tokens,
-            tool_result_tokens=tool_result_tokens,
-            total_tokens=total,
-            context_limit=context_limit,
-            tokens_remaining=remaining,
-            utilization=round(total / max(context_limit, 1), 4),
-        )
+    @property
+    def available_tokens(self) -> int:
+        return max(0, self.model_context_limit - self.committed_tokens - self.reserved_tokens)
+
+    @property
+    def utilization(self) -> float:
+        return round(self.committed_tokens / max(self.model_context_limit, 1), 4)
+
+    @property
+    def pressure(self) -> str:
+        u = self.utilization
+        if u >= 0.95:
+            return "critical"
+        if u >= 0.80:
+            return "high"
+        if u >= 0.60:
+            return "medium"
+        return "low"
 ```
 
-## Solution 2: Context Usage Tracker
+## Solution 2: Token Estimator
 
 ```python
-from collections import deque
-from threading import Lock
-from typing import Deque, List, Optional
+from typing import Any
 
 
-class ContextUsageTracker:
+class TokenEstimator:
     """
-    Records per-turn token snapshots and computes growth rate
-    for forecasting purposes.
+    Estimates token count for text strings and structured data.
+    Uses character-based approximation; replace with a real tokenizer
+    (e.g. tiktoken) for production accuracy.
     """
 
-    def __init__(self, context_limit: int, history_size: int = 50):
-        self._limit = context_limit
-        self._snapshots: Deque[TurnTokenSnapshot] = deque(maxlen=history_size)
-        self._lock = Lock()
+    def __init__(self, tokens_per_char: float = 0.25, overhead_per_message: int = 4):
+        self._tpc = tokens_per_char
+        self._overhead = overhead_per_message
 
-    def record(self, snapshot: TurnTokenSnapshot) -> None:
-        with self._lock:
-            self._snapshots.append(snapshot)
+    def estimate(self, content: Any) -> int:
+        if content is None:
+            return 0
+        if isinstance(content, str):
+            return max(1, int(len(content) * self._tpc)) + self._overhead
+        if isinstance(content, (dict, list)):
+            import json
+            return self.estimate(json.dumps(content, ensure_ascii=False))
+        return self.estimate(str(content))
 
-    def latest(self) -> Optional[TurnTokenSnapshot]:
-        with self._lock:
-            return self._snapshots[-1] if self._snapshots else None
-
-    def tokens_added_per_turn(self, lookback: int = 5) -> float:
-        """Average tokens added per turn over the last N turns."""
-        with self._lock:
-            snaps = list(self._snapshots)
-        if len(snaps) < 2:
-            return 0.0
-        recent = snaps[-min(lookback + 1, len(snaps)):]
-        deltas = [
-            recent[i].total_tokens - recent[i - 1].total_tokens
-            for i in range(1, len(recent))
-            if recent[i].total_tokens > recent[i - 1].total_tokens
-        ]
-        if not deltas:
-            return 0.0
-        return sum(deltas) / len(deltas)
-
-    def utilization_series(self) -> List[float]:
-        with self._lock:
-            return [s.utilization for s in self._snapshots]
+    def estimate_messages(self, messages: list) -> int:
+        return sum(self.estimate(m.get("content", "")) for m in messages)
 ```
 
 ## Solution 3: Context Window Forecaster
 
 ```python
-from typing import Optional
+from typing import List, Tuple
 
 
 class ContextWindowForecaster:
     """
-    Projects how many turns remain before context overflow and
-    whether proactive compaction should be triggered.
+    Tracks committed context segments and forecasts whether planned
+    additions will fit within the model's context limit.
     """
 
     def __init__(
         self,
-        tracker: ContextUsageTracker,
-        compaction_threshold: float = 0.80,   # trigger at 80% utilization
-        safety_margin_turns: int = 3,          # trigger early enough to have room to compact
+        model_context_limit: int,
+        reserved_for_response: int = 2048,
+        estimator: TokenEstimator = None,
     ):
-        self._tracker = tracker
-        self._threshold = compaction_threshold
-        self._safety_margin = safety_margin_turns
+        self._limit = model_context_limit
+        self._reserved = reserved_for_response
+        self._estimator = estimator or TokenEstimator()
+        self._segments: dict = {}   # name → token_count
+        self._committed = 0
 
-    def turns_remaining(self) -> Optional[int]:
-        """Estimated turns before context overflow at current growth rate."""
-        latest = self._tracker.latest()
-        if latest is None:
-            return None
-        growth = self._tracker.tokens_added_per_turn()
-        if growth <= 0:
-            return None
-        remaining_tokens = latest.tokens_remaining
-        return max(0, int(remaining_tokens / growth))
+    def commit(self, segment_name: str, content: any, token_count: int = None) -> int:
+        tokens = token_count or self._estimator.estimate(content)
+        self._segments[segment_name] = tokens
+        self._committed = sum(self._segments.values())
+        return tokens
 
-    def should_compact_now(self) -> bool:
-        """True when we should trigger proactive compaction."""
-        latest = self._tracker.latest()
-        if latest is None:
-            return False
-        if latest.utilization >= self._threshold:
-            return True
-        turns = self.turns_remaining()
-        if turns is not None and turns <= self._safety_margin:
-            return True
-        return False
+    def remove(self, segment_name: str) -> None:
+        self._segments.pop(segment_name, None)
+        self._committed = sum(self._segments.values())
 
-    def forecast(self) -> dict:
-        latest = self._tracker.latest()
-        if latest is None:
-            return {"status": "no_data"}
-        growth = self._tracker.tokens_added_per_turn()
-        turns = self.turns_remaining()
+    def snapshot(self) -> ContextUsageSnapshot:
+        return ContextUsageSnapshot(
+            model_context_limit=self._limit,
+            committed_tokens=self._committed,
+            reserved_tokens=self._reserved,
+            segments=dict(self._segments),
+        )
+
+    def forecast(self, planned_additions: List[Tuple[str, any]]) -> dict:
+        """
+        Returns a forecast of whether planned_additions will fit.
+        planned_additions: list of (name, content) to be added.
+        """
+        snapshot = self.snapshot()
+        planned_tokens = sum(
+            self._estimator.estimate(content) for _, content in planned_additions
+        )
+        post_commit = self._committed + planned_tokens
+        will_fit = post_commit + self._reserved <= self._limit
+        overflow = max(0, post_commit + self._reserved - self._limit)
+
         return {
-            "current_utilization": latest.utilization,
-            "tokens_remaining": latest.tokens_remaining,
-            "avg_tokens_per_turn": round(growth, 1),
-            "estimated_turns_remaining": turns,
-            "should_compact": self.should_compact_now(),
-            "compaction_threshold": self._threshold,
+            "will_fit": will_fit,
+            "committed_tokens": self._committed,
+            "planned_tokens": planned_tokens,
+            "post_commit_tokens": post_commit,
+            "overflow_tokens": overflow,
+            "available_tokens": snapshot.available_tokens,
+            "pressure": snapshot.pressure,
         }
+
+    def largest_segments(self, n: int = 5) -> List[Tuple[str, int]]:
+        return sorted(self._segments.items(), key=lambda x: -x[1])[:n]
 ```
 
-## Solution 4: Proactive Compaction Trigger
+## Solution 4: Adaptive Context Trimmer
 
 ```python
-import asyncio
-from typing import Any, Callable, Optional
+from typing import List, Optional, Tuple
 
 
-class ProactiveCompactionTrigger:
+class AdaptiveContextTrimmer:
     """
-    Monitors the forecaster and invokes a compaction callback when
-    the context window is approaching exhaustion.
-    Prevents multiple concurrent compaction calls.
+    Trims context segments to recover tokens when the forecaster
+    predicts an overflow. Trims in priority order: oldest history first,
+    then optional enrichment, then tool results.
     """
 
     def __init__(
         self,
         forecaster: ContextWindowForecaster,
-        compact_fn: Callable,   # async fn() -> None; performs summarization/compaction
+        estimator: TokenEstimator,
     ):
         self._forecaster = forecaster
-        self._compact_fn = compact_fn
-        self._compacting = False
-        self._compaction_count = 0
+        self._estimator = estimator
 
-    async def check_and_compact(self) -> bool:
+    def trim_to_fit(
+        self,
+        need_tokens: int,
+        trimmable_segments: List[Tuple[str, str, int]],
+        # (segment_name, priority, max_trim_tokens)
+    ) -> List[dict]:
         """
-        Returns True if compaction was triggered.
+        Removes or shrinks segments to free at least need_tokens.
+        Returns list of trim actions taken.
         """
-        if self._compacting:
-            return False
-        if not self._forecaster.should_compact_now():
-            return False
+        freed = 0
+        actions = []
+        sorted_segs = sorted(trimmable_segments, key=lambda x: x[2], reverse=True)
 
-        self._compacting = True
-        try:
-            await self._compact_fn()
-            self._compaction_count += 1
-            return True
-        finally:
-            self._compacting = False
+        for name, priority, max_trim in sorted_segs:
+            if freed >= need_tokens:
+                break
+            current = self._forecaster._segments.get(name, 0)
+            if current == 0:
+                continue
+            trim_amount = min(current, max_trim, need_tokens - freed)
+            new_size = current - trim_amount
+            if new_size == 0:
+                self._forecaster.remove(name)
+                actions.append({"action": "remove", "segment": name, "freed": current})
+            else:
+                self._forecaster._segments[name] = new_size
+                self._forecaster._committed = sum(self._forecaster._segments.values())
+                actions.append({"action": "trim", "segment": name, "freed": trim_amount, "remaining": new_size})
+            freed += trim_amount
 
-    def stats(self) -> dict:
-        return {
-            "compaction_count": self._compaction_count,
-            "currently_compacting": self._compacting,
-            "forecast": self._forecaster.forecast(),
-        }
+        return actions
 ```
 
-## Solution 5: Token Estimator
+## Solution 5: Forecast-Aware Context Builder
 
 ```python
-import re
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional, Tuple
 
 
-class TokenEstimator:
+class ForecastAwareContextBuilder:
     """
-    Estimates token counts without calling the API.
-    Uses the ~4 chars/token heuristic for English text.
-    Override with a real tokenizer (tiktoken, transformers) for accuracy.
+    Builds context incrementally, checking the forecast before each
+    addition and triggering trimming when overflow is predicted.
     """
 
-    CHARS_PER_TOKEN: float = 3.8
-
-    def estimate(self, text: str) -> int:
-        return max(1, int(len(text) / self.CHARS_PER_TOKEN))
-
-    def estimate_messages(self, messages: List[Dict[str, Any]]) -> int:
-        total = 0
-        for msg in messages:
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                total += self.estimate(content)
-            elif isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict):
-                        total += self.estimate(str(block.get("text", "")))
-            # overhead per message
-            total += 4
-        return total
-
-    def snapshot_from_messages(
+    def __init__(
         self,
-        turn_index: int,
-        system_messages: List[dict],
-        conversation_messages: List[dict],
-        tool_result_messages: List[dict],
-        context_limit: int,
-    ) -> TurnTokenSnapshot:
-        return TurnTokenSnapshot.create(
-            turn_index=turn_index,
-            system_tokens=self.estimate_messages(system_messages),
-            conversation_tokens=self.estimate_messages(conversation_messages),
-            tool_result_tokens=self.estimate_messages(tool_result_messages),
-            context_limit=context_limit,
-        )
+        forecaster: ContextWindowForecaster,
+        trimmer: AdaptiveContextTrimmer,
+        trimmable_segments: List[Tuple[str, str, int]] = None,
+    ):
+        self._forecaster = forecaster
+        self._trimmer = trimmer
+        self._trimmable = trimmable_segments or []
+        self._trim_actions: list = []
+
+    def add(
+        self,
+        segment_name: str,
+        content: Any,
+        token_count: int = None,
+        required: bool = True,
+    ) -> dict:
+        forecast = self._forecaster.forecast([(segment_name, content)])
+
+        if not forecast["will_fit"]:
+            overflow = forecast["overflow_tokens"]
+            if self._trimmable:
+                trim_actions = self._trimmer.trim_to_fit(overflow, self._trimmable)
+                self._trim_actions.extend(trim_actions)
+                forecast = self._forecaster.forecast([(segment_name, content)])
+
+            if not forecast["will_fit"] and not required:
+                return {"added": False, "segment": segment_name, "reason": "skipped_optional"}
+
+            if not forecast["will_fit"] and required:
+                return {"added": False, "segment": segment_name, "reason": "overflow_required"}
+
+        tokens = self._forecaster.commit(segment_name, content, token_count)
+        return {
+            "added": True,
+            "segment": segment_name,
+            "tokens": tokens,
+            "snapshot": self._forecaster.snapshot().__dict__,
+        }
+
+    def trim_history(self) -> List[dict]:
+        return list(self._trim_actions)
 ```
 
 ## Solution 6: Context Window Forecast Dashboard
@@ -278,36 +273,35 @@ import time
 
 class ContextWindowForecastDashboard:
     """
-    Combines usage history, forecast, and compaction trigger stats.
+    Renders the current context window state with pressure indicators
+    and largest segment breakdown.
     """
 
-    def __init__(
-        self,
-        tracker: ContextUsageTracker,
-        forecaster: ContextWindowForecaster,
-        trigger: ProactiveCompactionTrigger,
-    ):
-        self._tracker = tracker
+    def __init__(self, forecaster: ContextWindowForecaster):
         self._forecaster = forecaster
-        self._trigger = trigger
 
     def render(self) -> dict:
+        snapshot = self._forecaster.snapshot()
         return {
             "generated_at": time.time(),
-            "forecast": self._forecaster.forecast(),
-            "utilization_history": self._tracker.utilization_series()[-10:],
-            "compaction_stats": self._trigger.stats(),
+            "model_context_limit": snapshot.model_context_limit,
+            "committed_tokens": snapshot.committed_tokens,
+            "available_tokens": snapshot.available_tokens,
+            "utilization_pct": round(snapshot.utilization * 100, 1),
+            "pressure": snapshot.pressure,
+            "largest_segments": self._forecaster.largest_segments(5),
+            "reserved_for_response": snapshot.reserved_tokens,
         }
 ```
 
 ## Comparison
 
-| Approach | Per-Turn Tracking | Growth Rate | Turns Forecast | Auto-Compact | Dashboard |
+| Approach | Token Estimation | Pre-Addition Forecast | Adaptive Trimming | Segment Tracking | Dashboard |
 |---|---|---|---|---|---|
-| ContextUsageTracker | Yes | Yes (sliding avg) | No | No | No |
-| ContextWindowForecaster | Via tracker | Via tracker | Yes | No | No |
-| ProactiveCompactionTrigger | Via forecaster | No | Via forecaster | Yes | No |
-| TokenEstimator | No | No | No | No | No |
-| ContextWindowForecastDashboard | No | No | No | No | Yes |
+| TokenEstimator | Yes | No | No | No | No |
+| ContextWindowForecaster | Via estimator | Yes | No | Yes | No |
+| AdaptiveContextTrimmer | Via estimator | Via forecaster | Yes | Via forecaster | No |
+| ForecastAwareContextBuilder | Via forecaster | Yes | Via trimmer | Via forecaster | No |
+| ContextWindowForecastDashboard | No | No | No | Via forecaster | Yes |
 
-**Best for production**: Call `TokenEstimator.snapshot_from_messages()` after every LLM turn and feed it to the tracker — the estimation overhead is microseconds. Set `compaction_threshold=0.75` (not 0.80) to leave enough headroom for the compaction LLM call itself, which consumes tokens. Wire `ProactiveCompactionTrigger.check_and_compact()` into the main agent loop before each new LLM call — not after, when it may be too late. Use `turns_remaining` in the agent's self-awareness: if it forecasts fewer than 5 turns remaining, the agent should prioritize finalizing its answer over gathering more information.
+**Best for production**: Replace `TokenEstimator` with `tiktoken` for the exact model being used — character-based approximations can be off by 30% for non-English text and code, causing false "will fit" forecasts. Set `reserved_for_response=2048` for chat models and `4096` for long-form generation models. Declare conversation history as the first trimmable segment with the highest `max_trim_tokens` — it is the largest and most safely reducible. Alert when `pressure == "critical"` (>95% utilization) before the LLM call rather than after: a critical-pressure context that adds even a small tool result will overflow.
