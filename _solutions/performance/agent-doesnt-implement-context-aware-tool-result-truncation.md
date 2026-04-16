@@ -1,334 +1,344 @@
 ---
 title: "Agent Doesn't Implement Context-Aware Tool Result Truncation"
-description: "Agents that inject full tool results into the LLM context regardless of size waste tokens on content that dilutes the signal: a database query returning 500 rows when the model needs 3, a web page response containing navigation menus and footers when only the article body matters, or a file read returning 10,000 lines when only 50 are relevant. Implement context-aware tool result truncation that measures content relevance, applies role-specific length budgets, and preserves the most informative portion of each result."
+description: "Agents that inject full tool results into the LLM context regardless of remaining space will overflow the context window when results are large — causing hard errors or silent truncation by the model. Context-aware truncation measures available context space before injection, selects a truncation strategy based on result type and remaining budget, and preserves the highest-value content while staying within limits."
 date: 2026-04-16
 difficulty: intermediate
 category: performance
 slug: agent-doesnt-implement-context-aware-tool-result-truncation
-tags: [result-truncation, context-efficiency, token-budget, relevance-truncation, content-pruning, context-injection]
+tags: [context-truncation, context-window, token-budget, result-trimming, context-management, overflow-prevention]
 symptoms:
-  - "Tool results fill the context window with hundreds of rows when only a few are needed"
-  - "Web scraping results inject full HTML including navigation, ads, and footers"
-  - "Database results are injected verbatim — thousands of tokens for a simple query"
-  - "No per-tool length budget — some tools routinely consume 80% of the context"
-  - "Model's answer quality degrades because relevant content is buried in irrelevant padding"
+  - "Tool results exceeding 10K tokens cause context overflow errors mid-session"
+  - "Large API responses are injected verbatim, crowding out earlier conversation context"
+  - "No measurement of remaining context budget before tool result injection"
+  - "Truncation is applied uniformly — no consideration of which part of a result is most valuable"
+  - "Long lists in tool results are injected in full even when only the first few items matter"
 ---
 
 ## Why This Happens
 
-Tools return what they return. A database tool executing `SELECT * FROM events` returns all matching rows. A web scraper returns the full page. A file reader returns the full file. Without a truncation layer between the tool and the context injection, every result competes for the same fixed context budget. The model's attention is bounded — injecting 4,000 tokens of a 100-row query result when the model only needs the top 3 rows means the relevant signal is diluted by 97 rows of noise. Context-aware truncation applies per-result length limits, preserves structure, and — when a relevance signal is available — selects the most relevant portion rather than the first N characters.
+Tool results arrive with arbitrary sizes — a web scrape might return 50K characters, a database query might return 500 rows. The agent framework typically serializes the result to a string and appends it to the conversation. When no budget check occurs before injection, the combined context can exceed the model's limit. Context-aware truncation requires knowing three things: how many tokens are currently used, how many tokens the model supports, and how many tokens the incoming result consumes. With those numbers, a truncation strategy can preserve the most useful portion — the beginning of text, the first N list items, or the highest-scored rows — while fitting in the remaining budget.
 
-## Solution 1: Truncation Policy
+## Solution 1: Context Budget Estimator
 
 ```python
 from dataclasses import dataclass
-from enum import Enum
 from typing import Optional
-
-
-class TruncationStrategy(str, Enum):
-    HEAD = "head"             # keep first N tokens
-    TAIL = "tail"             # keep last N tokens
-    HEAD_AND_TAIL = "head_and_tail"  # keep first N/2 and last N/2
-    RELEVANT_FIRST = "relevant_first"  # reorder by relevance score before truncating
-    STRUCTURED = "structured"          # respect JSON/list structure boundaries
 
 
 @dataclass
-class TruncationPolicy:
-    max_tokens: int = 2000
-    strategy: TruncationStrategy = TruncationStrategy.HEAD
-    head_fraction: float = 0.7    # for HEAD_AND_TAIL: proportion from head
-    add_truncation_notice: bool = True
-    tokens_per_char: float = 0.25
-    min_tokens: int = 100          # never truncate below this
+class ContextBudgetState:
+    model_max_tokens: int
+    current_used_tokens: int
+    reserved_for_output: int = 2048
+    reserved_for_system: int = 500
 
-    def max_chars(self) -> int:
-        return int(self.max_tokens / self.tokens_per_char)
+    @property
+    def available_for_injection(self) -> int:
+        reserved = self.reserved_for_output + self.reserved_for_system
+        return max(0, self.model_max_tokens - self.current_used_tokens - reserved)
 
-    def estimate_tokens(self, text: str) -> int:
-        return int(len(text) * self.tokens_per_char)
-```
-
-## Solution 2: Tool Result Truncator
-
-```python
-from typing import Optional
+    @property
+    def utilization(self) -> float:
+        return round(self.current_used_tokens / max(self.model_max_tokens, 1), 4)
 
 
-class ToolResultTruncator:
+class ContextBudgetEstimator:
     """
-    Applies a TruncationPolicy to a tool result string.
-    Produces a truncated version that fits within the token budget.
-    """
-
-    NOTICE = "\n[... result truncated — {dropped} tokens omitted ...]"
-
-    def truncate(self, text: str, policy: TruncationPolicy) -> str:
-        estimated = policy.estimate_tokens(text)
-        if estimated <= policy.max_tokens:
-            return text
-
-        max_chars = policy.max_chars()
-        strategy = policy.strategy
-
-        if strategy == TruncationStrategy.HEAD:
-            truncated = text[:max_chars]
-
-        elif strategy == TruncationStrategy.TAIL:
-            truncated = text[-max_chars:]
-
-        elif strategy == TruncationStrategy.HEAD_AND_TAIL:
-            head_chars = int(max_chars * policy.head_fraction)
-            tail_chars = max_chars - head_chars
-            truncated = text[:head_chars] + "\n[...]\n" + text[-tail_chars:]
-
-        elif strategy == TruncationStrategy.STRUCTURED:
-            truncated = self._structured_truncate(text, max_chars)
-
-        else:
-            truncated = text[:max_chars]
-
-        if policy.add_truncation_notice:
-            dropped_tokens = estimated - policy.estimate_tokens(truncated)
-            notice = self.NOTICE.format(dropped=dropped_tokens)
-            truncated = truncated + notice
-
-        return truncated
-
-    def _structured_truncate(self, text: str, max_chars: int) -> str:
-        """Try to break at a natural boundary (newline, JSON array item)."""
-        if len(text) <= max_chars:
-            return text
-        candidate = text[:max_chars]
-        # prefer breaking at a line boundary
-        last_newline = candidate.rfind("\n")
-        if last_newline > max_chars // 2:
-            return candidate[:last_newline]
-        return candidate
-```
-
-## Solution 3: Per-Tool Length Budget Registry
-
-```python
-import threading
-from typing import Dict, Optional
-
-
-class PerToolLengthBudgetRegistry:
-    """
-    Stores per-tool truncation policies and provides lookup
-    with a fallback to the default policy.
-    """
-
-    def __init__(self, default_policy: Optional[TruncationPolicy] = None):
-        self._default = default_policy or TruncationPolicy()
-        self._policies: Dict[str, TruncationPolicy] = {}
-        self._lock = threading.Lock()
-
-    def register(self, tool_name: str, policy: TruncationPolicy) -> None:
-        with self._lock:
-            self._policies[tool_name] = policy
-
-    def get(self, tool_name: str) -> TruncationPolicy:
-        with self._lock:
-            return self._policies.get(tool_name, self._default)
-
-    def all_policies(self) -> Dict[str, TruncationPolicy]:
-        with self._lock:
-            return {**self._policies, "__default__": self._default}
-```
-
-## Solution 4: Relevance-Guided Truncator
-
-```python
-import re
-from typing import List, Optional, Tuple
-
-
-class RelevanceGuidedTruncator:
-    """
-    Splits a tool result into segments, scores each against a query,
-    and selects the highest-scoring segments up to the token budget.
-    Used when TruncationStrategy.RELEVANT_FIRST is selected.
-    """
-
-    def __init__(self, segment_size_chars: int = 300):
-        self._seg_size = segment_size_chars
-
-    def _split(self, text: str) -> List[str]:
-        segments = []
-        for i in range(0, len(text), self._seg_size):
-            segments.append(text[i:i + self._seg_size])
-        return segments
-
-    def _score(self, segment: str, query_terms: List[str]) -> float:
-        lower = segment.lower()
-        return sum(1.0 for term in query_terms if term.lower() in lower)
-
-    def truncate(
-        self,
-        text: str,
-        policy: TruncationPolicy,
-        query: str = "",
-    ) -> str:
-        if policy.estimate_tokens(text) <= policy.max_tokens:
-            return text
-
-        query_terms = re.findall(r"\w+", query) if query else []
-        segments = self._split(text)
-
-        if query_terms:
-            scored = sorted(
-                enumerate(segments),
-                key=lambda iv: self._score(iv[1], query_terms),
-                reverse=True,
-            )
-        else:
-            scored = list(enumerate(segments))
-
-        selected: List[Tuple[int, str]] = []
-        budget = policy.max_chars()
-        used = 0
-
-        for orig_idx, seg in scored:
-            if used + len(seg) > budget:
-                break
-            selected.append((orig_idx, seg))
-            used += len(seg)
-
-        # Restore original order for coherence
-        selected.sort(key=lambda iv: iv[0])
-        result = "\n".join(seg for _, seg in selected)
-
-        if policy.add_truncation_notice and len(selected) < len(segments):
-            dropped = len(segments) - len(selected)
-            result += f"\n[... {dropped} segments omitted by relevance truncation ...]"
-
-        return result
-```
-
-## Solution 5: Context Budget Allocator
-
-```python
-from typing import Dict, List, Tuple
-
-
-class ContextBudgetAllocator:
-    """
-    Allocates the total context budget across multiple tool results
-    proportionally or by priority, then truncates each to its allocation.
+    Estimates token usage for a string using a character-ratio heuristic
+    or a provided token-counting function.
     """
 
     def __init__(
         self,
-        truncator: ToolResultTruncator,
-        total_budget_tokens: int = 8000,
+        chars_per_token: float = 4.0,
+        count_fn=None,
     ):
-        self._truncator = truncator
-        self._budget = total_budget_tokens
+        self._chars_per_token = chars_per_token
+        self._count_fn = count_fn
 
-    def allocate_and_truncate(
-        self,
-        results: List[Tuple[str, str, int]],  # (tool_name, content, priority)
-    ) -> List[Tuple[str, str]]:
-        """
-        results: list of (tool_name, content, priority_weight)
-        Returns: list of (tool_name, truncated_content)
-        """
-        if not results:
-            return []
-
-        total_weight = sum(w for _, _, w in results)
-        output = []
-
-        for tool_name, content, weight in results:
-            share = int(self._budget * (weight / max(total_weight, 1)))
-            share = max(share, 100)  # minimum allocation
-            policy = TruncationPolicy(
-                max_tokens=share,
-                strategy=TruncationStrategy.HEAD_AND_TAIL,
-            )
-            truncated = self._truncator.truncate(content, policy)
-            output.append((tool_name, truncated))
-
-        return output
+    def estimate(self, text: str) -> int:
+        if self._count_fn:
+            try:
+                return self._count_fn(text)
+            except Exception:
+                pass
+        return max(1, int(len(text) / self._chars_per_token))
 ```
 
-## Solution 6: Truncation Savings Monitor
+## Solution 2: Truncation Strategy Selector
+
+```python
+from enum import Enum
+from typing import Any
+
+
+class TruncationStrategy(str, Enum):
+    HEAD = "head"              # keep first N tokens of text
+    TAIL = "tail"              # keep last N tokens of text
+    HEAD_TAIL = "head_tail"    # keep first and last portions
+    TOP_N_ITEMS = "top_n"      # keep first N items of a list
+    SCORED_FILTER = "scored"   # keep highest-scored items
+    SUMMARIZE_HINT = "hint"    # return a hint to summarize (no truncation)
+    NONE = "none"              # do not truncate
+
+
+class TruncationStrategySelector:
+    """
+    Selects a truncation strategy based on result type and available budget.
+    """
+
+    def select(self, result: Any, available_tokens: int, estimated_tokens: int) -> TruncationStrategy:
+        if available_tokens >= estimated_tokens:
+            return TruncationStrategy.NONE
+
+        if isinstance(result, list):
+            return TruncationStrategy.TOP_N_ITEMS
+
+        if isinstance(result, dict):
+            return TruncationStrategy.HEAD
+
+        if isinstance(result, str):
+            ratio = estimated_tokens / max(available_tokens, 1)
+            if ratio > 5:
+                return TruncationStrategy.HEAD_TAIL
+            return TruncationStrategy.HEAD
+
+        return TruncationStrategy.HEAD
+```
+
+## Solution 3: Result Truncator
+
+```python
+import json
+from typing import Any, List, Optional
+
+
+class ToolResultTruncator:
+    """
+    Applies a truncation strategy to a tool result given a token budget.
+    Returns the truncated result and metadata about what was removed.
+    """
+
+    def __init__(self, estimator: ContextBudgetEstimator):
+        self._estimator = estimator
+
+    def truncate(
+        self,
+        result: Any,
+        strategy: TruncationStrategy,
+        budget_tokens: int,
+    ) -> tuple[Any, dict]:
+        if strategy == TruncationStrategy.NONE:
+            return result, {"truncated": False}
+
+        if isinstance(result, str):
+            return self._truncate_string(result, strategy, budget_tokens)
+
+        if isinstance(result, list):
+            return self._truncate_list(result, budget_tokens)
+
+        if isinstance(result, dict):
+            serialized = json.dumps(result)
+            truncated_str, meta = self._truncate_string(serialized, strategy, budget_tokens)
+            return truncated_str, meta
+
+        return result, {"truncated": False}
+
+    def _truncate_string(
+        self, text: str, strategy: TruncationStrategy, budget_tokens: int
+    ) -> tuple[str, dict]:
+        budget_chars = int(budget_tokens * 4)   # ~4 chars/token
+        if len(text) <= budget_chars:
+            return text, {"truncated": False}
+
+        original_len = len(text)
+        if strategy == TruncationStrategy.HEAD:
+            truncated = text[:budget_chars] + f"\n[... {original_len - budget_chars} chars truncated]"
+        elif strategy == TruncationStrategy.TAIL:
+            truncated = f"[{original_len - budget_chars} chars omitted ...]\n" + text[-budget_chars:]
+        elif strategy == TruncationStrategy.HEAD_TAIL:
+            half = budget_chars // 2
+            truncated = (
+                text[:half]
+                + f"\n[... {original_len - budget_chars} chars omitted ...]\n"
+                + text[-half:]
+            )
+        else:
+            truncated = text[:budget_chars] + f"\n[truncated]"
+
+        return truncated, {
+            "truncated": True,
+            "original_chars": original_len,
+            "retained_chars": budget_chars,
+            "strategy": strategy.value,
+        }
+
+    def _truncate_list(self, items: list, budget_tokens: int) -> tuple[list, dict]:
+        kept = []
+        tokens_used = 0
+        for item in items:
+            item_str = json.dumps(item)
+            item_tokens = self._estimator.estimate(item_str)
+            if tokens_used + item_tokens > budget_tokens:
+                break
+            kept.append(item)
+            tokens_used += item_tokens
+
+        dropped = len(items) - len(kept)
+        return kept, {
+            "truncated": dropped > 0,
+            "original_count": len(items),
+            "retained_count": len(kept),
+            "dropped_count": dropped,
+            "strategy": TruncationStrategy.TOP_N_ITEMS.value,
+        }
+```
+
+## Solution 4: Context-Aware Injection Pipeline
+
+```python
+from typing import Any, Callable, Optional
+
+
+class ContextAwareInjectionPipeline:
+    """
+    Measures available context budget, selects a truncation strategy,
+    applies truncation, and returns the injection-ready result.
+    """
+
+    def __init__(
+        self,
+        estimator: ContextBudgetEstimator,
+        selector: TruncationStrategySelector,
+        truncator: ToolResultTruncator,
+    ):
+        self._estimator = estimator
+        self._selector = selector
+        self._truncator = truncator
+        self._total_injections = 0
+        self._truncated_injections = 0
+
+    def prepare(
+        self,
+        tool_name: str,
+        result: Any,
+        budget: ContextBudgetState,
+    ) -> dict:
+        import json
+        result_str = json.dumps(result) if not isinstance(result, str) else result
+        estimated_tokens = self._estimator.estimate(result_str)
+        available = budget.available_for_injection
+
+        strategy = self._selector.select(result, available, estimated_tokens)
+        truncated_result, meta = self._truncator.truncate(result, strategy, available)
+
+        self._total_injections += 1
+        if meta.get("truncated"):
+            self._truncated_injections += 1
+
+        return {
+            "tool_name": tool_name,
+            "result": truncated_result,
+            "estimated_tokens": estimated_tokens,
+            "available_tokens": available,
+            "truncation_meta": meta,
+            "fits_in_budget": estimated_tokens <= available,
+        }
+
+    def stats(self) -> dict:
+        return {
+            "total_injections": self._total_injections,
+            "truncated_injections": self._truncated_injections,
+            "truncation_rate": round(
+                self._truncated_injections / max(self._total_injections, 1), 4
+            ),
+        }
+```
+
+## Solution 5: Multi-Result Budget Allocator
+
+```python
+from typing import Any, Dict, List
+
+
+class MultiResultBudgetAllocator:
+    """
+    Distributes a total token budget across multiple tool results
+    in a single turn. Allocates proportionally by estimated size,
+    with a minimum floor per result.
+    """
+
+    def __init__(self, min_tokens_per_result: int = 200):
+        self._min = min_tokens_per_result
+
+    def allocate(
+        self,
+        results: List[tuple[str, Any]],
+        total_budget: int,
+        estimator: ContextBudgetEstimator,
+    ) -> Dict[str, int]:
+        import json
+        sizes = {}
+        for tool_name, result in results:
+            s = json.dumps(result) if not isinstance(result, str) else result
+            sizes[tool_name] = estimator.estimate(s)
+
+        total_estimated = sum(sizes.values())
+        allocations = {}
+        remaining = total_budget
+
+        if total_estimated <= total_budget:
+            return {name: sizes[name] for name, _ in results}
+
+        for tool_name, estimated in sizes.items():
+            proportion = estimated / max(total_estimated, 1)
+            allocated = max(self._min, int(total_budget * proportion))
+            allocations[tool_name] = allocated
+
+        return allocations
+```
+
+## Solution 6: Injection Budget Dashboard
 
 ```python
 import time
-from threading import Lock
-from typing import List
 
 
-class TruncationSavingsMonitor:
+class ContextAwareTruncationDashboard:
     """
-    Records tokens saved by truncation across all tool results and
-    surfaces which tools produce the most oversized results.
+    Combines pipeline stats and budget utilization into an
+    operational report for context management tuning.
     """
 
-    def __init__(self):
-        self._events: List[dict] = []
-        self._lock = Lock()
-
-    def record(
+    def __init__(
         self,
-        tool_name: str,
-        original_tokens: int,
-        final_tokens: int,
-    ) -> None:
-        with self._lock:
-            self._events.append({
-                "tool_name": tool_name,
-                "original_tokens": original_tokens,
-                "final_tokens": final_tokens,
-                "saved_tokens": max(0, original_tokens - final_tokens),
-                "ts": time.time(),
-            })
-            if len(self._events) > 50000:
-                self._events.pop(0)
+        pipeline: ContextAwareInjectionPipeline,
+    ):
+        self._pipeline = pipeline
 
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        with self._lock:
-            recent = [e for e in self._events if e["ts"] >= cutoff]
-
-        if not recent:
-            return {"window_seconds": window_seconds, "truncations": 0}
-
-        from collections import defaultdict
-        by_tool: dict = defaultdict(lambda: {"count": 0, "saved": 0})
-        for e in recent:
-            by_tool[e["tool_name"]]["count"] += 1
-            by_tool[e["tool_name"]]["saved"] += e["saved_tokens"]
-
-        total_saved = sum(e["saved_tokens"] for e in recent)
-        total_original = sum(e["original_tokens"] for e in recent)
-
+    def render(self) -> dict:
+        stats = self._pipeline.stats()
         return {
-            "window_seconds": window_seconds,
-            "truncations": len(recent),
-            "total_tokens_saved": total_saved,
-            "savings_pct": round(total_saved / max(total_original, 1) * 100, 1),
-            "by_tool": {
-                tool: {"truncations": d["count"], "tokens_saved": d["saved"]}
-                for tool, d in sorted(
-                    by_tool.items(), key=lambda kv: kv[1]["saved"], reverse=True
-                )[:10]
+            "generated_at": time.time(),
+            "injection_stats": stats,
+            "health": {
+                "truncation_rate": stats["truncation_rate"],
+                "note": (
+                    "high truncation rate suggests tool results are consistently oversized"
+                    if stats["truncation_rate"] > 0.3 else "ok"
+                ),
             },
         }
 ```
 
 ## Comparison
 
-| Approach | Strategy-Based Cut | Relevance Ordering | Budget Allocation | Per-Tool Policy | Savings Tracking |
+| Approach | Budget Measurement | Strategy Selection | String Truncation | List Truncation | Multi-Result Allocation |
 |---|---|---|---|---|---|
-| ToolResultTruncator | Yes (4 strategies) | No | No | Via policy | No |
-| RelevanceGuidedTruncator | No | Yes (query terms) | No | Via policy | No |
-| PerToolLengthBudgetRegistry | No | No | No | Yes | No |
-| ContextBudgetAllocator | Via truncator | No | Yes (proportional) | No | No |
-| TruncationSavingsMonitor | No | No | No | No | Yes |
+| ContextBudgetEstimator | Yes (estimate) | No | No | No | No |
+| TruncationStrategySelector | No | Yes (type-aware) | No | No | No |
+| ToolResultTruncator | No | No | Yes (head/tail/both) | Yes (top-N) | No |
+| ContextAwareInjectionPipeline | Via estimator | Via selector | Via truncator | Via truncator | No |
+| MultiResultBudgetAllocator | No | No | No | No | Yes (proportional) |
 
-**Best for production**: Use `TruncationStrategy.HEAD_AND_TAIL` as the default — it preserves context structure (preamble + conclusion) better than a pure head cut for most tool result types. Assign `TruncationStrategy.RELEVANT_FIRST` only for tools that return large, homogeneous collections (search results, database rows) where ordering by relevance meaningfully improves signal. Monitor `savings_pct` via `TruncationSavingsMonitor`: consistently above 40% for a specific tool means that tool's default result size is far larger than what the agent actually consumes, and the tool's query scope should be narrowed at the source rather than compensating with truncation.
+**Best for production**: Set `reserved_for_output=4096` for complex reasoning tasks and `reserved_for_system=1000` to ensure system instructions survive context pressure from large tool results. Use `HEAD_TAIL` strategy for structured text (API docs, web pages) — the beginning contains metadata and the end contains the conclusion, both more useful than the middle. Monitor `truncation_rate`: above 0.30 means tools are returning results that are consistently too large and should be asked for smaller responses via their API parameters (e.g., `limit=10`, `fields=id,name`) before falling back to truncation.
