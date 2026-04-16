@@ -1,29 +1,29 @@
 ---
 title: "Agent Doesn't Implement Output Schema Validation Before Returning to Caller"
-description: "Agents that return LLM-generated structured output without schema validation pass malformed JSON, wrong field types, or injected extra keys directly to downstream systems: a billing service receives a negative amount, an email tool receives a recipient list with injected addresses, a database write receives a null primary key. Implement output schema validation that checks every structured response against a declared schema before it leaves the agent boundary."
+description: "Agents that return LLM-generated structured output to callers without schema validation allow malformed, incomplete, or type-mismatched responses to propagate downstream — causing JSON parse errors, null pointer exceptions, or silent data corruption in the caller. Implement output schema validation that checks LLM responses against a declared schema before returning, with repair attempts for minor violations and hard rejection for schema mismatches."
 date: 2026-04-16
 difficulty: intermediate
 category: security
 slug: agent-doesnt-implement-output-schema-validation-before-returning-to-caller
-tags: [output-validation, schema-enforcement, structured-output, type-safety, injection-prevention, output-integrity]
+tags: [output-validation, schema-validation, structured-output, llm-output, type-safety, response-integrity]
 symptoms:
-  - "LLM returns negative numeric values that downstream billing system accepts without complaint"
-  - "Structured output contains extra keys not in the declared schema — injected by prompt manipulation"
-  - "Agent returns null for a required field and caller crashes with NullPointerException"
-  - "No validation between LLM output parsing and downstream system consumption"
-  - "Schema drift: LLM begins returning a renamed field and no alert fires for weeks"
+  - "Caller receives a dict missing required fields because the LLM omitted them"
+  - "Integer fields contain string values — LLM wrote '\"count\": \"five\"' instead of '\"count\": 5'"
+  - "No validation between LLM JSON output and the declared response schema"
+  - "Downstream service crashes with KeyError or AttributeError on missing fields"
+  - "LLM occasionally wraps the JSON in markdown code fences that break the parser"
 ---
 
 ## Why This Happens
 
-LLMs are probabilistic. Even with structured output prompting or JSON mode, models occasionally return wrong field types, omit required fields, include undeclared extra fields, or produce values outside declared ranges. When an agent pipes LLM output directly to downstream systems without validation, schema violations become runtime failures or — worse — silent data corruption. Output schema validation must happen at the agent boundary, not inside the downstream consumer, because the agent is the trust boundary: it knows what it asked for and must verify what it got.
+LLMs produce text. Even when prompted to return JSON matching a schema, they occasionally wrap the output in markdown fences, swap field names, use string values for numeric fields, or omit optional-but-expected fields. Callers that directly deserialize LLM output and pass it to typed code will fail unpredictably. Output schema validation must sit between the LLM and the caller — parse the text, extract JSON, validate types and required fields, attempt minor repairs, and only pass validated output through.
 
-## Solution 1: Output Schema Field Descriptor
+## Solution 1: Output Schema Descriptor
 
 ```python
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, List, Optional, Set
+from typing import Any, Dict, List, Optional, Type
 
 
 class FieldType(str, Enum):
@@ -33,358 +33,347 @@ class FieldType(str, Enum):
     BOOLEAN = "boolean"
     LIST = "list"
     DICT = "dict"
-    NULL = "null"
+    ANY = "any"
 
 
 @dataclass
-class OutputFieldDescriptor:
+class OutputFieldSpec:
     name: str
     field_type: FieldType
     required: bool = True
     nullable: bool = False
-    min_value: Optional[float] = None      # for numeric types
+    min_value: Optional[float] = None
     max_value: Optional[float] = None
-    min_length: Optional[int] = None       # for string/list
+    min_length: Optional[int] = None
     max_length: Optional[int] = None
-    allowed_values: Optional[Set[Any]] = None  # enum constraint
-    custom_validator: Optional[Callable[[Any], bool]] = None
-    description: str = ""
-```
-
-## Solution 2: Output Schema
-
-```python
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Set
+    allowed_values: Optional[List[Any]] = None
+    default: Any = None
 
 
 @dataclass
 class OutputSchema:
-    schema_name: str
-    fields: List[OutputFieldDescriptor]
-    allow_extra_fields: bool = False   # if False, extra keys are a violation
-    version: str = "1.0"
+    name: str
+    fields: List[OutputFieldSpec]
+    allow_extra_fields: bool = False
 
-    def field_map(self) -> Dict[str, OutputFieldDescriptor]:
+    def field_map(self) -> Dict[str, OutputFieldSpec]:
         return {f.name: f for f in self.fields}
-
-    def required_fields(self) -> Set[str]:
-        return {f.name for f in self.fields if f.required}
 ```
 
-## Solution 3: Output Schema Validator
+## Solution 2: JSON Extractor
 
 ```python
-from typing import Any, Dict, List
+import json
+import re
+from typing import Optional
 
 
-class SchemaViolation:
-    def __init__(self, field_name: str, violation_type: str, detail: str):
-        self.field_name = field_name
-        self.violation_type = violation_type
-        self.detail = detail
+class LLMOutputJSONExtractor:
+    """
+    Extracts a JSON object from raw LLM output, handling common
+    formatting issues: markdown fences, leading/trailing text,
+    single-quoted keys, and trailing commas.
+    """
 
-    def __repr__(self) -> str:
-        return f"SchemaViolation({self.field_name!r}: {self.violation_type} — {self.detail})"
+    _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
+    _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
+
+    def extract(self, raw_text: str) -> Optional[dict]:
+        # Try direct parse first
+        stripped = raw_text.strip()
+        result = self._try_parse(stripped)
+        if result is not None:
+            return result
+
+        # Try extracting from markdown fence
+        fence_match = self._FENCE_RE.search(stripped)
+        if fence_match:
+            result = self._try_parse(fence_match.group(1))
+            if result is not None:
+                return result
+
+        # Try finding first { ... } block
+        brace_start = stripped.find("{")
+        brace_end = stripped.rfind("}")
+        if brace_start != -1 and brace_end > brace_start:
+            result = self._try_parse(stripped[brace_start:brace_end + 1])
+            if result is not None:
+                return result
+
+        return None
+
+    def _try_parse(self, text: str) -> Optional[dict]:
+        try:
+            parsed = json.loads(text)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            # Fix trailing commas and retry
+            fixed = self._TRAILING_COMMA_RE.sub(r"\1", text)
+            try:
+                parsed = json.loads(fixed)
+                return parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                return None
+```
+
+## Solution 3: Schema Validator and Repairer
+
+```python
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class OutputSchemaValidator:
     """
-    Validates a parsed output dict against an OutputSchema.
-    Returns a list of SchemaViolation objects (empty = valid).
+    Validates a parsed dict against an OutputSchema.
+    Attempts lightweight repairs: coercing types, inserting defaults.
+    Returns the validated (possibly repaired) dict and a list of violations.
     """
 
-    _TYPE_MAP = {
-        FieldType.STRING: str,
+    TYPE_COERCIONS = {
         FieldType.INTEGER: int,
-        FieldType.FLOAT: (int, float),
+        FieldType.FLOAT: float,
+        FieldType.STRING: str,
         FieldType.BOOLEAN: bool,
-        FieldType.LIST: list,
-        FieldType.DICT: dict,
     }
 
     def validate(
         self,
-        output: Dict[str, Any],
+        data: dict,
         schema: OutputSchema,
-    ) -> List[SchemaViolation]:
-        violations = []
+    ) -> Tuple[Optional[dict], List[str]]:
+        violations: List[str] = []
+        result = dict(data)
         field_map = schema.field_map()
 
         # Check required fields
-        for field_name in schema.required_fields():
-            if field_name not in output:
-                violations.append(SchemaViolation(
-                    field_name, "missing_required",
-                    f"Required field '{field_name}' absent from output",
-                ))
+        for spec in schema.fields:
+            if spec.name not in result:
+                if spec.required and spec.default is None and not spec.nullable:
+                    violations.append(f"missing required field: '{spec.name}'")
+                elif spec.default is not None:
+                    result[spec.name] = spec.default
 
-        # Check extra fields
-        if not schema.allow_extra_fields:
-            for key in output:
-                if key not in field_map:
-                    violations.append(SchemaViolation(
-                        key, "extra_field",
-                        f"Field '{key}' not declared in schema '{schema.schema_name}'",
-                    ))
-
-        # Validate present fields
-        for key, value in output.items():
-            if key not in field_map:
+        # Validate and coerce present fields
+        for spec in schema.fields:
+            if spec.name not in result:
                 continue
-            desc = field_map[key]
+            value = result[spec.name]
 
             if value is None:
-                if not desc.nullable:
-                    violations.append(SchemaViolation(
-                        key, "null_not_allowed",
-                        f"Field '{key}' is null but nullable=False",
-                    ))
+                if not spec.nullable:
+                    violations.append(f"null value for non-nullable field '{spec.name}'")
                 continue
 
-            # Type check
-            expected = self._TYPE_MAP.get(desc.field_type)
-            if expected and not isinstance(value, expected):
-                violations.append(SchemaViolation(
-                    key, "wrong_type",
-                    f"Expected {desc.field_type.value}, got {type(value).__name__}",
-                ))
+            coerced = self._coerce(spec, value)
+            if coerced is None:
+                violations.append(
+                    f"type mismatch for '{spec.name}': expected {spec.field_type.value}, got {type(value).__name__}"
+                )
                 continue
+            result[spec.name] = coerced
 
-            # Range checks
-            if desc.min_value is not None and isinstance(value, (int, float)):
-                if value < desc.min_value:
-                    violations.append(SchemaViolation(
-                        key, "below_minimum",
-                        f"Value {value} < min {desc.min_value}",
-                    ))
-            if desc.max_value is not None and isinstance(value, (int, float)):
-                if value > desc.max_value:
-                    violations.append(SchemaViolation(
-                        key, "above_maximum",
-                        f"Value {value} > max {desc.max_value}",
-                    ))
+            if spec.allowed_values and coerced not in spec.allowed_values:
+                violations.append(f"'{spec.name}' value {coerced!r} not in allowed values")
 
-            # Length checks
-            if desc.min_length is not None and hasattr(value, "__len__"):
-                if len(value) < desc.min_length:
-                    violations.append(SchemaViolation(
-                        key, "too_short",
-                        f"Length {len(value)} < min {desc.min_length}",
-                    ))
-            if desc.max_length is not None and hasattr(value, "__len__"):
-                if len(value) > desc.max_length:
-                    violations.append(SchemaViolation(
-                        key, "too_long",
-                        f"Length {len(value)} > max {desc.max_length}",
-                    ))
+            if spec.min_value is not None and isinstance(coerced, (int, float)):
+                if coerced < spec.min_value:
+                    violations.append(f"'{spec.name}' value {coerced} below minimum {spec.min_value}")
 
-            # Enum constraint
-            if desc.allowed_values is not None and value not in desc.allowed_values:
-                violations.append(SchemaViolation(
-                    key, "invalid_enum_value",
-                    f"Value {value!r} not in allowed set {desc.allowed_values}",
-                ))
+            if spec.max_length is not None and isinstance(coerced, (str, list)):
+                if len(coerced) > spec.max_length:
+                    violations.append(f"'{spec.name}' length {len(coerced)} exceeds max {spec.max_length}")
 
-            # Custom validator
-            if desc.custom_validator is not None:
-                try:
-                    if not desc.custom_validator(value):
-                        violations.append(SchemaViolation(
-                            key, "custom_validation_failed",
-                            f"Custom validator returned False for value {value!r}",
-                        ))
-                except Exception as exc:
-                    violations.append(SchemaViolation(
-                        key, "custom_validator_error",
-                        f"Custom validator raised: {exc}",
-                    ))
+        # Strip extra fields unless allowed
+        if not schema.allow_extra_fields:
+            extra = [k for k in result if k not in field_map]
+            for k in extra:
+                del result[k]
 
-        return violations
+        return (result if not violations else None), violations
+
+    def _coerce(self, spec: OutputFieldSpec, value: Any) -> Any:
+        expected_py_type = {
+            FieldType.STRING: str,
+            FieldType.INTEGER: (int, float),
+            FieldType.FLOAT: (int, float),
+            FieldType.BOOLEAN: bool,
+            FieldType.LIST: list,
+            FieldType.DICT: dict,
+            FieldType.ANY: object,
+        }.get(spec.field_type, object)
+
+        if isinstance(value, expected_py_type if isinstance(expected_py_type, tuple) else (expected_py_type,)):
+            if spec.field_type == FieldType.INTEGER:
+                return int(value)
+            if spec.field_type == FieldType.FLOAT:
+                return float(value)
+            return value
+
+        coerce_fn = self.TYPE_COERCIONS.get(spec.field_type)
+        if coerce_fn:
+            try:
+                return coerce_fn(value)
+            except (ValueError, TypeError):
+                return None
+        return None
 ```
 
-## Solution 4: Validated Output Gate
+## Solution 4: Validated Output Gateway
 
 ```python
-import json
-import time
-from typing import Any, Callable, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, List, Optional
 
 
-class OutputSchemaViolationError(Exception):
-    def __init__(self, schema_name: str, violations: list):
-        super().__init__(
-            f"Output failed schema '{schema_name}' with {len(violations)} violation(s): "
-            + "; ".join(str(v) for v in violations[:3])
-        )
-        self.schema_name = schema_name
-        self.violations = violations
+@dataclass
+class ValidationResult:
+    valid: bool
+    data: Optional[dict]
+    violations: List[str]
+    raw_text: str
+    extraction_failed: bool = False
 
 
-class ValidatedOutputGate:
+class ValidatedOutputGateway:
     """
-    Validates structured agent output before returning to caller.
-    Raises OutputSchemaViolationError on violation, or calls a
-    custom handler that can repair or log the violation.
+    Combines JSON extraction and schema validation into a single
+    gateway that sits between the LLM response and the caller.
     """
 
     def __init__(
         self,
+        extractor: LLMOutputJSONExtractor,
         validator: OutputSchemaValidator,
-        on_violation: Optional[Callable[[list, dict], dict]] = None,
     ):
+        self._extractor = extractor
         self._validator = validator
-        self._on_violation = on_violation
-        self._total_validated = 0
-        self._total_violations = 0
 
-    def validate_and_pass(
-        self,
-        output: Dict[str, Any],
-        schema: OutputSchema,
-    ) -> Dict[str, Any]:
-        violations = self._validator.validate(output, schema)
-        self._total_validated += 1
+    def process(self, raw_text: str, schema: OutputSchema) -> ValidationResult:
+        parsed = self._extractor.extract(raw_text)
 
-        if violations:
-            self._total_violations += 1
-            if self._on_violation:
-                return self._on_violation(violations, output)
-            raise OutputSchemaViolationError(schema.schema_name, violations)
+        if parsed is None:
+            return ValidationResult(
+                valid=False,
+                data=None,
+                violations=["could not extract JSON from LLM output"],
+                raw_text=raw_text,
+                extraction_failed=True,
+            )
 
-        return output
-
-    def stats(self) -> dict:
-        return {
-            "total_validated": self._total_validated,
-            "total_violations": self._total_violations,
-            "violation_rate": round(
-                self._total_violations / max(self._total_validated, 1), 4
-            ),
-        }
+        validated, violations = self._validator.validate(parsed, schema)
+        return ValidationResult(
+            valid=validated is not None,
+            data=validated,
+            violations=violations,
+            raw_text=raw_text,
+        )
 ```
 
-## Solution 5: Output Violation Audit Logger
+## Solution 5: Retry-Backed Schema Enforcer
+
+```python
+from typing import Any, Callable, Optional
+
+
+class RetryBackedSchemaEnforcer:
+    """
+    Calls the LLM up to max_retries times, feeding validation errors
+    back into the prompt on each failure to guide the model toward
+    a schema-conformant response.
+    """
+
+    def __init__(
+        self,
+        gateway: ValidatedOutputGateway,
+        max_retries: int = 2,
+    ):
+        self._gateway = gateway
+        self._max_retries = max_retries
+
+    async def enforce(
+        self,
+        prompt: str,
+        schema: OutputSchema,
+        llm_fn: Callable[[str], str],
+    ) -> ValidationResult:
+        current_prompt = prompt
+        last_result: Optional[ValidationResult] = None
+
+        for attempt in range(self._max_retries + 1):
+            raw = await llm_fn(current_prompt)
+            result = self._gateway.process(raw, schema)
+
+            if result.valid:
+                return result
+
+            last_result = result
+            if attempt < self._max_retries:
+                error_summary = "; ".join(result.violations[:3])
+                current_prompt = (
+                    f"{prompt}\n\n"
+                    f"Previous response was invalid: {error_summary}. "
+                    f"Return valid JSON matching the schema exactly."
+                )
+
+        return last_result
+```
+
+## Solution 6: Output Validation Audit Logger
 
 ```python
 import time
-from threading import Lock
-from typing import Any, Dict, List
+from typing import List
 
 
-class OutputViolationAuditLogger:
+class OutputValidationAuditLogger:
     """
-    Records output schema violations for trend analysis.
-    Surfaces which violation types are most common and whether
-    violation rate is increasing after model or prompt changes.
+    Records validation outcomes for monitoring schema compliance
+    rates and identifying which fields are most often violated.
     """
 
-    def __init__(self, max_records: int = 10000):
+    def __init__(self, max_records: int = 5000):
         self._records: List[dict] = []
-        self._lock = Lock()
         self._max = max_records
 
-    def record(
-        self,
-        schema_name: str,
-        violations: list,
-        raw_output: Dict[str, Any],
-    ) -> None:
-        with self._lock:
-            self._records.append({
-                "ts": time.time(),
-                "schema_name": schema_name,
-                "violation_count": len(violations),
-                "violation_types": [v.violation_type for v in violations],
-                "fields": [v.field_name for v in violations],
-            })
-            if len(self._records) > self._max:
-                self._records.pop(0)
+    def record(self, result: ValidationResult, schema_name: str = "") -> None:
+        if len(self._records) >= self._max:
+            self._records.pop(0)
+        self._records.append({
+            "ts": time.time(),
+            "schema": schema_name,
+            "valid": result.valid,
+            "extraction_failed": result.extraction_failed,
+            "violation_count": len(result.violations),
+            "violations": result.violations[:5],
+        })
 
     def summary(self, window_seconds: float = 3600.0) -> dict:
         cutoff = time.time() - window_seconds
-        with self._lock:
-            recent = [r for r in self._records if r["ts"] >= cutoff]
-
-        type_counts: dict = {}
-        field_counts: dict = {}
+        recent = [r for r in self._records if r["ts"] >= cutoff]
+        if not recent:
+            return {"window_seconds": window_seconds, "validations": 0}
+        valid_count = sum(1 for r in recent if r["valid"])
+        field_violations: dict = {}
         for r in recent:
-            for vtype in r["violation_types"]:
-                type_counts[vtype] = type_counts.get(vtype, 0) + 1
-            for field in r["fields"]:
-                field_counts[field] = field_counts.get(field, 0) + 1
-
+            for v in r.get("violations", []):
+                field_violations[v] = field_violations.get(v, 0) + 1
         return {
             "window_seconds": window_seconds,
-            "violations": len(recent),
-            "by_type": dict(sorted(type_counts.items(), key=lambda x: -x[1])),
-            "by_field": dict(sorted(field_counts.items(), key=lambda x: -x[1])),
+            "validations": len(recent),
+            "valid_rate": round(valid_count / len(recent), 4),
+            "extraction_failures": sum(1 for r in recent if r["extraction_failed"]),
+            "top_violations": sorted(field_violations.items(), key=lambda x: -x[1])[:5],
         }
-```
-
-## Solution 6: Auto-Repair Output Sanitizer
-
-```python
-from typing import Any, Dict, List
-
-
-class AutoRepairOutputSanitizer:
-    """
-    Attempts to repair common output schema violations automatically:
-    - Casts string integers to int
-    - Strips extra fields when allow_extra_fields=False
-    - Replaces null required fields with a declared fallback
-    """
-
-    def repair(
-        self,
-        output: Dict[str, Any],
-        schema: OutputSchema,
-        violations: List[SchemaViolation],
-    ) -> Dict[str, Any]:
-        repaired = dict(output)
-        field_map = schema.field_map()
-
-        for v in violations:
-            if v.violation_type == "extra_field":
-                repaired.pop(v.field_name, None)
-
-            elif v.violation_type == "wrong_type":
-                desc = field_map.get(v.field_name)
-                val = repaired.get(v.field_name)
-                if desc and val is not None:
-                    try:
-                        if desc.field_type == FieldType.INTEGER:
-                            repaired[v.field_name] = int(val)
-                        elif desc.field_type == FieldType.FLOAT:
-                            repaired[v.field_name] = float(val)
-                        elif desc.field_type == FieldType.STRING:
-                            repaired[v.field_name] = str(val)
-                        elif desc.field_type == FieldType.BOOLEAN:
-                            repaired[v.field_name] = bool(val)
-                    except (ValueError, TypeError):
-                        pass
-
-            elif v.violation_type in ("below_minimum", "above_maximum"):
-                desc = field_map.get(v.field_name)
-                val = repaired.get(v.field_name)
-                if desc and val is not None:
-                    if desc.min_value is not None:
-                        val = max(val, desc.min_value)
-                    if desc.max_value is not None:
-                        val = min(val, desc.max_value)
-                    repaired[v.field_name] = val
-
-        return repaired
 ```
 
 ## Comparison
 
-| Approach | Type Checking | Range Validation | Extra Field Detection | Auto-Repair | Audit Log |
+| Approach | JSON Extraction | Type Coercion | Required Field Check | Retry on Failure | Audit |
 |---|---|---|---|---|---|
-| OutputSchemaValidator | Yes | Yes | Yes | No | No |
-| ValidatedOutputGate | Via validator | Via validator | Via validator | Via handler | No |
-| AutoRepairOutputSanitizer | No | Yes (clamp) | Yes (strip) | Yes | No |
-| OutputViolationAuditLogger | No | No | No | No | Yes |
+| LLMOutputJSONExtractor | Yes (fence+brace) | No | No | No | No |
+| OutputSchemaValidator | No | Yes | Yes | No | No |
+| ValidatedOutputGateway | Via extractor | Via validator | Via validator | No | No |
+| RetryBackedSchemaEnforcer | Via gateway | Via gateway | Via gateway | Yes | No |
+| OutputValidationAuditLogger | No | No | No | No | Yes |
 
-**Best for production**: Set `allow_extra_fields=False` on all schemas — extra fields from LLM output are the primary injection vector (a prompt manipulation may cause the model to add an `admin: true` field that a downstream consumer silently accepts). Never auto-repair in production without logging the original violation; use `AutoRepairOutputSanitizer` only as a fallback that always writes to `OutputViolationAuditLogger` first. Monitor `violation_rate` via `ValidatedOutputGate.stats()`: a spike after a model upgrade or prompt change means the new configuration produces structurally incompatible output. Alert on `by_type["missing_required"]` — a missing required field is almost always a prompt regression, not model noise.
+**Best for production**: Run `ValidatedOutputGateway.process()` on every structured LLM response before returning to the caller — never trust raw LLM JSON directly. Use `RetryBackedSchemaEnforcer` with `max_retries=1` for responses where schema compliance is business-critical (e.g., function call arguments, API payloads); the second attempt with violation feedback fixes the majority of LLM formatting mistakes. Monitor `valid_rate` from `OutputValidationAuditLogger`: a rate below 0.95 indicates the output prompt needs tighter schema instructions or examples. Track `extraction_failures` separately — they indicate the model is producing prose instead of JSON and the prompt framing needs adjustment.

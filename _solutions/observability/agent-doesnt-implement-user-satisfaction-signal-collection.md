@@ -1,388 +1,341 @@
 ---
 title: "Agent Doesn't Implement User Satisfaction Signal Collection"
-description: "Agents that never collect explicit or implicit user satisfaction signals cannot correlate quality scores with actual user experience, cannot identify which sessions users abandoned vs. completed successfully, and cannot close the feedback loop for prompt improvement. Implement user satisfaction signal collection that captures explicit ratings, implicit behavioral signals (abandon, rephrase, follow-up), and correlates them with session quality metrics."
+description: "Agents that measure only technical metrics — latency, token count, error rate — cannot tell whether users found responses helpful. A fast, cheap response that answers the wrong question scores perfectly on technical metrics but fails the user. Implement user satisfaction signal collection that captures explicit feedback, implicit behavioral signals, and session outcome indicators to build a quality feedback loop."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-user-satisfaction-signal-collection
-tags: [user-satisfaction, feedback-collection, implicit-signals, abandon-detection, satisfaction-metrics, feedback-loop]
+tags: [user-satisfaction, feedback, implicit-signals, csat, thumbs-up-down, quality-metrics]
 symptoms:
-  - "No thumbs-up/thumbs-down data — quality improvement is based on internal metrics only"
-  - "Users rephrase the same question three times but no signal captures this as a failure"
-  - "Session abandonment is not distinguished from successful task completion"
-  - "Internal quality scores are high but users are unhappy — no data to explain the gap"
-  - "Prompt improvements are shipped without knowing whether they improved user satisfaction"
+  - "No thumbs-up/thumbs-down or rating mechanism on agent responses"
+  - "High retry rate (user rephrases the same question) is not tracked as a dissatisfaction signal"
+  - "Session abandonment after a single response is not counted as implicit negative feedback"
+  - "No correlation between technical metrics and user satisfaction outcomes"
+  - "Quality improvements cannot be measured because there is no satisfaction baseline"
 ---
 
 ## Why This Happens
 
-Agent quality is measured internally (response coherence, grounding, latency) but not from the user's perspective. A response can be internally valid but unhelpful. Without explicit signals (ratings, thumbs) and implicit signals (rephrasing, abandonment, follow-up questions), the feedback loop for improvement is broken. Correlation between internal quality scores and user satisfaction signals reveals whether the quality metrics are actually measuring what matters to users.
+Technical observability focuses on what the system did, not whether the user was helped. Satisfaction signals require capturing both explicit feedback (thumbs, ratings, free-text) and implicit behavioral signals (did the user rephrase? did they abandon? did they continue the conversation?). These signals must be attached to specific responses and turns so that model or prompt changes can be correlated with satisfaction changes. Without this instrumentation, quality improvements are unmeasurable.
 
-## Solution 1: Satisfaction Signal Record
+## Solution 1: Satisfaction Signal Model
 
 ```python
-import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+import time
 
 
-class SignalType(str, Enum):
-    EXPLICIT_RATING = "explicit_rating"       # user clicked thumbs up/down
-    EXPLICIT_TEXT = "explicit_text"           # user typed feedback
-    ABANDON = "abandon"                       # user left mid-session
-    REPHRASE = "rephrase"                     # user sent very similar query again
-    FOLLOW_UP = "follow_up"                   # user asked a clarifying question
-    COPY_RESPONSE = "copy_response"           # user copied the response (positive signal)
-    REGENERATE = "regenerate"                 # user clicked "try again"
-    TASK_COMPLETE = "task_complete"           # user indicated success (e.g., "thanks")
+class FeedbackType(str, Enum):
+    THUMBS_UP = "thumbs_up"
+    THUMBS_DOWN = "thumbs_down"
+    STAR_RATING = "star_rating"          # 1–5
+    FREE_TEXT = "free_text"
+    IMPLICIT_RETRY = "implicit_retry"    # user rephrased same query
+    IMPLICIT_ABANDON = "implicit_abandon"  # session ended after this turn
+    IMPLICIT_CONTINUE = "implicit_continue"  # user sent follow-up (positive signal)
+    IMPLICIT_COPY = "implicit_copy"      # user copied response text
 
 
 @dataclass
 class SatisfactionSignal:
-    signal_id: str = field(default_factory=lambda: str(uuid.uuid4())[:10])
-    session_id: str = ""
-    user_id: str = ""
-    turn_index: Optional[int] = None
-    signal_type: SignalType = SignalType.EXPLICIT_RATING
-    value: Optional[float] = None        # 1.0 = positive, 0.0 = negative, None = neutral
-    text_feedback: Optional[str] = None
-    recorded_at: float = field(default_factory=time.time)
+    signal_id: str
+    session_id: str
+    turn_id: str
+    response_id: str
+    feedback_type: FeedbackType
+    value: Any = None                    # rating int, free text str, or None for binary
+    collected_at: float = field(default_factory=time.time)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    @property
     def is_positive(self) -> Optional[bool]:
-        if self.value is None:
-            return None
-        return self.value >= 0.5
-
-    def sentiment_label(self) -> str:
-        if self.value is None:
-            return "neutral"
-        return "positive" if self.value >= 0.5 else "negative"
+        if self.feedback_type in (FeedbackType.THUMBS_UP, FeedbackType.IMPLICIT_CONTINUE,
+                                   FeedbackType.IMPLICIT_COPY):
+            return True
+        if self.feedback_type in (FeedbackType.THUMBS_DOWN, FeedbackType.IMPLICIT_ABANDON,
+                                   FeedbackType.IMPLICIT_RETRY):
+            return False
+        if self.feedback_type == FeedbackType.STAR_RATING and isinstance(self.value, (int, float)):
+            return self.value >= 4
+        return None
 ```
 
-## Solution 2: Implicit Signal Detector
+## Solution 2: Satisfaction Signal Store
 
 ```python
-import re
+import json
+import secrets
+import time
+from pathlib import Path
+from threading import Lock
 from typing import List, Optional
 
 
-class ImplicitSatisfactionSignalDetector:
+class SatisfactionSignalStore:
     """
-    Detects implicit satisfaction signals from user message patterns.
-    Rephrase detection: user message is semantically similar to a recent query.
-    Abandon: session ends without a completion marker after a low-quality response.
-    Task completion: positive closing phrases.
+    Persists satisfaction signals to JSONL for offline analysis.
+    Supports in-memory queries for real-time dashboards.
     """
 
-    TASK_COMPLETE_PATTERNS = re.compile(
-        r"\b(thank(s| you)|perfect|great|got it|that'?s? (exactly|it|helpful|what i needed)|solved)\b",
-        re.IGNORECASE,
-    )
-    DISSATISFACTION_PATTERNS = re.compile(
-        r"\b(that'?s? (not|wrong|incorrect)|that didn'?t (help|work|answer)|try again|that'?s? not (right|what i asked))\b",
-        re.IGNORECASE,
-    )
-    FOLLOW_UP_PATTERNS = re.compile(
-        r"^(what (do you mean|about)|can you (clarify|explain|elaborate)|how (so|does that work)|why)\b",
-        re.IGNORECASE,
-    )
-
-    def detect(
-        self,
-        user_message: str,
-        previous_user_messages: List[str] = None,
-        session_id: str = "",
-        turn_index: int = 0,
-    ) -> List[SatisfactionSignal]:
-        signals = []
-        msg = user_message.strip()
-
-        if self.TASK_COMPLETE_PATTERNS.search(msg):
-            signals.append(SatisfactionSignal(
-                session_id=session_id,
-                turn_index=turn_index,
-                signal_type=SignalType.TASK_COMPLETE,
-                value=1.0,
-            ))
-
-        if self.DISSATISFACTION_PATTERNS.search(msg):
-            signals.append(SatisfactionSignal(
-                session_id=session_id,
-                turn_index=turn_index,
-                signal_type=SignalType.REGENERATE,
-                value=0.0,
-            ))
-
-        if self.FOLLOW_UP_PATTERNS.search(msg):
-            signals.append(SatisfactionSignal(
-                session_id=session_id,
-                turn_index=turn_index,
-                signal_type=SignalType.FOLLOW_UP,
-                value=0.3,   # mild negative: user needed clarification
-            ))
-
-        if previous_user_messages:
-            prev_words = set(re.findall(r"\b\w{4,}\b", previous_user_messages[-1].lower()))
-            curr_words = set(re.findall(r"\b\w{4,}\b", msg.lower()))
-            if prev_words and curr_words:
-                overlap = len(prev_words & curr_words) / max(len(prev_words), len(curr_words))
-                if overlap >= 0.6:
-                    signals.append(SatisfactionSignal(
-                        session_id=session_id,
-                        turn_index=turn_index,
-                        signal_type=SignalType.REPHRASE,
-                        value=0.1,
-                    ))
-
-        return signals
-```
-
-## Solution 3: Signal Aggregator
-
-```python
-import time
-from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
-
-
-@dataclass
-class SessionSatisfactionSummary:
-    session_id: str
-    explicit_score: Optional[float] = None
-    implicit_score: Optional[float] = None
-    combined_score: Optional[float] = None
-    signal_count: int = 0
-    positive_signals: int = 0
-    negative_signals: int = 0
-    has_rephrase: bool = False
-    has_abandon: bool = False
-    has_completion: bool = False
-
-
-class SatisfactionSignalAggregator:
-    """
-    Collects all signals for a session and computes aggregate satisfaction scores.
-    Explicit signals (ratings) are weighted higher than implicit signals.
-    """
-
-    SIGNAL_WEIGHTS = {
-        SignalType.EXPLICIT_RATING: 1.0,
-        SignalType.EXPLICIT_TEXT: 0.8,
-        SignalType.TASK_COMPLETE: 0.7,
-        SignalType.COPY_RESPONSE: 0.6,
-        SignalType.FOLLOW_UP: 0.3,
-        SignalType.REPHRASE: 0.4,
-        SignalType.REGENERATE: 0.5,
-        SignalType.ABANDON: 0.6,
-    }
-
-    def __init__(self):
-        self._signals: Dict[str, List[SatisfactionSignal]] = defaultdict(list)
+    def __init__(self, path: Optional[str] = None, max_memory: int = 50_000):
+        self._path = Path(path) if path else None
+        self._max = max_memory
+        self._signals: List[SatisfactionSignal] = []
+        self._lock = Lock()
 
     def record(self, signal: SatisfactionSignal) -> None:
-        self._signals[signal.session_id].append(signal)
+        with self._lock:
+            self._signals.append(signal)
+            if len(self._signals) > self._max:
+                self._signals.pop(0)
+            if self._path:
+                with self._path.open("a") as f:
+                    f.write(json.dumps({
+                        "signal_id": signal.signal_id,
+                        "session_id": signal.session_id,
+                        "turn_id": signal.turn_id,
+                        "response_id": signal.response_id,
+                        "feedback_type": signal.feedback_type.value,
+                        "value": signal.value,
+                        "collected_at": signal.collected_at,
+                        "is_positive": signal.is_positive,
+                    }) + "\n")
 
-    def summarize(self, session_id: str) -> Optional[SessionSatisfactionSummary]:
-        signals = self._signals.get(session_id, [])
-        if not signals:
-            return None
+    def recent(self, window_seconds: float = 3600.0) -> List[SatisfactionSignal]:
+        cutoff = time.time() - window_seconds
+        with self._lock:
+            return [s for s in self._signals if s.collected_at >= cutoff]
 
-        summary = SessionSatisfactionSummary(session_id=session_id)
-        summary.signal_count = len(signals)
-
-        explicit = [s for s in signals if s.signal_type in (SignalType.EXPLICIT_RATING, SignalType.EXPLICIT_TEXT)]
-        implicit = [s for s in signals if s.signal_type not in (SignalType.EXPLICIT_RATING, SignalType.EXPLICIT_TEXT)]
-
-        if explicit:
-            scored_explicit = [s for s in explicit if s.value is not None]
-            if scored_explicit:
-                summary.explicit_score = round(
-                    sum(s.value for s in scored_explicit) / len(scored_explicit), 4
-                )
-
-        if implicit:
-            scored_implicit = [s for s in implicit if s.value is not None]
-            if scored_implicit:
-                weights = [self.SIGNAL_WEIGHTS.get(s.signal_type, 0.3) for s in scored_implicit]
-                summary.implicit_score = round(
-                    sum(s.value * w for s, w in zip(scored_implicit, weights))
-                    / max(sum(weights), 1e-9),
-                    4,
-                )
-
-        scores = [s for s in [summary.explicit_score, summary.implicit_score] if s is not None]
-        if scores:
-            summary.combined_score = round(sum(scores) / len(scores), 4)
-
-        summary.positive_signals = sum(1 for s in signals if (s.value or 0) >= 0.5)
-        summary.negative_signals = sum(1 for s in signals if (s.value or 1) < 0.5 and s.value is not None)
-        summary.has_rephrase = any(s.signal_type == SignalType.REPHRASE for s in signals)
-        summary.has_abandon = any(s.signal_type == SignalType.ABANDON for s in signals)
-        summary.has_completion = any(s.signal_type == SignalType.TASK_COMPLETE for s in signals)
-
-        return summary
+    def for_response(self, response_id: str) -> List[SatisfactionSignal]:
+        with self._lock:
+            return [s for s in self._signals if s.response_id == response_id]
 ```
 
-## Solution 4: Quality-Satisfaction Correlator
-
-```python
-from typing import Dict, List, Optional, Tuple
-
-
-class QualitySatisfactionCorrelator:
-    """
-    Correlates internal quality scores with user satisfaction signals
-    to measure whether quality metrics actually predict user happiness.
-    """
-
-    def __init__(self, aggregator: SatisfactionSignalAggregator):
-        self._aggregator = aggregator
-        self._pairs: List[Tuple[float, float]] = []   # (quality_score, satisfaction_score)
-
-    def add_session(
-        self,
-        session_id: str,
-        internal_quality_score: float,
-    ) -> None:
-        summary = self._aggregator.summarize(session_id)
-        if summary and summary.combined_score is not None:
-            self._pairs.append((internal_quality_score, summary.combined_score))
-
-    def pearson_correlation(self) -> Optional[float]:
-        if len(self._pairs) < 5:
-            return None
-        n = len(self._pairs)
-        quality_vals = [p[0] for p in self._pairs]
-        sat_vals = [p[1] for p in self._pairs]
-        mean_q = sum(quality_vals) / n
-        mean_s = sum(sat_vals) / n
-        numerator = sum((q - mean_q) * (s - mean_s) for q, s in self._pairs)
-        denom_q = sum((q - mean_q) ** 2 for q in quality_vals) ** 0.5
-        denom_s = sum((s - mean_s) ** 2 for s in sat_vals) ** 0.5
-        if denom_q * denom_s == 0:
-            return None
-        return round(numerator / (denom_q * denom_s), 4)
-
-    def calibration_report(self) -> dict:
-        r = self.pearson_correlation()
-        return {
-            "sample_count": len(self._pairs),
-            "pearson_r": r,
-            "interpretation": (
-                "strong alignment" if r and r > 0.7
-                else "moderate alignment" if r and r > 0.4
-                else "weak alignment — quality metrics may not reflect user experience"
-                if r is not None else "insufficient data"
-            ),
-        }
-```
-
-## Solution 5: Satisfaction Fleet Dashboard
+## Solution 3: Implicit Signal Detector
 
 ```python
 import time
-from typing import List
+from typing import List, Optional
 
 
-class SatisfactionFleetDashboard:
+class ImplicitSatisfactionDetector:
     """
-    Fleet-level satisfaction metrics: overall CSAT, rephrase rate, abandon rate,
-    completion rate, and calibration with internal quality scores.
+    Derives implicit satisfaction signals from behavioral events:
+    retry detection (user submits semantically similar query shortly after),
+    session abandonment (no follow-up within idle window), and
+    continuation (user sends a follow-up — positive signal).
     """
 
     def __init__(
         self,
-        aggregator: SatisfactionSignalAggregator,
-        correlator: QualitySatisfactionCorrelator,
+        retry_window_seconds: float = 120.0,
+        abandon_window_seconds: float = 300.0,
+        similarity_threshold: float = 0.60,
     ):
-        self._aggregator = aggregator
-        self._correlator = correlator
+        self._retry_window = retry_window_seconds
+        self._abandon_window = abandon_window_seconds
+        self._sim_threshold = similarity_threshold
 
-    def render(self, session_ids: List[str]) -> dict:
-        summaries = [
-            self._aggregator.summarize(sid)
-            for sid in session_ids
-            if self._aggregator.summarize(sid) is not None
-        ]
+    def detect_retry(
+        self,
+        previous_query: str,
+        new_query: str,
+        elapsed_seconds: float,
+    ) -> bool:
+        if elapsed_seconds > self._retry_window:
+            return False
+        words_prev = set(previous_query.lower().split())
+        words_new = set(new_query.lower().split())
+        if not words_prev or not words_new:
+            return False
+        overlap = len(words_prev & words_new) / len(words_prev | words_new)
+        return overlap >= self._sim_threshold
 
-        scored = [s for s in summaries if s.combined_score is not None]
-        csat = round(sum(s.combined_score for s in scored) / max(len(scored), 1), 4)
-        rephrase_rate = round(sum(1 for s in summaries if s.has_rephrase) / max(len(summaries), 1), 4)
-        abandon_rate = round(sum(1 for s in summaries if s.has_abandon) / max(len(summaries), 1), 4)
-        completion_rate = round(sum(1 for s in summaries if s.has_completion) / max(len(summaries), 1), 4)
+    def detect_abandonment(
+        self,
+        last_turn_time: float,
+        current_time: Optional[float] = None,
+    ) -> bool:
+        now = current_time or time.time()
+        return (now - last_turn_time) > self._abandon_window
 
-        return {
-            "generated_at": time.time(),
-            "sessions_analyzed": len(summaries),
-            "csat_score": csat,
-            "rephrase_rate": rephrase_rate,
-            "abandon_rate": abandon_rate,
-            "completion_rate": completion_rate,
-            "quality_calibration": self._correlator.calibration_report(),
-        }
+    def create_signal(
+        self,
+        signal_type: FeedbackType,
+        session_id: str,
+        turn_id: str,
+        response_id: str,
+    ) -> SatisfactionSignal:
+        return SatisfactionSignal(
+            signal_id=f"implicit_{signal_type.value}_{session_id[:8]}",
+            session_id=session_id,
+            turn_id=turn_id,
+            response_id=response_id,
+            feedback_type=signal_type,
+        )
 ```
 
-## Solution 6: Feedback-Driven Prompt Improvement Tracker
+## Solution 4: CSAT Score Calculator
+
+```python
+from typing import List, Optional
+
+
+class CSATScoreCalculator:
+    """
+    Computes Customer Satisfaction (CSAT) and Net Promoter Score (NPS)
+    proxies from collected satisfaction signals.
+    """
+
+    def compute_csat(self, signals: List[SatisfactionSignal]) -> Optional[float]:
+        """
+        CSAT = positive signals / (positive + negative signals).
+        Excludes neutral and unclassified signals.
+        """
+        positive = sum(1 for s in signals if s.is_positive is True)
+        negative = sum(1 for s in signals if s.is_positive is False)
+        total = positive + negative
+        if total == 0:
+            return None
+        return round(positive / total, 4)
+
+    def compute_explicit_rating_avg(
+        self, signals: List[SatisfactionSignal]
+    ) -> Optional[float]:
+        ratings = [
+            s.value for s in signals
+            if s.feedback_type == FeedbackType.STAR_RATING
+            and isinstance(s.value, (int, float))
+        ]
+        if not ratings:
+            return None
+        return round(sum(ratings) / len(ratings), 2)
+
+    def retry_rate(self, signals: List[SatisfactionSignal]) -> float:
+        retries = sum(1 for s in signals if s.feedback_type == FeedbackType.IMPLICIT_RETRY)
+        turns = len({s.turn_id for s in signals})
+        return round(retries / max(turns, 1), 4)
+
+    def abandon_rate(self, signals: List[SatisfactionSignal]) -> float:
+        abandons = sum(1 for s in signals if s.feedback_type == FeedbackType.IMPLICIT_ABANDON)
+        sessions = len({s.session_id for s in signals})
+        return round(abandons / max(sessions, 1), 4)
+```
+
+## Solution 5: Feedback Collection Endpoint
+
+```python
+import secrets
+import time
+from typing import Any, Optional
+
+
+class FeedbackCollectionEndpoint:
+    """
+    Accepts explicit feedback submissions from the UI layer
+    and writes them to the satisfaction signal store.
+    """
+
+    def __init__(self, store: SatisfactionSignalStore):
+        self._store = store
+
+    def submit_thumbs(
+        self,
+        response_id: str,
+        session_id: str,
+        turn_id: str,
+        positive: bool,
+    ) -> SatisfactionSignal:
+        signal = SatisfactionSignal(
+            signal_id=secrets.token_hex(8),
+            session_id=session_id,
+            turn_id=turn_id,
+            response_id=response_id,
+            feedback_type=FeedbackType.THUMBS_UP if positive else FeedbackType.THUMBS_DOWN,
+        )
+        self._store.record(signal)
+        return signal
+
+    def submit_rating(
+        self,
+        response_id: str,
+        session_id: str,
+        turn_id: str,
+        stars: int,
+        free_text: Optional[str] = None,
+    ) -> SatisfactionSignal:
+        signal = SatisfactionSignal(
+            signal_id=secrets.token_hex(8),
+            session_id=session_id,
+            turn_id=turn_id,
+            response_id=response_id,
+            feedback_type=FeedbackType.STAR_RATING,
+            value=max(1, min(5, stars)),
+            metadata={"free_text": free_text} if free_text else {},
+        )
+        self._store.record(signal)
+        return signal
+```
+
+## Solution 6: Satisfaction Dashboard
 
 ```python
 import time
-from typing import Dict, List, Optional
 
 
-class FeedbackDrivenImprovementTracker:
+class UserSatisfactionDashboard:
     """
-    Tracks satisfaction metrics before and after prompt changes
-    to measure whether improvements actually helped users.
+    Combines CSAT, retry rate, abandon rate, and explicit ratings
+    into a single quality report.
     """
 
-    def __init__(self):
-        self._experiments: Dict[str, dict] = {}
-
-    def start_experiment(
+    def __init__(
         self,
-        experiment_id: str,
-        prompt_version: str,
-        description: str,
-    ) -> None:
-        self._experiments[experiment_id] = {
-            "prompt_version": prompt_version,
-            "description": description,
-            "started_at": time.time(),
-            "csat_samples": [],
-        }
+        store: SatisfactionSignalStore,
+        calculator: CSATScoreCalculator,
+    ):
+        self._store = store
+        self._calc = calculator
 
-    def record_csat(self, experiment_id: str, csat_score: float) -> None:
-        exp = self._experiments.get(experiment_id)
-        if exp:
-            exp["csat_samples"].append(csat_score)
+    def render(self, window_seconds: float = 86400.0) -> dict:
+        signals = self._store.recent(window_seconds)
+        csat = self._calc.compute_csat(signals)
+        rating_avg = self._calc.compute_explicit_rating_avg(signals)
+        retry_rate = self._calc.retry_rate(signals)
+        abandon_rate = self._calc.abandon_rate(signals)
 
-    def result(self, experiment_id: str) -> Optional[dict]:
-        exp = self._experiments.get(experiment_id)
-        if not exp or not exp["csat_samples"]:
-            return None
-        samples = exp["csat_samples"]
-        mean = sum(samples) / len(samples)
+        by_type: dict = {}
+        for s in signals:
+            ft = s.feedback_type.value
+            by_type[ft] = by_type.get(ft, 0) + 1
+
         return {
-            "experiment_id": experiment_id,
-            "prompt_version": exp["prompt_version"],
-            "description": exp["description"],
-            "sample_count": len(samples),
-            "mean_csat": round(mean, 4),
+            "generated_at": time.time(),
+            "window_seconds": window_seconds,
+            "total_signals": len(signals),
+            "csat": csat,
+            "explicit_rating_avg": rating_avg,
+            "retry_rate": retry_rate,
+            "abandon_rate": abandon_rate,
+            "signals_by_type": by_type,
+            "health": (
+                "healthy" if csat is not None and csat >= 0.80
+                else "degraded" if csat is not None and csat >= 0.60
+                else "unknown"
+            ),
         }
 ```
 
 ## Comparison
 
-| Approach | Explicit Signals | Implicit Detection | Score Aggregation | Quality Correlation | Dashboard |
+| Approach | Explicit Feedback | Implicit Signals | CSAT Computation | Persistence | Dashboard |
 |---|---|---|---|---|---|
-| SatisfactionSignal | Yes (data model) | No | No | No | No |
-| ImplicitSatisfactionSignalDetector | No | Yes (pattern-based) | No | No | No |
-| SatisfactionSignalAggregator | Via signals | Via signals | Yes (weighted) | No | No |
-| QualitySatisfactionCorrelator | Via aggregator | No | No | Yes (Pearson r) | No |
-| SatisfactionFleetDashboard | Via aggregator | Via aggregator | Via aggregator | Via correlator | Yes |
+| SatisfactionSignalStore | Yes | Yes | No | Yes (JSONL) | No |
+| ImplicitSatisfactionDetector | No | Yes (retry+abandon) | No | No | No |
+| CSATScoreCalculator | Via signals | Via signals | Yes | No | No |
+| FeedbackCollectionEndpoint | Yes (thumbs+stars) | No | No | Via store | No |
+| UserSatisfactionDashboard | No | No | Via calculator | No | Yes |
 
-**Best for production**: Collect explicit ratings on at least 5% of sessions (via a thumbs-up/down UI element) — this is the highest-quality signal and anchors the implicit signal calibration. Run `ImplicitSatisfactionSignalDetector` on every user message: rephrase detection is free and identifies the most common failure mode (user repeating themselves). Track `rephrase_rate` as a primary product health metric — target below 8%. Run `QualitySatisfactionCorrelator` weekly: a Pearson r below 0.4 between internal quality scores and CSAT means the quality metrics are not measuring what matters to users and should be revised.
+**Best for production**: Collect implicit signals passively — they are lower friction than explicit feedback and scale with every interaction. Use retry detection (`ImplicitSatisfactionDetector.detect_retry()`) as your primary quality signal during A/B tests: a new model that produces a higher retry rate is worse for users even if technical metrics improve. Set a 24-hour CSAT dashboard window and alert when CSAT drops below 0.75 — this is a leading indicator of user-visible quality regressions that won't appear in latency or error rate dashboards. Persist raw signals to JSONL so offline analysis can build labeled datasets for fine-tuning.
