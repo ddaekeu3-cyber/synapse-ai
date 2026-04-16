@@ -1,532 +1,362 @@
 ---
 title: "Agent Doesn't Implement KV-Cache-Aware Prompt Structuring"
-description: "Structure prompts so that stable prefixes are cached by the model's KV cache, dramatically reducing latency and cost for repeated requests sharing the same context."
+description: "Agents that rebuild their full prompt on every request — interleaving static system instructions with dynamic user context — defeat LLM provider KV caching, paying full prefill cost each turn. Restructure prompts so the longest stable prefix (system prompt, tool schemas, few-shot examples) is always prepended unchanged, pushing only the dynamic tail to the end, so the provider's KV cache hits on the prefix and charges only for the incremental tokens."
+date: 2026-04-16
+difficulty: advanced
 category: performance
-difficulty: intermediate
-tags: [performance, kv-cache, prompt-caching, latency, token-cost, efficiency]
+slug: agent-doesnt-implement-kv-cache-aware-prompt-structuring
+tags: [kv-cache, prompt-structuring, prefill-cost, token-efficiency, context-prefix, inference-optimization]
+symptoms:
+  - "Full prompt token count billed on every request despite static system instructions"
+  - "Time-to-first-token does not improve across turns in a long conversation"
+  - "Tool schemas and few-shot examples re-prefilled on every call"
+  - "Prompt assembly code concatenates static and dynamic content in arbitrary order"
+  - "No separation between the invariant prefix and the per-request suffix"
 ---
 
-# Agent Doesn't Implement KV-Cache-Aware Prompt Structuring
+## Why This Happens
 
-## Problem
+LLM inference providers maintain a KV cache keyed on the token sequence seen so far. A cache hit means the provider skips re-computing attention keys and values for the matching prefix, reducing prefill cost and latency. The cache is invalidated whenever any token in the cached portion changes — including whitespace differences, reordered fields, or a timestamp injected into the system prompt. Agents that assemble prompts without regard to stability order consistently break the prefix, paying full prefill cost on every request. The fix is to canonicalize prompt assembly so the longest static segment always heads the prompt and dynamic content is appended at the tail.
 
-Every API call reprocesses the entire prompt from scratch by default. When multiple requests share a long stable prefix (system prompt, tool definitions, RAG documents), reprocessing this prefix on each call wastes compute, increases latency, and raises costs. KV-cache-aware structuring places stable content first, variable content last, and explicitly marks cacheable blocks — turning repeated prefix processing into fast cache lookups.
-
----
-
-## Option 1: Explicit cache_control on System Prompt
+## Solution 1: Prompt Segment Classifier
 
 ```python
-import asyncio
-import anthropic
-import time
-
-client = anthropic.AsyncAnthropic()
-
-# Large stable system prompt that doesn't change between requests
-STABLE_SYSTEM = """You are an expert Python developer assistant.
-
-## Core Principles
-- Write idiomatic, Pythonic code
-- Prefer readability over cleverness
-- Always include type hints
-- Follow PEP 8 conventions
-- Consider edge cases and error handling
-- Optimize for maintainability
-
-## Python Best Practices
-- Use dataclasses for simple data containers
-- Prefer composition over inheritance
-- Use context managers for resource management
-- Leverage standard library before third-party packages
-- Write self-documenting code
-
-## Code Review Checklist
-- No bare except clauses
-- No mutable default arguments
-- Proper exception handling with specific exception types
-- Meaningful variable names
-- Functions do one thing well
-
-""" + "# Extended Documentation\n" + "\n".join([f"## Section {i}\nDetailed guidance on Python pattern {i}." for i in range(1, 50)])
-
-async def cached_call(user_question: str) -> tuple[str, dict]:
-    """Uses cache_control to cache the stable system prompt."""
-    t0 = time.time()
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
-        system=[
-            {
-                "type": "text",
-                "text": STABLE_SYSTEM,
-                "cache_control": {"type": "ephemeral"}  # Cache this block
-            }
-        ],
-        messages=[{"role": "user", "content": user_question}]
-    )
-    latency_ms = (time.time() - t0) * 1000
-    cache_stats = {
-        "cache_creation_input_tokens": getattr(resp.usage, "cache_creation_input_tokens", 0),
-        "cache_read_input_tokens": getattr(resp.usage, "cache_read_input_tokens", 0),
-        "input_tokens": resp.usage.input_tokens,
-        "output_tokens": resp.usage.output_tokens,
-        "latency_ms": round(latency_ms, 1),
-    }
-    return resp.content[0].text, cache_stats
-
-async def main():
-    questions = [
-        "How do I read a file safely in Python?",
-        "What's the best way to handle JSON in Python?",
-        "How should I structure a Python CLI application?",
-        "What are Python dataclasses useful for?",
-    ]
-    print(f"System prompt size: ~{len(STABLE_SYSTEM.split())} words\n")
-    for i, q in enumerate(questions):
-        answer, stats = await cached_call(q)
-        hit = stats["cache_read_input_tokens"] > 0
-        print(f"[Q{i+1}] {'CACHE HIT' if hit else 'CACHE MISS'} | latency={stats['latency_ms']}ms | "
-              f"cache_read={stats['cache_read_input_tokens']} | created={stats['cache_creation_input_tokens']}")
-        print(f"  A: {answer[:80]}\n")
-
-asyncio.run(main())
-```
-
----
-
-## Option 2: Multi-Block Caching (System + Documents + Tools)
-
-```python
-import asyncio
-import anthropic
-import time
-
-client = anthropic.AsyncAnthropic()
-
-SYSTEM_PROMPT = "You are a helpful research assistant. Answer questions based on the provided documents."
-
-# Simulate a large RAG document set that stays stable across queries
-RAG_DOCUMENTS = "\n\n".join([
-    f"""## Document {i}: Topic {i}
-{'Lorem ipsum content about topic ' + str(i) + '. ' * 30}
-Key facts: fact_a_{i}, fact_b_{i}, fact_c_{i}.
-Source: docs.example.com/topic-{i}
-"""
-    for i in range(1, 20)
-])
-
-TOOL_DEFINITIONS = [
-    {
-        "name": "search_documents",
-        "description": "Search through the provided documents for relevant information.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"},
-                "max_results": {"type": "integer", "description": "Maximum results to return"}
-            },
-            "required": ["query"]
-        }
-    },
-    {
-        "name": "get_document",
-        "description": "Retrieve a specific document by ID.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"doc_id": {"type": "integer"}},
-            "required": ["doc_id"]
-        }
-    }
-]
-
-async def multi_block_cached_call(user_question: str) -> tuple[str, dict]:
-    t0 = time.time()
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
-        # Cache both system prompt and RAG documents
-        system=[
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT,
-                # Don't cache the short system prompt alone — combine with docs
-            },
-            {
-                "type": "text",
-                "text": f"## Reference Documents\n{RAG_DOCUMENTS}",
-                "cache_control": {"type": "ephemeral"}  # Cache the large document set
-            }
-        ],
-        # Cache tool definitions on the last tool
-        tools=[
-            *TOOL_DEFINITIONS[:-1],
-            {**TOOL_DEFINITIONS[-1], "cache_control": {"type": "ephemeral"}}
-        ],
-        messages=[{"role": "user", "content": user_question}]
-    )
-    latency_ms = (time.time() - t0) * 1000
-    return resp.content[0].text, {
-        "cache_read": getattr(resp.usage, "cache_read_input_tokens", 0),
-        "cache_created": getattr(resp.usage, "cache_creation_input_tokens", 0),
-        "latency_ms": round(latency_ms, 1),
-    }
-
-async def main():
-    questions = [
-        "What is in Document 5?",
-        "Summarize Document 10.",
-        "Compare Documents 3 and 7.",
-        "What are the key facts in Document 15?",
-    ]
-    for i, q in enumerate(questions):
-        answer, stats = await multi_block_cached_call(q)
-        hit = stats["cache_read"] > 0
-        print(f"[Q{i+1}] {'HIT' if hit else 'MISS'} | latency={stats['latency_ms']}ms | read={stats['cache_read']} created={stats['cache_created']}")
-        print(f"  A: {answer[:80]}\n")
-
-asyncio.run(main())
-```
-
----
-
-## Option 3: Prompt Structure Optimizer (Stable-First Ordering)
-
-```python
-import asyncio
-import anthropic
 from dataclasses import dataclass, field
-
-client = anthropic.AsyncAnthropic()
-
-@dataclass
-class PromptBlock:
-    content: str
-    stability: str  # "static", "session", "request"
-    cache: bool = False
-
-    def token_estimate(self) -> int:
-        return max(1, int(len(self.content.split()) * 1.3))
-
-def structure_for_cache(blocks: list[PromptBlock]) -> list[dict]:
-    """
-    Order blocks: static → session → request.
-    Mark the last non-request block for caching (cache everything stable).
-    """
-    static = [b for b in blocks if b.stability == "static"]
-    session = [b for b in blocks if b.stability == "session"]
-    request = [b for b in blocks if b.stability == "request"]
-
-    ordered = static + session + request
-
-    # Find the last stable block (session or static) to mark for caching
-    last_cacheable_idx = -1
-    for i, b in enumerate(ordered):
-        if b.stability in ("static", "session"):
-            last_cacheable_idx = i
-
-    result = []
-    for i, block in enumerate(ordered):
-        block_dict: dict = {"type": "text", "text": block.content}
-        if i == last_cacheable_idx:
-            block_dict["cache_control"] = {"type": "ephemeral"}
-        result.append(block_dict)
-
-    stable_tokens = sum(b.token_estimate() for b in static + session)
-    total_tokens = sum(b.token_estimate() for b in blocks)
-    print(f"[CACHE STRUCTURE] Cacheable: ~{stable_tokens} tokens ({stable_tokens/max(total_tokens,1):.0%} of total)")
-    return result
-
-async def structured_call(
-    static_blocks: list[str],
-    session_blocks: list[str],
-    user_message: str,
-) -> str:
-    blocks = (
-        [PromptBlock(content=c, stability="static") for c in static_blocks] +
-        [PromptBlock(content=c, stability="session") for c in session_blocks] +
-        [PromptBlock(content=user_message, stability="request")]
-    )
-    system_content = structure_for_cache(blocks[:-1])  # exclude user message from system
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
-        system=system_content,
-        messages=[{"role": "user", "content": user_message}]
-    )
-    return resp.content[0].text
-
-async def main():
-    static = [
-        "You are an expert software architect.",
-        "## Core Principles\n" + "\n".join([f"- Principle {i}: Always consider scalability, maintainability, and reliability." for i in range(1, 20)])
-    ]
-    session = [
-        "## Current Project Context\nWe are building a distributed microservices system in Python using FastAPI and PostgreSQL.",
-        "## Constraints\n- Must support 10k RPS\n- 99.9% uptime requirement\n- Budget: $5k/month infrastructure"
-    ]
-    for question in ["How should we structure our API gateway?", "What database sharding strategy do you recommend?"]:
-        result = await structured_call(static, session, question)
-        print(f"Q: {question}\nA: {result[:150]}\n")
-
-asyncio.run(main())
-```
-
----
-
-## Option 4: Cache Warm-Up Strategy
-
-```python
-import asyncio
-import anthropic
-import time
-
-client = anthropic.AsyncAnthropic()
-
-LARGE_SYSTEM = "You are a knowledgeable assistant.\n\n" + "\n".join([
-    f"## Domain Knowledge {i}\n{'Expert knowledge in domain ' + str(i) + '. ' * 20}"
-    for i in range(1, 30)
-])
-
-_cache_warmed = False
-_warm_time: float = 0
-
-async def warm_cache() -> dict:
-    """Pre-warm the cache with a minimal request to prime the KV cache."""
-    global _cache_warmed, _warm_time
-    t0 = time.time()
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=5,  # Minimal tokens — just enough to create the cache
-        system=[{"type": "text", "text": LARGE_SYSTEM, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": "ready"}]
-    )
-    _cache_warmed = True
-    _warm_time = time.time() - t0
-    return {
-        "warm_latency_ms": round(_warm_time * 1000, 1),
-        "cache_created": getattr(resp.usage, "cache_creation_input_tokens", 0),
-    }
-
-async def call_after_warmup(user_question: str) -> tuple[str, float]:
-    t0 = time.time()
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
-        system=[{"type": "text", "text": LARGE_SYSTEM, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": user_question}]
-    )
-    latency = (time.time() - t0) * 1000
-    cache_read = getattr(resp.usage, "cache_read_input_tokens", 0)
-    return resp.content[0].text, latency
-
-async def main():
-    print("Warming cache...")
-    warm_stats = await warm_cache()
-    print(f"Cache warmed in {warm_stats['warm_latency_ms']}ms, created {warm_stats['cache_created']} cached tokens\n")
-
-    questions = ["What is your expertise?", "How can you help with Python?", "What domains do you cover?"]
-    for q in questions:
-        answer, latency = await call_after_warmup(q)
-        print(f"[{latency:.0f}ms] Q: {q}\n  A: {answer[:80]}\n")
-
-asyncio.run(main())
-```
-
----
-
-## Option 5: Session-Scoped Shared Prefix Pool
-
-```python
-import asyncio
-import anthropic
-import time
-from dataclasses import dataclass, field
-
-client = anthropic.AsyncAnthropic()
-
-@dataclass
-class SharedPrefixSession:
-    """Manages a shared cached prefix for all requests in a session."""
-    session_id: str
-    system_content: list[dict]
-    created_at: float = field(default_factory=time.time)
-    request_count: int = 0
-    total_cache_read_tokens: int = 0
-    total_input_tokens: int = 0
-
-    async def call(self, user_message: str, conversation: list[dict] | None = None) -> str:
-        self.request_count += 1
-        msgs = list(conversation or []) + [{"role": "user", "content": user_message}]
-        resp = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=512,
-            system=self.system_content,
-            messages=msgs
-        )
-        self.total_cache_read_tokens += getattr(resp.usage, "cache_read_input_tokens", 0)
-        self.total_input_tokens += resp.usage.input_tokens
-        return resp.content[0].text
-
-    def cache_hit_rate_tokens(self) -> float:
-        total = self.total_cache_read_tokens + self.total_input_tokens
-        return self.total_cache_read_tokens / max(total, 1)
-
-    def session_stats(self) -> dict:
-        return {
-            "session_id": self.session_id,
-            "requests": self.request_count,
-            "cache_read_tokens": self.total_cache_read_tokens,
-            "regular_input_tokens": self.total_input_tokens,
-            "estimated_cache_hit_rate": f"{self.cache_hit_rate_tokens():.1%}",
-        }
-
-def create_session(session_id: str, base_system: str, documents: str = "") -> SharedPrefixSession:
-    content: list[dict] = [{"type": "text", "text": base_system}]
-    if documents:
-        content.append({"type": "text", "text": documents, "cache_control": {"type": "ephemeral"}})
-    else:
-        content[-1]["cache_control"] = {"type": "ephemeral"}
-    return SharedPrefixSession(session_id=session_id, system_content=content)
-
-async def main():
-    big_docs = "## Knowledge Base\n" + "\n".join([f"### Article {i}\n{'Content ' * 40}" for i in range(1, 25)])
-    session = create_session("sess-001", "You are a helpful assistant.", big_docs)
-
-    questions = [
-        "Summarize the knowledge base.",
-        "What is in article 5?",
-        "Compare articles 10 and 15.",
-        "What are the main themes?",
-    ]
-    for q in questions:
-        answer = await session.call(q)
-        print(f"Q: {q}\nA: {answer[:80]}\n")
-
-    print(f"Session stats: {session.session_stats()}")
-
-asyncio.run(main())
-```
-
----
-
-## Option 6: Dynamic Cache Invalidation on Content Change
-
-```python
-import asyncio
-import anthropic
+from enum import Enum
+from typing import List, Optional
 import hashlib
-import time
-from dataclasses import dataclass, field
 
-client = anthropic.AsyncAnthropic()
+
+class SegmentType(str, Enum):
+    STATIC = "static"         # never changes across requests
+    QUASI_STATIC = "quasi_static"  # changes rarely (e.g., user profile loaded at session start)
+    DYNAMIC = "dynamic"       # changes every request (user message, retrieved context)
+
 
 @dataclass
-class CacheablePrompt:
+class PromptSegment:
     content: str
-    content_hash: str = field(init=False)
-    last_cached_at: float | None = None
-    cache_hit_count: int = 0
-    cache_miss_count: int = 0
+    segment_type: SegmentType
+    label: str = ""           # for debugging / cache hit attribution
+    token_count_estimate: int = 0
 
-    def __post_init__(self):
-        self.content_hash = hashlib.sha256(self.content.encode()).hexdigest()[:16]
+    def __post_init__(self) -> None:
+        if self.token_count_estimate == 0:
+            self.token_count_estimate = max(1, len(self.content) // 4)
 
-    def has_changed(self, new_content: str) -> bool:
-        new_hash = hashlib.sha256(new_content.encode()).hexdigest()[:16]
-        return new_hash != self.content_hash
+    def content_hash(self) -> str:
+        return hashlib.sha256(self.content.encode()).hexdigest()[:12]
 
-    def update(self, new_content: str):
-        self.content = new_content
-        self.content_hash = hashlib.sha256(new_content.encode()).hexdigest()[:16]
-        self.last_cached_at = None  # Invalidate cache tracking
 
-class DynamicCacheManager:
-    def __init__(self):
-        self._prompts: dict[str, CacheablePrompt] = {}
+class PromptSegmentClassifier:
+    """
+    Classifies a set of prompt segments by stability and sorts them
+    so static content precedes quasi-static which precedes dynamic.
+    This ordering maximizes the cacheable prefix length.
+    """
 
-    def register(self, name: str, content: str) -> CacheablePrompt:
-        prompt = CacheablePrompt(content=content)
-        self._prompts[name] = prompt
-        return prompt
+    STABILITY_ORDER = {
+        SegmentType.STATIC: 0,
+        SegmentType.QUASI_STATIC: 1,
+        SegmentType.DYNAMIC: 2,
+    }
 
-    def update(self, name: str, new_content: str) -> bool:
-        """Returns True if content changed (cache invalidated)."""
-        if name not in self._prompts:
-            self.register(name, new_content)
-            return True
-        prompt = self._prompts[name]
-        if prompt.has_changed(new_content):
-            print(f"[CACHE INVALIDATE] '{name}' content changed — will recreate cache")
-            prompt.update(new_content)
-            return True
-        return False
+    def sort_for_cache(self, segments: List[PromptSegment]) -> List[PromptSegment]:
+        return sorted(segments, key=lambda s: self.STABILITY_ORDER[s.segment_type])
 
-    def build_system(self, *names: str) -> list[dict]:
-        """Build system content with cache_control on the last stable block."""
-        blocks: list[dict] = []
-        for name in names:
-            if name in self._prompts:
-                prompt = self._prompts[name]
-                blocks.append({"type": "text", "text": prompt.content})
-        if blocks:
-            blocks[-1]["cache_control"] = {"type": "ephemeral"}
-        return blocks
-
-    async def call(self, system_names: list[str], user_message: str) -> str:
-        system = self.build_system(*system_names)
-        resp = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=512,
-            system=system,
-            messages=[{"role": "user", "content": user_message}]
+    def cacheable_token_estimate(self, segments: List[PromptSegment]) -> int:
+        """Tokens in the stable prefix (STATIC + QUASI_STATIC segments)."""
+        return sum(
+            s.token_count_estimate
+            for s in segments
+            if s.segment_type != SegmentType.DYNAMIC
         )
-        # Track cache stats
-        cache_read = getattr(resp.usage, "cache_read_input_tokens", 0)
-        for name in system_names:
-            if name in self._prompts:
-                if cache_read > 0:
-                    self._prompts[name].cache_hit_count += 1
-                else:
-                    self._prompts[name].cache_miss_count += 1
-        return resp.content[0].text
 
-mgr = DynamicCacheManager()
-
-async def main():
-    base_prompt = "You are a helpful assistant with deep Python expertise.\n\n" + "## Python Docs\n" + "Python knowledge. " * 200
-    docs = "## Project Docs\nCurrent project uses FastAPI.\n" + "Project detail. " * 100
-
-    mgr.register("base", base_prompt)
-    mgr.register("docs", docs)
-
-    # First few calls — build cache
-    for q in ["What is Python?", "Explain async/await.", "How do I use FastAPI?"]:
-        result = await mgr.call(["base", "docs"], q)
-        print(f"Q: {q}\nA: {result[:60]}\n")
-
-    # Simulate content change — docs updated
-    new_docs = "## Project Docs\nCurrent project uses Django now.\n" + "Project detail. " * 100
-    changed = mgr.update("docs", new_docs)
-    print(f"Docs changed: {changed} — cache will be recreated\n")
-
-    result = await mgr.call(["base", "docs"], "What framework are we using?")
-    print(f"After update: {result[:100]}")
-
-asyncio.run(main())
+    def dynamic_token_estimate(self, segments: List[PromptSegment]) -> int:
+        return sum(
+            s.token_count_estimate
+            for s in segments
+            if s.segment_type == SegmentType.DYNAMIC
+        )
 ```
 
----
+## Solution 2: Stable Prefix Registry
+
+```python
+import time
+from threading import Lock
+from typing import Dict, List, Optional
+
+
+class StablePrefixEntry:
+    def __init__(self, segments: List[PromptSegment]):
+        self.segments = segments
+        self.assembled: str = "\n\n".join(s.content for s in segments)
+        self.token_estimate: int = sum(s.token_count_estimate for s in segments)
+        self.content_hash: str = hashlib.sha256(self.assembled.encode()).hexdigest()[:16]
+        self.created_at: float = time.time()
+        self.hit_count: int = 0
+
+
+class StablePrefixRegistry:
+    """
+    Stores pre-assembled static and quasi-static prompt prefixes.
+    Keyed by a logical name (e.g., "default", "code_assistant").
+    Detects when content has changed and invalidates the entry.
+    """
+
+    def __init__(self):
+        self._entries: Dict[str, StablePrefixEntry] = {}
+        self._lock = Lock()
+
+    def register(self, name: str, segments: List[PromptSegment]) -> StablePrefixEntry:
+        with self._lock:
+            entry = StablePrefixEntry(segments)
+            self._entries[name] = entry
+            return entry
+
+    def get(self, name: str) -> Optional[StablePrefixEntry]:
+        with self._lock:
+            entry = self._entries.get(name)
+            if entry:
+                entry.hit_count += 1
+            return entry
+
+    def invalidate(self, name: str) -> None:
+        with self._lock:
+            self._entries.pop(name, None)
+
+    def all_stats(self) -> Dict[str, dict]:
+        with self._lock:
+            return {
+                name: {
+                    "token_estimate": e.token_estimate,
+                    "hit_count": e.hit_count,
+                    "content_hash": e.content_hash,
+                    "age_seconds": round(time.time() - e.created_at, 1),
+                }
+                for name, e in self._entries.items()
+            }
+```
+
+## Solution 3: KV-Cache-Aware Prompt Assembler
+
+```python
+from typing import List, Optional, Tuple
+
+
+class KVCacheAwarePromptAssembler:
+    """
+    Assembles a final prompt by placing the stable prefix first and
+    appending dynamic segments at the tail. Tracks the split point
+    so callers can annotate cache boundaries for providers that
+    accept explicit cache-control hints (e.g., Anthropic cache_control).
+    """
+
+    def __init__(
+        self,
+        registry: StablePrefixRegistry,
+        classifier: PromptSegmentClassifier,
+        segment_separator: str = "\n\n",
+    ):
+        self._registry = registry
+        self._classifier = classifier
+        self._sep = segment_separator
+
+    def assemble(
+        self,
+        prefix_name: str,
+        dynamic_segments: List[PromptSegment],
+    ) -> Tuple[str, int, int]:
+        """
+        Returns (full_prompt, cacheable_token_estimate, dynamic_token_estimate).
+        The cacheable portion is everything before the first dynamic segment.
+        """
+        prefix_entry = self._registry.get(prefix_name)
+        if prefix_entry is None:
+            raise KeyError(f"No stable prefix registered under '{prefix_name}'")
+
+        dynamic_text = self._sep.join(s.content for s in dynamic_segments)
+        full_prompt = prefix_entry.assembled + self._sep + dynamic_text
+
+        dynamic_tokens = sum(s.token_count_estimate for s in dynamic_segments)
+        return full_prompt, prefix_entry.token_estimate, dynamic_tokens
+
+    def assemble_messages(
+        self,
+        prefix_name: str,
+        dynamic_segments: List[PromptSegment],
+    ) -> List[dict]:
+        """
+        Returns messages list suitable for chat completions API, with
+        the stable prefix as the first system message and dynamic content
+        as a user message. Keeps the prefix as a separate message so
+        providers can cache it independently.
+        """
+        prefix_entry = self._registry.get(prefix_name)
+        if prefix_entry is None:
+            raise KeyError(f"No stable prefix registered under '{prefix_name}'")
+
+        dynamic_text = self._sep.join(s.content for s in dynamic_segments)
+        return [
+            {"role": "system", "content": prefix_entry.assembled},
+            {"role": "user", "content": dynamic_text},
+        ]
+```
+
+## Solution 4: Prefix Stability Monitor
+
+```python
+import time
+from collections import deque
+from typing import Deque, List, Optional, Tuple
+
+
+class PrefixStabilityMonitor:
+    """
+    Tracks how often the stable prefix changes between requests.
+    Frequent changes indicate that content which should be static
+    is being regenerated (e.g., a timestamp injected into the system prompt).
+    """
+
+    def __init__(self, window_size: int = 200):
+        self._window_size = window_size
+        self._observations: Deque[Tuple[float, str, bool]] = deque()
+        # (ts, content_hash, was_cache_hit)
+
+    def observe(self, current_hash: str, previous_hash: Optional[str]) -> bool:
+        """Returns True if the prefix was stable (cache hit)."""
+        is_hit = current_hash == previous_hash if previous_hash else False
+        self._observations.append((time.time(), current_hash, is_hit))
+        if len(self._observations) > self._window_size:
+            self._observations.popleft()
+        return is_hit
+
+    def hit_rate(self, window_seconds: float = 3600.0) -> float:
+        cutoff = time.time() - window_seconds
+        recent = [o for o in self._observations if o[0] >= cutoff]
+        if not recent:
+            return 0.0
+        hits = sum(1 for _, _, hit in recent if hit)
+        return round(hits / len(recent), 4)
+
+    def instability_events(self, window_seconds: float = 3600.0) -> int:
+        cutoff = time.time() - window_seconds
+        return sum(
+            1 for ts, _, hit in self._observations
+            if ts >= cutoff and not hit
+        )
+
+    def report(self, window_seconds: float = 3600.0) -> dict:
+        return {
+            "window_seconds": window_seconds,
+            "hit_rate": self.hit_rate(window_seconds),
+            "instability_events": self.instability_events(window_seconds),
+            "observations_total": len(self._observations),
+        }
+```
+
+## Solution 5: KV Cache Savings Estimator
+
+```python
+import time
+from typing import List
+
+
+class KVCacheSavingsEstimator:
+    """
+    Estimates token-cost savings from KV cache hits by comparing
+    what would have been billed (full prefill) vs. what was billed
+    (dynamic tail only) on each cache hit.
+    """
+
+    def __init__(self, cost_per_1k_input_tokens: float = 0.003):
+        self._rate = cost_per_1k_input_tokens / 1000.0
+        self._records: List[dict] = []
+
+    def record_request(
+        self,
+        cacheable_tokens: int,
+        dynamic_tokens: int,
+        was_cache_hit: bool,
+    ) -> dict:
+        full_cost = (cacheable_tokens + dynamic_tokens) * self._rate
+        actual_cost = dynamic_tokens * self._rate if was_cache_hit else full_cost
+        saved = full_cost - actual_cost
+
+        record = {
+            "ts": time.time(),
+            "cacheable_tokens": cacheable_tokens,
+            "dynamic_tokens": dynamic_tokens,
+            "was_cache_hit": was_cache_hit,
+            "full_cost_usd": round(full_cost, 6),
+            "actual_cost_usd": round(actual_cost, 6),
+            "saved_usd": round(saved, 6),
+        }
+        self._records.append(record)
+        return record
+
+    def summary(self, window_seconds: float = 3600.0) -> dict:
+        cutoff = time.time() - window_seconds
+        recent = [r for r in self._records if r["ts"] >= cutoff]
+        if not recent:
+            return {"window_seconds": window_seconds, "requests": 0}
+
+        hits = [r for r in recent if r["was_cache_hit"]]
+        total_saved = sum(r["saved_usd"] for r in recent)
+        total_full = sum(r["full_cost_usd"] for r in recent)
+
+        return {
+            "window_seconds": window_seconds,
+            "requests": len(recent),
+            "cache_hits": len(hits),
+            "hit_rate": round(len(hits) / len(recent), 4),
+            "total_saved_usd": round(total_saved, 4),
+            "total_would_have_cost_usd": round(total_full, 4),
+            "savings_pct": round(total_saved / max(total_full, 1e-9) * 100, 1),
+        }
+```
+
+## Solution 6: KV Cache Prompt Structuring Dashboard
+
+```python
+import time
+
+
+class KVCachePromptStructuringDashboard:
+    """
+    Combines prefix registry stats, stability monitoring, and savings
+    estimates into a single operational snapshot.
+    """
+
+    def __init__(
+        self,
+        registry: StablePrefixRegistry,
+        monitor: PrefixStabilityMonitor,
+        savings_estimator: KVCacheSavingsEstimator,
+    ):
+        self._registry = registry
+        self._monitor = monitor
+        self._savings = savings_estimator
+
+    def render(self, window_seconds: float = 3600.0) -> dict:
+        return {
+            "generated_at": time.time(),
+            "registered_prefixes": self._registry.all_stats(),
+            "stability": self._monitor.report(window_seconds),
+            "savings": self._savings.summary(window_seconds),
+        }
+```
 
 ## Comparison
 
-| Option | What's Cached | Cache Scope | Overhead | Best For |
-|--------|-------------|------------|---------|----------|
-| 1 – Single System Block | System prompt only | Per-request (shared prefix) | None | Large fixed system prompts |
-| 2 – Multi-Block (System+Docs+Tools) | System + RAG + tools | Per-request | None | RAG agents with tool use |
-| 3 – Stable-First Ordering | Stable blocks auto-detected | Per-session | None | Mixed stability content |
-| 4 – Cache Warm-Up | System prompt | Pre-warmed | One cold call | Latency-critical agents |
-| 5 – Session Prefix Pool | All stable content | Per-session | None | Multi-turn conversation agents |
-| 6 – Dynamic Invalidation | Named content blocks | Per-content-hash | None | Agents with updatable knowledge |
+| Approach | Segment Ordering | Prefix Caching | Stability Monitoring | Cost Estimation | Dashboard |
+|---|---|---|---|---|---|
+| PromptSegmentClassifier | Yes (sort by stability) | No | No | No | No |
+| StablePrefixRegistry | No | Yes (pre-assembled) | No | No | No |
+| KVCacheAwarePromptAssembler | Via classifier | Via registry | No | No | No |
+| PrefixStabilityMonitor | No | No | Yes (hit rate) | No | No |
+| KVCacheSavingsEstimator | No | No | No | Yes (USD) | No |
+| KVCachePromptStructuringDashboard | No | No | No | No | Yes |
 
-**Recommendation:** Start with Option 1 — add `cache_control: {"type": "ephemeral"}` to your system prompt if it exceeds ~1,000 tokens. Upgrade to Option 2 when you add RAG documents or tool definitions that repeat across calls. Use Option 4 (warm-up) for latency-sensitive applications where the first request's cache miss is unacceptable. Note: prompt caching is supported on claude-sonnet and claude-opus models; minimum cacheable block size is 1,024 tokens.
+**Best for production**: Register one `StablePrefixEntry` per agent persona at startup — include system prompt, tool schemas, and all few-shot examples in the static prefix, and never inject request-scoped content (timestamps, request IDs, user names) into it. Monitor `PrefixStabilityMonitor.hit_rate()`: anything below 0.90 means something dynamic is leaking into the prefix. Use `KVCacheSavingsEstimator` to quantify ROI — for agents with a 2000-token system prompt running at 100 req/min, a 90% cache hit rate saves roughly $0.03/min at standard input pricing, compounding to meaningful monthly savings at scale.
