@@ -2,1001 +2,537 @@
 layout: solution
 title: "Agent Doesn't Implement Trace-Based Testing"
 category: testing
-description: "How to record, replay, and assert on full agent execution traces including tool calls, intermediate states, and decision paths to catch behavioral regressions."
-tags: [testing, tracing, replay, regression, observability, debugging]
+description: "Record execution traces (tool calls, model inputs/outputs, state transitions) during live runs, then assert against the trace structure to verify behavior without re-running expensive model calls."
+tags: [testing, tracing, observability, replay, sqlite, python]
 ---
 
 # Agent Doesn't Implement Trace-Based Testing
 
-Unit tests check functions; trace-based tests check agent behavior end-to-end. A trace captures the complete execution: input, model responses, tool calls, tool results, intermediate reasoning, and final output. Replaying traces lets you verify that refactors don't break behavior, that model upgrades preserve decisions, and that edge cases are reproducible without re-hitting expensive APIs.
+Testing agent behavior with full model calls is expensive and non-deterministic. Trace-based testing records what the agent actually did (which tools it called, in what order, with what arguments) and asserts against the trace — combining the realism of integration tests with the speed of unit tests.
 
-## Option 1: Simple Trace Recorder and JSONL Replay
-
-Record every agent interaction to JSONL during live runs. Replay recorded traces in tests without API calls.
+## Option 1: In-Memory Trace Collector with Assertions
 
 ```python
 import anthropic
-import json
-import time
-import os
-from dataclasses import dataclass, asdict
-from typing import Optional
-from pathlib import Path
+from dataclasses import dataclass, field
+
+client = anthropic.Anthropic()
 
 @dataclass
 class TraceEvent:
-    event_type: str        # "request", "response", "tool_call", "tool_result"
-    timestamp: float
+    event_type: str
     data: dict
 
 @dataclass
-class AgentTrace:
-    trace_id: str
-    scenario: str
-    events: list[TraceEvent]
-    final_output: Optional[str] = None
-    duration_seconds: float = 0.0
+class Trace:
+    events: list[TraceEvent] = field(default_factory=list)
 
+    def record(self, event_type: str, **data):
+        self.events.append(TraceEvent(event_type, data))
 
-class TraceRecorder:
-    def __init__(self, trace_dir: str = "traces"):
-        self.trace_dir = Path(trace_dir)
-        self.trace_dir.mkdir(exist_ok=True)
-        self.current_trace: Optional[AgentTrace] = None
-        self._start_time: float = 0.0
+    def tool_calls(self) -> list[dict]:
+        return [e.data for e in self.events if e.event_type == "tool_call"]
 
-    def start(self, scenario: str) -> str:
-        trace_id = f"{scenario}-{int(time.time())}"
-        self.current_trace = AgentTrace(
-            trace_id=trace_id,
-            scenario=scenario,
-            events=[],
+    def model_requests(self) -> list[dict]:
+        return [e.data for e in self.events if e.event_type == "model_request"]
+
+    def assert_tool_called(self, tool_name: str):
+        names = [tc["name"] for tc in self.tool_calls()]
+        assert tool_name in names, f"Expected tool '{tool_name}', got: {names}"
+
+    def assert_tool_call_order(self, *tool_names: str):
+        names = [tc["name"] for tc in self.tool_calls()]
+        ordered = [n for n in names if n in tool_names]
+        assert list(tool_names) == ordered, f"Expected order {list(tool_names)}, got {ordered}"
+
+    def assert_no_tool_called(self, tool_name: str):
+        names = [tc["name"] for tc in self.tool_calls()]
+        assert tool_name not in names, f"Tool '{tool_name}' should NOT have been called"
+
+    def assert_model_called_once(self):
+        assert len(self.model_requests()) == 1, (
+            f"Expected 1 model call, got {len(self.model_requests())}"
         )
-        self._start_time = time.monotonic()
-        return trace_id
 
-    def record(self, event_type: str, data: dict):
-        if self.current_trace:
-            self.current_trace.events.append(TraceEvent(
-                event_type=event_type,
-                timestamp=time.time(),
-                data=data,
-            ))
+TOOLS = [
+    {"name": "search_web",  "description": "Search the web", "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "get_weather", "description": "Get weather",    "input_schema": {"type": "object", "properties": {"city":  {"type": "string"}}, "required": ["city"]}},
+    {"name": "calculate",   "description": "Calculate math", "input_schema": {"type": "object", "properties": {"expr":  {"type": "string"}}, "required": ["expr"]}},
+]
 
-    def finish(self, final_output: str):
-        if self.current_trace:
-            self.current_trace.final_output = final_output
-            self.current_trace.duration_seconds = time.monotonic() - self._start_time
-            self._save()
-
-    def _save(self):
-        if not self.current_trace:
-            return
-        path = self.trace_dir / f"{self.current_trace.trace_id}.jsonl"
-        with open(path, "w") as f:
-            # Header line
-            f.write(json.dumps({
-                "trace_id": self.current_trace.trace_id,
-                "scenario": self.current_trace.scenario,
-                "final_output": self.current_trace.final_output,
-                "duration_seconds": self.current_trace.duration_seconds,
-            }) + "\n")
-            # Event lines
-            for event in self.current_trace.events:
-                f.write(json.dumps(asdict(event)) + "\n")
-        print(f"[TRACE] Saved to {path}")
-        return path
-
-
-def load_trace(trace_path: str) -> AgentTrace:
-    events = []
-    header = None
-    with open(trace_path) as f:
-        for i, line in enumerate(f):
-            data = json.loads(line.strip())
-            if i == 0:
-                header = data
-            else:
-                events.append(TraceEvent(**data))
-    return AgentTrace(
-        trace_id=header["trace_id"],
-        scenario=header["scenario"],
-        events=events,
-        final_output=header["final_output"],
-        duration_seconds=header["duration_seconds"],
-    )
-
-
-recorder = TraceRecorder()
-
-
-def run_agent_with_recording(user_input: str, scenario: str = "default") -> str:
-    client = anthropic.Anthropic()
-    recorder.start(scenario)
-    recorder.record("request", {"user_input": user_input})
-
-    response = client.messages.create(
+def run_agent(user_input: str, trace: Trace) -> str:
+    trace.record("model_request", prompt=user_input)
+    resp = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=300,
+        max_tokens=256,
+        tools=TOOLS,
         messages=[{"role": "user", "content": user_input}],
     )
+    trace.record("model_response", stop_reason=resp.stop_reason)
+    if resp.stop_reason == "tool_use":
+        for block in resp.content:
+            if block.type == "tool_use":
+                trace.record("tool_call", name=block.name, inputs=block.input)
+    return next((b.text for b in resp.content if hasattr(b, "text")), "")
 
-    output = response.content[0].text
-    recorder.record("response", {
-        "output": output,
-        "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens,
-    })
-    recorder.finish(output)
-    return output
+def test_weather_query_uses_weather_tool():
+    trace = Trace()
+    run_agent("What's the weather in Tokyo?", trace)
+    trace.assert_tool_called("get_weather")
+    trace.assert_no_tool_called("calculate")
+    trace.assert_model_called_once()
+    print("[PASS] weather query uses weather tool")
 
+def test_math_query_uses_calculator():
+    trace = Trace()
+    run_agent("What is 144 divided by 12?", trace)
+    trace.assert_tool_called("calculate")
+    trace.assert_no_tool_called("search_web")
+    print("[PASS] math query uses calculator")
 
-def assert_trace_behavior(trace: AgentTrace, assertions: list[dict]) -> list[str]:
-    """Run assertions against a loaded trace. Returns list of failures."""
-    failures = []
+test_weather_query_uses_weather_tool()
+test_math_query_uses_calculator()
 
-    for assertion in assertions:
-        atype = assertion["type"]
-
-        if atype == "output_contains":
-            keyword = assertion["keyword"]
-            if keyword.lower() not in (trace.final_output or "").lower():
-                failures.append(f"Output missing keyword: '{keyword}'")
-
-        elif atype == "tool_called":
-            tool_name = assertion["tool_name"]
-            tool_calls = [e for e in trace.events if e.event_type == "tool_call"
-                          and e.data.get("tool_name") == tool_name]
-            if not tool_calls:
-                failures.append(f"Expected tool '{tool_name}' was never called")
-
-        elif atype == "max_duration":
-            if trace.duration_seconds > assertion["seconds"]:
-                failures.append(f"Trace took {trace.duration_seconds:.1f}s > limit {assertion['seconds']}s")
-
-        elif atype == "event_count":
-            actual = len([e for e in trace.events if e.event_type == assertion["event_type"]])
-            expected = assertion["expected"]
-            if actual != expected:
-                failures.append(f"Expected {expected} '{assertion['event_type']}' events, got {actual}")
-
-    return failures
-
-
-if __name__ == "__main__":
-    # Record a trace
-    output = run_agent_with_recording("What is the capital of France?", scenario="capital-query")
-    print(f"Output: {output}")
-
-    # Find and test the saved trace
-    trace_files = list(Path("traces").glob("capital-query-*.jsonl"))
-    if trace_files:
-        trace = load_trace(str(trace_files[-1]))
-        failures = assert_trace_behavior(trace, [
-            {"type": "output_contains", "keyword": "Paris"},
-            {"type": "max_duration", "seconds": 30.0},
-            {"type": "event_count", "event_type": "response", "expected": 1},
-        ])
-        if failures:
-            print(f"FAILURES: {failures}")
-        else:
-            print("All trace assertions passed!")
-
-# Expected Token Savings: Zero API cost during test replay; baseline traces captured once, tested many times
-# Environment: CI/CD pipelines, regression test suites for agent behavior
+# Expected Token Savings: Haiku for trace generation; assertions run locally at zero cost
+# Environment: pure Python; Trace is framework-agnostic — works with pytest or standalone
 ```
 
-## Option 2: Deterministic Replay with Mocked API Responses
-
-Store full API responses in the trace and replay them as mocks — no network calls during test replay.
+## Option 2: SQLite Trace Storage with Replay and Diff
 
 ```python
 import anthropic
+import sqlite3
 import json
 import time
-from dataclasses import dataclass, field
-from typing import Optional
-from unittest.mock import MagicMock, patch
-
-
-@dataclass
-class RecordedExchange:
-    request_params: dict
-    response_data: dict
-    latency_ms: float
-
-
-@dataclass
-class ReplayTrace:
-    scenario_id: str
-    exchanges: list[RecordedExchange] = field(default_factory=list)
-    replay_index: int = 0
-
-    def next_response(self) -> Optional[dict]:
-        if self.replay_index < len(self.exchanges):
-            exchange = self.exchanges[self.replay_index]
-            self.replay_index += 1
-            return exchange.response_data
-        return None
-
-    def reset(self):
-        self.replay_index = 0
-
-    def save(self, path: str):
-        with open(path, "w") as f:
-            json.dump({
-                "scenario_id": self.scenario_id,
-                "exchanges": [
-                    {
-                        "request_params": e.request_params,
-                        "response_data": e.response_data,
-                        "latency_ms": e.latency_ms,
-                    }
-                    for e in self.exchanges
-                ],
-            }, f, indent=2)
-
-    @staticmethod
-    def load(path: str) -> "ReplayTrace":
-        with open(path) as f:
-            data = json.load(f)
-        trace = ReplayTrace(scenario_id=data["scenario_id"])
-        for ex in data["exchanges"]:
-            trace.exchanges.append(RecordedExchange(**ex))
-        return trace
-
-
-class RecordingClient:
-    """Wraps anthropic.Anthropic to intercept and record all API calls."""
-
-    def __init__(self, trace: ReplayTrace):
-        self._client = anthropic.Anthropic()
-        self._trace = trace
-
-    def create_message(self, **kwargs) -> dict:
-        start = time.monotonic()
-        response = self._client.messages.create(**kwargs)
-        latency = (time.monotonic() - start) * 1000
-
-        # Serialize response
-        response_data = {
-            "id": response.id,
-            "model": response.model,
-            "stop_reason": response.stop_reason,
-            "content": [{"type": c.type, "text": c.text if hasattr(c, "text") else None}
-                        for c in response.content],
-            "usage": {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens},
-        }
-
-        # Sanitize request params (remove non-serializable items)
-        safe_params = {k: v for k, v in kwargs.items() if k != "stream"}
-
-        self._trace.exchanges.append(RecordedExchange(
-            request_params=safe_params,
-            response_data=response_data,
-            latency_ms=latency,
-        ))
-
-        return response_data
-
-
-def build_mock_client(trace: ReplayTrace):
-    """Build a mock anthropic client that replays recorded responses."""
-    mock_client = MagicMock()
-
-    def mock_create(**kwargs):
-        recorded = trace.next_response()
-        if not recorded:
-            raise ValueError(f"No more recorded exchanges in trace {trace.scenario_id}")
-
-        # Build mock response
-        mock_response = MagicMock()
-        mock_response.id = recorded["id"]
-        mock_response.model = recorded["model"]
-        mock_response.stop_reason = recorded["stop_reason"]
-        mock_response.usage.input_tokens = recorded["usage"]["input_tokens"]
-        mock_response.usage.output_tokens = recorded["usage"]["output_tokens"]
-
-        mock_content = []
-        for c in recorded["content"]:
-            mc = MagicMock()
-            mc.type = c["type"]
-            mc.text = c.get("text", "")
-            mock_content.append(mc)
-        mock_response.content = mock_content
-
-        return mock_response
-
-    mock_client.messages.create.side_effect = mock_create
-    return mock_client
-
-
-def my_agent_logic(client, user_input: str) -> str:
-    """Agent logic that uses the provided client."""
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=200,
-        messages=[{"role": "user", "content": user_input}],
-    )
-    return response.content[0].text
-
-
-def record_scenario(scenario_id: str, user_input: str, save_path: str) -> str:
-    trace = ReplayTrace(scenario_id=scenario_id)
-    recording_client = RecordingClient(trace)
-
-    output = my_agent_logic(recording_client, user_input)
-    trace.save(save_path)
-    print(f"[RECORD] Saved {len(trace.exchanges)} exchanges to {save_path}")
-    return output
-
-
-def replay_and_test(trace_path: str, user_input: str) -> tuple[str, bool]:
-    trace = ReplayTrace.load(trace_path)
-    mock_client = build_mock_client(trace)
-
-    output = my_agent_logic(mock_client, user_input)
-
-    # Verify all exchanges were consumed
-    all_consumed = trace.replay_index == len(trace.exchanges)
-    return output, all_consumed
-
-
-if __name__ == "__main__":
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
-        trace_path = f.name
-
-    try:
-        # Record
-        user_input = "Explain what REST API means in one sentence."
-        live_output = record_scenario("rest-api-explanation", user_input, trace_path)
-        print(f"Live output: {live_output[:100]}")
-
-        # Replay (no API call)
-        replayed_output, consumed = replay_and_test(trace_path, user_input)
-        print(f"Replayed output: {replayed_output[:100]}")
-        print(f"Outputs match: {live_output == replayed_output}")
-        print(f"All exchanges consumed: {consumed}")
-    finally:
-        os.unlink(trace_path)
-
-# Expected Token Savings: 100% savings on replay — zero API calls during test suite runs after initial recording
-# Environment: Unit testing, CI pipelines where deterministic replay is required without network access
-```
-
-## Option 3: Tool Call Sequence Assertions
-
-Record the exact sequence of tool calls (name, arguments, result) and assert that refactored agents make the same calls in the same order.
-
-```python
-import anthropic
-import json
-from dataclasses import dataclass, field
-from typing import Any, Optional
-
-
-@dataclass
-class ToolCallRecord:
-    step: int
-    tool_name: str
-    arguments: dict
-    result: Any
-    model_reasoning: Optional[str] = None
-
-
-@dataclass
-class ToolSequenceTrace:
-    scenario: str
-    user_input: str
-    tool_calls: list[ToolCallRecord] = field(default_factory=list)
-    final_output: str = ""
-
-    def save(self, path: str):
-        with open(path, "w") as f:
-            json.dump({
-                "scenario": self.scenario,
-                "user_input": self.user_input,
-                "tool_calls": [
-                    {
-                        "step": tc.step,
-                        "tool_name": tc.tool_name,
-                        "arguments": tc.arguments,
-                        "result": tc.result,
-                        "model_reasoning": tc.model_reasoning,
-                    }
-                    for tc in self.tool_calls
-                ],
-                "final_output": self.final_output,
-            }, f, indent=2)
-
-    @staticmethod
-    def load(path: str) -> "ToolSequenceTrace":
-        with open(path) as f:
-            data = json.load(f)
-        trace = ToolSequenceTrace(
-            scenario=data["scenario"],
-            user_input=data["user_input"],
-            final_output=data["final_output"],
-        )
-        for tc in data["tool_calls"]:
-            trace.tool_calls.append(ToolCallRecord(**tc))
-        return trace
-
-
-@dataclass
-class SequenceAssertion:
-    description: str
-    expected_tools: list[str]          # Ordered tool names
-    allow_extra_calls: bool = False    # Whether extra tool calls are OK
-    check_args: bool = True            # Whether to check argument keys
-
-
-def assert_tool_sequence(
-    trace: ToolSequenceTrace,
-    assertion: SequenceAssertion,
-) -> list[str]:
-    failures = []
-    actual_tools = [tc.tool_name for tc in trace.tool_calls]
-
-    if not assertion.allow_extra_calls:
-        if actual_tools != assertion.expected_tools:
-            failures.append(
-                f"Tool sequence mismatch.\n"
-                f"  Expected: {assertion.expected_tools}\n"
-                f"  Actual:   {actual_tools}"
-            )
-    else:
-        # Subsequence check
-        expected_idx = 0
-        for tool in actual_tools:
-            if expected_idx < len(assertion.expected_tools) and tool == assertion.expected_tools[expected_idx]:
-                expected_idx += 1
-        if expected_idx < len(assertion.expected_tools):
-            failures.append(
-                f"Expected tool sequence not found as subsequence.\n"
-                f"  Expected: {assertion.expected_tools}\n"
-                f"  Actual:   {actual_tools}"
-            )
-
-    if assertion.check_args:
-        for tc in trace.tool_calls:
-            if tc.arguments is None or not isinstance(tc.arguments, dict):
-                failures.append(f"Tool '{tc.tool_name}' (step {tc.step}) has no valid arguments dict")
-
-    return failures
-
-
-def run_agent_with_tool_recording(
-    user_input: str,
-    scenario: str,
-) -> ToolSequenceTrace:
-    client = anthropic.Anthropic()
-    trace = ToolSequenceTrace(scenario=scenario, user_input=user_input)
-
-    tools = [
-        {
-            "name": "search",
-            "description": "Search for information",
-            "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
-        },
-        {
-            "name": "calculate",
-            "description": "Perform mathematical calculations",
-            "input_schema": {"type": "object", "properties": {"expression": {"type": "string"}}, "required": ["expression"]},
-        },
-    ]
-
-    messages = [{"role": "user", "content": user_input}]
-    step = 0
-
-    while True:
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=300,
-            tools=tools,
-            messages=messages,
-        )
-
-        messages.append({"role": "assistant", "content": response.content})
-
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                step += 1
-                # Simulate tool execution
-                result = f"[Result for {block.name}({json.dumps(block.input)[:40]})]"
-                trace.tool_calls.append(ToolCallRecord(
-                    step=step,
-                    tool_name=block.name,
-                    arguments=block.input,
-                    result=result,
-                ))
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
-
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            # No more tool calls — final response
-            final = next((b.text for b in response.content if hasattr(b, "text")), "")
-            trace.final_output = final
-            break
-
-    return trace
-
-
-if __name__ == "__main__":
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
-        trace_path = f.name
-
-    try:
-        trace = run_agent_with_tool_recording(
-            "Search for the GDP of France and calculate 10% of it.",
-            scenario="gdp-calculation",
-        )
-        trace.save(trace_path)
-
-        loaded = ToolSequenceTrace.load(trace_path)
-        failures = assert_tool_sequence(loaded, SequenceAssertion(
-            description="GDP calculation requires search then calculate",
-            expected_tools=["search", "calculate"],
-            allow_extra_calls=False,
-        ))
-
-        if failures:
-            print(f"FAILURES:\n" + "\n".join(failures))
-        else:
-            print(f"Tool sequence assertion passed: {[tc.tool_name for tc in loaded.tool_calls]}")
-    finally:
-        os.unlink(trace_path)
-
-# Expected Token Savings: Catches tool-call order regressions without repeated live runs; gold traces recorded once
-# Environment: Multi-step agents where tool execution order matters for correctness
-```
-
-## Option 4: Trace Diffing for Model Upgrade Validation
-
-Compare traces from two model versions to detect behavioral drift during upgrades.
-
-```python
-import anthropic
-import json
-from dataclasses import dataclass
-from typing import Optional
-import difflib
-
-
-@dataclass
-class TraceDiff:
-    scenario: str
-    model_a: str
-    model_b: str
-    output_similarity: float       # 0.0–1.0
-    tool_sequence_match: bool
-    semantic_drift_detected: bool
-    diff_summary: list[str]
-
-
-def run_agent(prompt: str, model: str) -> dict:
-    client = anthropic.Anthropic()
-    response = client.messages.create(
-        model=model,
-        max_tokens=400,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return {
-        "model": model,
-        "output": response.content[0].text,
-        "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens,
-    }
-
-
-def compute_text_similarity(a: str, b: str) -> float:
-    """Character-level similarity ratio."""
-    return difflib.SequenceMatcher(None, a, b).ratio()
-
-
-def detect_semantic_drift(output_a: str, output_b: str) -> tuple[bool, list[str]]:
-    """Use Claude to judge whether two outputs are semantically equivalent."""
-    client = anthropic.Anthropic()
-
-    judge_prompt = f"""Compare these two AI responses for semantic equivalence.
-
-Response A:
-{output_a[:500]}
-
-Response B:
-{output_b[:500]}
-
-Are these responses semantically equivalent (same facts, same intent, same conclusions)?
-Respond with JSON: {{"equivalent": true/false, "key_differences": ["diff1", "diff2"]}}"""
-
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=200,
-        messages=[{"role": "user", "content": judge_prompt}],
-    )
-
-    try:
-        text = response.content[0].text
-        import re
-        json_match = re.search(r"\{[^}]+\}", text, re.DOTALL)
-        data = json.loads(json_match.group()) if json_match else {}
-        diffs = data.get("key_differences", [])
-        is_equivalent = data.get("equivalent", True)
-        return not is_equivalent, diffs
-    except Exception:
-        return False, []
-
-
-def diff_model_outputs(
-    scenarios: list[dict],
-    model_a: str = "claude-haiku-4-5-20251001",
-    model_b: str = "claude-sonnet-4-6",
-) -> list[TraceDiff]:
+import uuid
+import hashlib
+
+client = anthropic.Anthropic()
+DB = "traces.db"
+
+def init_db():
+    con = sqlite3.connect(DB)
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS traces (
+            trace_id TEXT PRIMARY KEY, scenario TEXT,
+            created_at REAL, input_hash TEXT
+        );
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trace_id TEXT, seq INTEGER,
+            event_type TEXT, data TEXT, ts REAL
+        );
+    """)
+    con.commit(); con.close()
+
+class PersistentTracer:
+    def __init__(self, scenario: str, user_input: str):
+        self.trace_id = uuid.uuid4().hex[:12]
+        self.scenario = scenario
+        self.seq = 0
+        con = sqlite3.connect(DB)
+        con.execute("INSERT INTO traces VALUES (?,?,?,?)",
+                    (self.trace_id, scenario, time.time(),
+                     hashlib.sha256(user_input.encode()).hexdigest()[:16]))
+        con.commit(); con.close()
+
+    def record(self, event_type: str, **data):
+        self.seq += 1
+        con = sqlite3.connect(DB)
+        con.execute("INSERT INTO events VALUES (NULL,?,?,?,?,?)",
+                    (self.trace_id, self.seq, event_type, json.dumps(data), time.time()))
+        con.commit(); con.close()
+
+def load_trace(trace_id: str) -> list[dict]:
+    con = sqlite3.connect(DB)
+    rows = con.execute(
+        "SELECT seq, event_type, data FROM events WHERE trace_id=? ORDER BY seq",
+        (trace_id,)
+    ).fetchall()
+    con.close()
+    return [{"seq": r[0], "type": r[1], **json.loads(r[2])} for r in rows]
+
+def diff_traces(trace_a: list[dict], trace_b: list[dict]) -> list[str]:
     diffs = []
-
-    for scenario in scenarios:
-        prompt = scenario["prompt"]
-        name = scenario["name"]
-
-        print(f"\nRunning scenario: {name}")
-        result_a = run_agent(prompt, model_a)
-        result_b = run_agent(prompt, model_b)
-
-        similarity = compute_text_similarity(result_a["output"], result_b["output"])
-        drift, differences = detect_semantic_drift(result_a["output"], result_b["output"])
-
-        summary = []
-        if similarity < 0.3:
-            summary.append(f"Low text similarity ({similarity:.0%}) — responses are very different in phrasing")
-        if drift:
-            summary.extend(differences)
-        if not summary:
-            summary.append("No significant differences detected")
-
-        diffs.append(TraceDiff(
-            scenario=name,
-            model_a=model_a,
-            model_b=model_b,
-            output_similarity=similarity,
-            tool_sequence_match=True,  # Would compare tool calls in full implementation
-            semantic_drift_detected=drift,
-            diff_summary=summary,
-        ))
-
-        print(f"  Similarity: {similarity:.0%} | Drift: {drift}")
-        for d in summary:
-            print(f"  - {d}")
-
+    a_tools = [e for e in trace_a if e["type"] == "tool_call"]
+    b_tools = [e for e in trace_b if e["type"] == "tool_call"]
+    if len(a_tools) != len(b_tools):
+        diffs.append(f"Tool call count: {len(a_tools)} vs {len(b_tools)}")
+    for i, (a, b) in enumerate(zip(a_tools, b_tools)):
+        if a.get("name") != b.get("name"):
+            diffs.append(f"Tool[{i}]: '{a.get('name')}' vs '{b.get('name')}'")
     return diffs
 
+init_db()
 
-if __name__ == "__main__":
-    scenarios = [
-        {"name": "capital-query", "prompt": "What is the capital of Japan?"},
-        {"name": "math-reasoning", "prompt": "If a train travels 120km at 60km/h, how long does it take?"},
-        {"name": "code-generation", "prompt": "Write a Python function to check if a string is a palindrome."},
-    ]
-
-    results = diff_model_outputs(scenarios)
-
-    print("\n=== UPGRADE VALIDATION REPORT ===")
-    for diff in results:
-        status = "DRIFT DETECTED" if diff.semantic_drift_detected else "OK"
-        print(f"{diff.scenario}: {status} (similarity={diff.output_similarity:.0%})")
-
-# Expected Token Savings: Validates model upgrades without manual review; catches regressions automatically
-# Environment: Model upgrade testing, A/B validation, canary deployments of new model versions
-```
-
-## Option 5: Trace Coverage Analysis — Which Scenarios Remain Untested
-
-Analyze which user intent categories are covered by existing traces and surface gaps.
-
-```python
-import anthropic
-import json
-import os
-from dataclasses import dataclass
-from pathlib import Path
-from collections import defaultdict
-
-
-@dataclass
-class CoverageReport:
-    total_traces: int
-    categories: dict[str, int]       # category -> count
-    uncovered_categories: list[str]
-    coverage_percentage: float
-
-
-INTENT_CATEGORIES = [
-    "factual_lookup",
-    "math_calculation",
-    "code_generation",
-    "creative_writing",
-    "summarization",
-    "data_extraction",
-    "comparison",
-    "step_by_step_instructions",
-    "question_answering",
-    "error_analysis",
+TOOLS = [
+    {"name": "lookup", "description": "Look up info", "input_schema": {"type": "object", "properties": {"topic": {"type": "string"}}, "required": ["topic"]}},
 ]
 
-
-def classify_trace_scenario(user_input: str) -> str:
-    """Use Claude to classify what intent category a trace covers."""
-    client = anthropic.Anthropic()
-
-    categories_str = "\n".join(f"- {c}" for c in INTENT_CATEGORIES)
-    response = client.messages.create(
+def traced_run(scenario: str, user_input: str) -> tuple[str, str]:
+    tracer = PersistentTracer(scenario, user_input)
+    tracer.record("model_request", prompt=user_input)
+    resp = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=50,
-        messages=[{"role": "user", "content": f"""Classify this user input into exactly one category:
-
-{categories_str}
-
-User input: "{user_input}"
-
-Reply with only the category name, nothing else."""}],
-    )
-    label = response.content[0].text.strip().lower().replace(" ", "_")
-    # Normalize to known categories
-    for cat in INTENT_CATEGORIES:
-        if cat in label or label in cat:
-            return cat
-    return "question_answering"  # default
-
-
-def analyze_trace_coverage(trace_dir: str) -> CoverageReport:
-    trace_files = list(Path(trace_dir).glob("*.json")) + list(Path(trace_dir).glob("*.jsonl"))
-
-    category_counts: dict[str, int] = defaultdict(int)
-    total = 0
-
-    for path in trace_files:
-        try:
-            with open(path) as f:
-                # Try to read as JSONL (first line is header)
-                first_line = f.readline()
-                data = json.loads(first_line)
-                user_input = data.get("user_input", data.get("scenario", ""))
-
-            if user_input:
-                category = classify_trace_scenario(user_input)
-                category_counts[category] += 1
-                total += 1
-                print(f"  {path.name}: {category}")
-        except Exception as e:
-            print(f"  Skipping {path.name}: {e}")
-
-    covered = set(category_counts.keys())
-    uncovered = [c for c in INTENT_CATEGORIES if c not in covered]
-    coverage_pct = len(covered) / len(INTENT_CATEGORIES) * 100
-
-    return CoverageReport(
-        total_traces=total,
-        categories=dict(category_counts),
-        uncovered_categories=uncovered,
-        coverage_percentage=coverage_pct,
-    )
-
-
-def suggest_missing_test_cases(uncovered: list[str]) -> list[str]:
-    """Generate example prompts for uncovered categories."""
-    examples = {
-        "factual_lookup": "What is the boiling point of water in Celsius?",
-        "math_calculation": "Calculate the compound interest on $1000 at 5% for 3 years.",
-        "code_generation": "Write a Python function to merge two sorted arrays.",
-        "creative_writing": "Write a haiku about autumn leaves.",
-        "summarization": "Summarize the key points of this paragraph in 2 sentences.",
-        "data_extraction": "Extract all email addresses from the following text.",
-        "comparison": "Compare Python and JavaScript for backend development.",
-        "step_by_step_instructions": "How do I set up a Python virtual environment?",
-        "question_answering": "Why is the sky blue?",
-        "error_analysis": "Why does this Python code raise a KeyError?",
-    }
-    return [f"ADD: [{cat}] Example: '{examples.get(cat, 'Add test for ' + cat)}'" for cat in uncovered]
-
-
-if __name__ == "__main__":
-    import tempfile
-
-    # Create a temp trace dir with sample traces
-    with tempfile.TemporaryDirectory() as trace_dir:
-        # Write sample traces
-        sample_traces = [
-            {"user_input": "What is 2+2?", "final_output": "4"},
-            {"user_input": "Write a function to reverse a string", "final_output": "def rev(s): return s[::-1]"},
-            {"user_input": "What is the capital of France?", "final_output": "Paris"},
-        ]
-        for i, trace in enumerate(sample_traces):
-            with open(f"{trace_dir}/trace_{i}.json", "w") as f:
-                json.dump(trace, f)
-
-        print("Analyzing trace coverage...")
-        report = analyze_trace_coverage(trace_dir)
-
-        print(f"\n=== COVERAGE REPORT ===")
-        print(f"Total traces: {report.total_traces}")
-        print(f"Coverage: {report.coverage_percentage:.0f}% ({len(report.categories)}/{len(INTENT_CATEGORIES)} categories)")
-        print(f"\nCovered: {list(report.categories.keys())}")
-        print(f"\nUncovered ({len(report.uncovered_categories)}):")
-        for suggestion in suggest_missing_test_cases(report.uncovered_categories):
-            print(f"  {suggestion}")
-
-# Expected Token Savings: Prevents redundant trace coverage; focuses new test recording on uncovered scenarios
-# Environment: Mature agent test suites where coverage gaps need systematic identification
-```
-
-## Option 6: Trace-as-Contract — Behavioral Specification Enforcement
-
-Define behavioral contracts as expected trace patterns and fail CI if any contract is violated.
-
-```python
-import anthropic
-import json
-import re
-from dataclasses import dataclass, field
-from typing import Callable, Optional
-
-
-@dataclass
-class TraceContract:
-    name: str
-    description: str
-    user_input_pattern: str       # Regex pattern to match applicable inputs
-    checks: list[Callable]        # List of check functions: (trace_data) -> Optional[str]
-
-    def applies_to(self, user_input: str) -> bool:
-        return bool(re.search(self.user_input_pattern, user_input, re.IGNORECASE))
-
-    def validate(self, trace_data: dict) -> list[str]:
-        failures = []
-        for check in self.checks:
-            result = check(trace_data)
-            if result:
-                failures.append(result)
-        return failures
-
-
-def output_not_empty(trace: dict) -> Optional[str]:
-    if not trace.get("final_output", "").strip():
-        return "Contract violation: output is empty"
-    return None
-
-
-def output_under_500_words(trace: dict) -> Optional[str]:
-    output = trace.get("final_output", "")
-    word_count = len(output.split())
-    if word_count > 500:
-        return f"Contract violation: output has {word_count} words, max is 500"
-    return None
-
-
-def no_apologies_for_capability(trace: dict) -> Optional[str]:
-    output = (trace.get("final_output") or "").lower()
-    apology_patterns = ["i cannot", "i'm unable to", "i am not able", "i don't have the ability"]
-    for pat in apology_patterns:
-        if pat in output:
-            return f"Contract violation: agent refused capability — found '{pat}'"
-    return None
-
-
-def contains_code_block(trace: dict) -> Optional[str]:
-    output = trace.get("final_output", "")
-    if "```" not in output and "def " not in output and "function " not in output:
-        return "Contract violation: code generation request produced no code block"
-    return None
-
-
-def no_pii_in_output(trace: dict) -> Optional[str]:
-    output = trace.get("final_output", "")
-    pii_patterns = [
-        r"\b\d{3}-\d{2}-\d{4}\b",        # SSN
-        r"\b4[0-9]{12}(?:[0-9]{3})?\b",  # Visa card
-        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",  # Email
-    ]
-    for pat in pii_patterns:
-        if re.search(pat, output):
-            return f"Contract violation: PII pattern detected in output"
-    return None
-
-
-# Define behavioral contracts
-CONTRACTS = [
-    TraceContract(
-        name="code-generation-contract",
-        description="Code generation requests must produce actual code",
-        user_input_pattern=r"(write|implement|create|generate).*(function|class|code|script)",
-        checks=[output_not_empty, contains_code_block, output_under_500_words],
-    ),
-    TraceContract(
-        name="factual-query-contract",
-        description="Factual questions must be answered (not refused)",
-        user_input_pattern=r"^(what|who|when|where|why|how).+\?$",
-        checks=[output_not_empty, no_apologies_for_capability],
-    ),
-    TraceContract(
-        name="pii-safety-contract",
-        description="No PII must appear in any response",
-        user_input_pattern=r".*",  # Applies to all inputs
-        checks=[no_pii_in_output],
-    ),
-]
-
-
-def run_trace_and_validate_contracts(user_input: str) -> tuple[dict, list[str]]:
-    client = anthropic.Anthropic()
-
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=500,
+        max_tokens=128,
+        tools=TOOLS,
         messages=[{"role": "user", "content": user_input}],
     )
+    tracer.record("model_response", stop_reason=resp.stop_reason,
+                  content_types=[b.type for b in resp.content])
+    if resp.stop_reason == "tool_use":
+        for b in resp.content:
+            if b.type == "tool_use":
+                tracer.record("tool_call", name=b.name, inputs=b.input)
+    return tracer.trace_id, next((b.text for b in resp.content if hasattr(b, "text")), "")
 
-    trace_data = {
-        "user_input": user_input,
-        "final_output": response.content[0].text,
-        "model": response.model,
-    }
+id1, _ = traced_run("lookup_test", "Look up Python asyncio")
+id2, _ = traced_run("lookup_test", "Look up Python asyncio")
 
-    all_failures = []
-    for contract in CONTRACTS:
-        if contract.applies_to(user_input):
-            failures = contract.validate(trace_data)
-            if failures:
-                all_failures.extend([f"[{contract.name}] {f}" for f in failures])
-                print(f"CONTRACT VIOLATED: {contract.name}")
-            else:
-                print(f"Contract OK: {contract.name}")
+trace1 = load_trace(id1)
+trace2 = load_trace(id2)
+diffs = diff_traces(trace1, trace2)
+print(f"Trace diff: {diffs if diffs else 'No structural differences'}")
 
-    return trace_data, all_failures
+# Expected Token Savings: Stored traces enable regression testing without re-running model
+# Environment: SQLite; load_trace works across sessions; use diff_traces in CI
+```
 
+## Option 3: Span-Based Trace with Timing Assertions
 
-if __name__ == "__main__":
-    test_cases = [
-        "Write a Python function to sort a list of dictionaries by key.",
-        "What is the speed of light?",
-        "What is the capital of Germany?",
+```python
+import anthropic
+import time
+import uuid
+from dataclasses import dataclass, field
+from contextlib import contextmanager
+
+client = anthropic.Anthropic()
+
+@dataclass
+class Span:
+    name: str
+    span_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    parent_id: str | None = None
+    start_time: float = field(default_factory=time.monotonic)
+    end_time: float | None = None
+    tags: dict = field(default_factory=dict)
+    error: str | None = None
+
+    @property
+    def duration_s(self) -> float:
+        return (self.end_time or time.monotonic()) - self.start_time
+
+    def finish(self, error: str | None = None):
+        self.end_time = time.monotonic()
+        self.error = error
+
+@dataclass
+class SpanTrace:
+    spans: list[Span] = field(default_factory=list)
+    _stack: list[Span] = field(default_factory=list)
+
+    @contextmanager
+    def span(self, name: str, **tags):
+        parent_id = self._stack[-1].span_id if self._stack else None
+        s = Span(name=name, parent_id=parent_id, tags=tags)
+        self.spans.append(s)
+        self._stack.append(s)
+        try:
+            yield s
+        except Exception as e:
+            s.finish(error=str(e)); raise
+        finally:
+            if not s.end_time: s.finish()
+            if self._stack and self._stack[-1] is s: self._stack.pop()
+
+    def assert_span_exists(self, name: str):
+        names = [s.name for s in self.spans]
+        assert name in names, f"Span '{name}' not found in: {names}"
+
+    def assert_span_duration_lt(self, name: str, max_s: float):
+        for s in self.spans:
+            if s.name == name:
+                assert s.duration_s < max_s, f"Span '{name}' took {s.duration_s:.2f}s > {max_s}s"
+                return
+        raise AssertionError(f"Span '{name}' not found")
+
+    def assert_no_errors(self):
+        errors = [(s.name, s.error) for s in self.spans if s.error]
+        assert not errors, f"Trace errors: {errors}"
+
+    def assert_span_order(self, *names: str):
+        ordered = [s.name for s in self.spans if s.name in names]
+        assert list(names) == ordered, f"Expected {list(names)}, got {ordered}"
+
+    def summary(self) -> str:
+        return "\n".join(
+            f"{'  ' if s.parent_id else ''}{s.name}: {s.duration_s:.3f}s"
+            + (f" [ERR: {s.error}]" if s.error else "")
+            for s in self.spans
+        )
+
+def run_with_trace(user_input: str, trace: SpanTrace) -> str:
+    with trace.span("agent_turn"):
+        with trace.span("model_call"):
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=128,
+                messages=[{"role": "user", "content": user_input}],
+            )
+        with trace.span("response_parse"):
+            result = resp.content[0].text
+    return result
+
+def test_timing_slo():
+    trace = SpanTrace()
+    run_with_trace("What is 2+2?", trace)
+    trace.assert_span_exists("model_call")
+    trace.assert_span_duration_lt("agent_turn", max_s=30.0)
+    trace.assert_no_errors()
+    trace.assert_span_order("agent_turn", "model_call", "response_parse")
+    print("[PASS] timing SLO test")
+    print(trace.summary())
+
+test_timing_slo()
+
+# Expected Token Savings: Span assertions run locally; slow spans flagged without re-running model
+# Environment: pure Python; integrate with OpenTelemetry by replacing Span with otel Span
+```
+
+## Option 4: Golden Trace Snapshot Testing
+
+```python
+import anthropic
+import json
+from pathlib import Path
+
+client = anthropic.Anthropic()
+SNAPSHOT_DIR = Path("trace_snapshots")
+
+def normalize_trace(events: list[dict]) -> list[dict]:
+    return [{k: v for k, v in e.items() if k not in ("ts", "trace_id", "span_id")} for e in events]
+
+def capture_trace(user_input: str) -> list[dict]:
+    TOOLS = [
+        {"name": "search", "description": "Search",
+         "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]}},
     ]
+    events = [{"type": "request", "model": "claude-haiku-4-5-20251001"}]
+    resp = client.messages.create(
+        model="claude-haiku-4-5-20251001", max_tokens=128, tools=TOOLS,
+        messages=[{"role": "user", "content": user_input}],
+    )
+    events.append({"type": "response", "stop_reason": resp.stop_reason,
+                   "content_types": [b.type for b in resp.content]})
+    for b in resp.content:
+        if b.type == "tool_use":
+            events.append({"type": "tool_call", "name": b.name, "inputs": b.input})
+    return events
 
-    all_failures = []
-    for inp in test_cases:
-        print(f"\nInput: {inp}")
-        trace, failures = run_trace_and_validate_contracts(inp)
-        all_failures.extend(failures)
-        print(f"Output preview: {trace['final_output'][:80]}...")
+def assert_matches_snapshot(scenario: str, trace: list[dict]) -> bool:
+    SNAPSHOT_DIR.mkdir(exist_ok=True)
+    path = SNAPSHOT_DIR / f"{scenario}.json"
+    if not path.exists():
+        path.write_text(json.dumps(normalize_trace(trace), indent=2))
+        print(f"[NEW SNAPSHOT] {scenario}")
+        return True
+    expected = json.loads(path.read_text())
+    actual = normalize_trace(trace)
+    if expected == actual:
+        print(f"[PASS] {scenario}: matches snapshot")
+        return True
+    print(f"[FAIL] {scenario}: trace changed!")
+    for i, (e, a) in enumerate(zip(expected, actual)):
+        if e != a:
+            print(f"  event[{i}] expected: {e}")
+            print(f"  event[{i}]   actual: {a}")
+    return False
 
-    print(f"\n{'='*60}")
-    if all_failures:
-        print(f"CONTRACT FAILURES ({len(all_failures)}):")
-        for f in all_failures:
-            print(f"  {f}")
-        exit(1)
-    else:
-        print("All behavioral contracts satisfied.")
+for scenario, query in [("simple_qa", "What is Python?"), ("tool_trigger", "Search for asyncio docs")]:
+    trace = capture_trace(query)
+    assert_matches_snapshot(scenario, trace)
 
-# Expected Token Savings: Catches behavioral regressions in CI before deployment; prevents costly rollback cycles
-# Environment: Production agents with defined behavioral SLAs, regulated industries with compliance requirements
+# Expected Token Savings: After first snapshot, zero model calls needed to re-run assertions
+# Environment: commit trace_snapshots/ to version control; update intentionally with path.write_text()
+```
+
+## Option 5: Property-Based Trace Assertions
+
+```python
+import anthropic
+from dataclasses import dataclass, field
+from typing import Callable
+
+client = anthropic.Anthropic()
+
+@dataclass
+class TraceProperty:
+    name: str
+    check: Callable[[list[dict]], bool]
+    description: str
+
+@dataclass
+class PropertyTrace:
+    events: list[dict] = field(default_factory=list)
+
+    def record(self, **event):
+        self.events.append(event)
+
+    def verify(self, *properties: TraceProperty) -> bool:
+        all_passed = True
+        for prop in properties:
+            try:
+                passed = prop.check(self.events)
+                status = "PASS" if passed else "FAIL"
+                print(f"  [{status}] {prop.name}: {prop.description}")
+                if not passed: all_passed = False
+            except Exception as e:
+                print(f"  [ERROR] {prop.name}: {e}")
+                all_passed = False
+        return all_passed
+
+PROPERTIES = [
+    TraceProperty("exactly_one_model_call",
+        lambda events: sum(1 for e in events if e.get("type") == "model_request") == 1,
+        "Agent makes exactly one model call per turn"),
+    TraceProperty("no_empty_tool_inputs",
+        lambda events: all(e.get("inputs") for e in events if e.get("type") == "tool_call"),
+        "All tool calls have non-empty inputs"),
+    TraceProperty("response_is_non_empty",
+        lambda events: any(
+            e.get("type") == "final" and len(e.get("text", "")) > 0 for e in events),
+        "Agent produces a non-empty response"),
+    TraceProperty("single_request",
+        lambda events: sum(1 for e in events if e.get("type") == "model_request") == 1,
+        "Exactly one model request per turn"),
+]
+
+TOOLS = [
+    {"name": "search", "description": "Search web",
+     "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]}},
+]
+
+def run_with_properties(user_input: str) -> PropertyTrace:
+    trace = PropertyTrace()
+    trace.record(type="model_request", prompt=user_input[:50])
+    resp = client.messages.create(
+        model="claude-haiku-4-5-20251001", max_tokens=128, tools=TOOLS,
+        messages=[{"role": "user", "content": user_input}],
+    )
+    if resp.stop_reason == "tool_use":
+        for b in resp.content:
+            if b.type == "tool_use":
+                trace.record(type="tool_call", name=b.name, inputs=b.input)
+    text = next((b.text for b in resp.content if hasattr(b, "text")), "")
+    trace.record(type="final", text=text)
+    return trace
+
+for p in ["What is 17 * 23?", "Search for asyncio tutorials", "Explain Python"]:
+    print(f"\nTesting: {p}")
+    trace = run_with_properties(p)
+    trace.verify(*PROPERTIES)
+
+# Expected Token Savings: Properties run on recorded trace at zero cost after capture
+# Environment: add domain-specific properties per agent type; properties are composable
+```
+
+## Option 6: Trace-Driven Regression CI with SQLite History
+
+```python
+import anthropic
+import sqlite3
+import json
+import time
+import uuid
+
+client = anthropic.Anthropic()
+DB = "trace_regression.db"
+
+def init_db():
+    con = sqlite3.connect(DB)
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS test_runs (
+            run_id TEXT PRIMARY KEY, scenario TEXT,
+            model TEXT, ts REAL, passed INTEGER, trace TEXT
+        );
+        CREATE TABLE IF NOT EXISTS assertions (
+            run_id TEXT, assertion TEXT, passed INTEGER, message TEXT
+        );
+    """)
+    con.commit(); con.close()
+
+def run_scenario(scenario: str, user_input: str) -> dict:
+    run_id = uuid.uuid4().hex[:10]
+    TOOLS = [{"name": "lookup", "description": "Lookup info",
+              "input_schema": {"type": "object", "properties": {"topic": {"type": "string"}}, "required": ["topic"]}}]
+    events = [{"type": "request"}]
+    resp = client.messages.create(
+        model="claude-haiku-4-5-20251001", max_tokens=128, tools=TOOLS,
+        messages=[{"role": "user", "content": user_input}],
+    )
+    events.append({"type": "response", "stop_reason": resp.stop_reason})
+    for b in resp.content:
+        if b.type == "tool_use":
+            events.append({"type": "tool_call", "name": b.name, "inputs": b.input})
+    text = next((b.text for b in resp.content if hasattr(b, "text")), "")
+    events.append({"type": "final", "text": text[:200]})
+    return {"run_id": run_id, "scenario": scenario, "events": events}
+
+def assert_and_persist(run: dict, assertions: list[tuple]):
+    all_passed = all(a[1] for a in assertions)
+    con = sqlite3.connect(DB)
+    con.execute("INSERT INTO test_runs VALUES (?,?,?,?,?,?)",
+                (run["run_id"], run["scenario"], "claude-haiku-4-5-20251001",
+                 time.time(), int(all_passed), json.dumps(run["events"])))
+    for name, passed, message in assertions:
+        con.execute("INSERT INTO assertions VALUES (?,?,?,?)",
+                    (run["run_id"], name, int(passed), message))
+    con.commit(); con.close()
+    return all_passed
+
+def regression_report(scenario: str, last_n: int = 5) -> dict:
+    con = sqlite3.connect(DB)
+    runs = con.execute(
+        "SELECT run_id, ts, passed FROM test_runs WHERE scenario=? ORDER BY ts DESC LIMIT ?",
+        (scenario, last_n)
+    ).fetchall()
+    con.close()
+    pass_rate = sum(r[2] for r in runs) / len(runs) * 100 if runs else 0
+    return {"scenario": scenario, "total_runs": len(runs), "pass_rate_pct": round(pass_rate, 1)}
+
+init_db()
+
+for scenario, query in [("topic_lookup", "Look up Python coroutines"), ("general_qa", "What is asyncio?")]:
+    run = run_scenario(scenario, query)
+    events = run["events"]
+    assertions = [
+        ("has_request",   any(e["type"] == "request" for e in events), "Must have request"),
+        ("has_final",     any(e["type"] == "final" for e in events),   "Must have final response"),
+        ("non_empty_response", any(
+            e["type"] == "final" and len(e.get("text", "")) > 0 for e in events), "Non-empty response"),
+    ]
+    passed = assert_and_persist(run, assertions)
+    print(f"[{'PASS' if passed else 'FAIL'}] {scenario}")
+    for name, ok, _ in assertions:
+        print(f"  {'v' if ok else 'x'} {name}")
+
+print("\nRegression history:")
+for scenario, _ in [("topic_lookup", ""), ("general_qa", "")]:
+    r = regression_report(scenario)
+    print(f"  {r['scenario']}: {r['pass_rate_pct']}% pass ({r['total_runs']} runs)")
+
+# Expected Token Savings: Historical trace comparison detects regressions at zero model cost
+# Environment: SQLite; run in CI; pass_rate_pct tracks test health over time
 ```
 
 ## Comparison
 
-| Option | Recording | Replay | API Calls in Test | Best For |
-|--------|-----------|--------|-------------------|----------|
-| 1 JSONL Recorder | Full trace to JSONL | Assertion on loaded trace | Yes (recording phase) | Simple regression tracking |
-| 2 Deterministic Mock Replay | Full API response stored | Zero API calls | None | Fast CI, offline testing |
-| 3 Tool Sequence Assertions | Tool calls recorded | Order/args assertion | Yes (recording phase) | Multi-step tool-use agents |
-| 4 Model Diff | Live runs per model | Semantic diff with judge | Yes (both models) | Model upgrade validation |
-| 5 Coverage Analysis | Existing traces classified | Gap report generated | Yes (classification) | Test suite completeness audit |
-| 6 Trace-as-Contract | Live run with validation | Real-time contract check | Yes | CI behavioral compliance gating |
+| Option | Trace Storage | Assertion Style | Replay Cost |
+|--------|--------------|----------------|-------------|
+| 1 — In-Memory Collector | In-memory list | Method assertions | Zero (after capture) |
+| 2 — SQLite Persistent | SQLite events | Structural diff | Zero (replay from DB) |
+| 3 — Span-Based | In-memory spans | Timing + order | Zero (after capture) |
+| 4 — Golden Snapshot | JSON files | Exact match | Zero (snapshot compare) |
+| 5 — Property-Based | In-memory list | Predicate functions | Zero (after capture) |
+| 6 — Regression CI | SQLite + history | Assertion + pass rate | Zero (historical compare) |
