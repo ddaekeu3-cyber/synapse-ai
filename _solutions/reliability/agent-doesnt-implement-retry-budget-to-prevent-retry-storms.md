@@ -1,332 +1,323 @@
 ---
 title: "Agent Doesn't Implement Retry Budget to Prevent Retry Storms"
-description: "Agents with unbounded per-request retry logic amplify failures into retry storms: when a dependency degrades, every in-flight request retries simultaneously, producing 3–5× the original request volume and preventing recovery. Implement a retry budget that caps the total number of active retries across all requests, enforces a per-caller retry share, and sheds retries gracefully when the budget is exhausted rather than amplifying load."
+description: "Agents that retry every failed request with unlimited attempts amplify failures into storms: when a downstream service degrades, all concurrent agent instances begin retrying simultaneously, generating 3–10× the original request volume against a service that is already struggling. Implement a retry budget that limits the total number of retries per service per time window, enforces a global retry rate cap, and sheds retries gracefully when the budget is exhausted."
 date: 2026-04-16
 difficulty: advanced
 category: reliability
 slug: agent-doesnt-implement-retry-budget-to-prevent-retry-storms
-tags: [retry-budget, retry-storm, retry-amplification, backpressure, circuit-breaker, overload-protection]
+tags: [retry-budget, retry-storm, overload-protection, retry-rate-limiting, fault-amplification, backoff]
 symptoms:
-  - "A 30-second LLM provider outage causes 5 minutes of elevated error rates from retry amplification"
-  - "Every failing request retries 3 times simultaneously, tripling load on an already degraded provider"
-  - "No global retry limit — 100 concurrent sessions each retry independently"
-  - "Retry count is per-request with no awareness of fleet-wide retry pressure"
-  - "Recovery time after outage is longer than the outage itself due to retry queues draining"
+  - "A degraded downstream service receives 5× normal request volume due to agent retries"
+  - "Multiple agent instances all retry simultaneously, amplifying load on a struggling service"
+  - "Retry logic has no upper bound — a stuck service causes infinite retry loops"
+  - "No visibility into how many retries are in flight at any given moment"
+  - "Retry backoff is per-instance — global retry volume is never considered"
 ---
 
 ## Why This Happens
 
-Per-request retry logic is designed for isolated failures, not correlated failures. When a provider experiences latency, all concurrent requests begin retrying simultaneously. With 3 retries per request and 100 concurrent sessions, a 10-second outage generates 300 retry attempts that all fire at the same time, producing a request spike that extends the outage. A retry budget is a shared token pool: each retry attempt consumes a token; when the pool is empty, additional retries are rejected with a fast failure rather than queued. This transforms unbounded amplification into bounded, controlled degradation.
+Per-request retry logic looks correct in isolation: each failed request retries up to N times with exponential backoff. But in a fleet of agent instances, every instance applies this logic independently. When service latency spikes, all instances simultaneously experience timeouts, simultaneously trigger retries, and simultaneously hit the service again with 3–5× the original volume. The service, already degraded, receives this amplified load and degrades further. A retry budget adds a coordination layer: a shared counter of retries consumed against each service, a rate limit on retry throughput, and a shed mechanism that converts budget-exhausted retries into immediate failures rather than queuing more load.
 
-## Solution 1: Retry Budget Token Pool
+## Solution 1: Retry Budget State
 
 ```python
-import asyncio
 import time
+import threading
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Dict, Optional
 
 
 @dataclass
 class RetryBudgetConfig:
-    total_budget: int = 100          # max concurrent active retries fleet-wide
-    per_caller_share: float = 0.10   # max fraction any single caller can hold
-    refill_rate_per_second: float = 5.0  # tokens refilled per second
-    budget_exhausted_action: str = "fail_fast"  # "fail_fast" | "shed_oldest"
-    min_tokens_for_retry: int = 1
+    service_name: str
+    max_retries_per_window: int = 100    # total retries allowed per window
+    window_seconds: float = 60.0         # rolling window duration
+    max_retry_rate_per_second: float = 5.0  # token bucket rate
+    burst_capacity: int = 10             # token bucket burst
+    shed_strategy: str = "fail_fast"     # "fail_fast" | "queue"
 
 
-class RetryBudgetTokenPool:
+class RetryBudgetState:
     """
-    Leaky-bucket token pool for retry budgets.
-    Tokens are consumed on retry attempt and refilled at a steady rate.
-    Per-caller limits prevent a single caller from exhausting the pool.
+    Thread-safe sliding window counter + token bucket for retry rate limiting.
     """
 
-    def __init__(self, config: RetryBudgetConfig) -> None:
+    def __init__(self, config: RetryBudgetConfig):
         self._config = config
-        self._tokens = float(config.total_budget)
-        self._last_refill = time.time()
-        self._per_caller_tokens: dict = {}
-        self._lock = asyncio.Lock()
-        self._total_granted = 0
-        self._total_rejected = 0
+        self._window_events: list = []    # timestamps of retries in current window
+        self._tokens: float = float(config.burst_capacity)
+        self._last_refill: float = time.time()
+        self._lock = threading.Lock()
+        self._total_allowed = 0
+        self._total_shed = 0
 
-    def _refill(self) -> None:
-        now = time.time()
+    def _refill_tokens(self, now: float) -> None:
         elapsed = now - self._last_refill
         self._tokens = min(
-            float(self._config.total_budget),
-            self._tokens + elapsed * self._config.refill_rate_per_second,
+            self._config.burst_capacity,
+            self._tokens + elapsed * self._config.max_retry_rate_per_second,
         )
         self._last_refill = now
 
-    def _caller_limit(self) -> int:
-        return max(1, int(self._config.total_budget * self._config.per_caller_share))
+    def _evict_old(self, now: float) -> None:
+        cutoff = now - self._config.window_seconds
+        self._window_events = [ts for ts in self._window_events if ts >= cutoff]
 
-    async def acquire(self, caller_id: str, tokens: int = 1) -> bool:
-        async with self._lock:
-            self._refill()
+    def request_retry(self) -> bool:
+        """Returns True if retry is allowed, False if shed."""
+        now = time.time()
+        with self._lock:
+            self._refill_tokens(now)
+            self._evict_old(now)
 
-            caller_used = self._per_caller_tokens.get(caller_id, 0)
-            if caller_used + tokens > self._caller_limit():
-                self._total_rejected += 1
+            window_count = len(self._window_events)
+            if window_count >= self._config.max_retries_per_window:
+                self._total_shed += 1
                 return False
 
-            if self._tokens < tokens:
-                self._total_rejected += 1
+            if self._tokens < 1.0:
+                self._total_shed += 1
                 return False
 
-            self._tokens -= tokens
-            self._per_caller_tokens[caller_id] = caller_used + tokens
-            self._total_granted += 1
+            self._tokens -= 1.0
+            self._window_events.append(now)
+            self._total_allowed += 1
             return True
-
-    async def release(self, caller_id: str, tokens: int = 1) -> None:
-        async with self._lock:
-            used = self._per_caller_tokens.get(caller_id, 0)
-            self._per_caller_tokens[caller_id] = max(0, used - tokens)
 
     def stats(self) -> dict:
-        total = self._total_granted + self._total_rejected
-        return {
-            "available_tokens": round(self._tokens, 1),
-            "total_budget": self._config.total_budget,
-            "utilization_pct": round(
-                (self._config.total_budget - self._tokens) / max(self._config.total_budget, 1) * 100, 1
-            ),
-            "total_granted": self._total_granted,
-            "total_rejected": self._total_rejected,
-            "rejection_rate": round(self._total_rejected / max(total, 1), 4),
-        }
+        now = time.time()
+        with self._lock:
+            self._evict_old(now)
+            return {
+                "service_name": self._config.service_name,
+                "window_retries": len(self._window_events),
+                "window_budget": self._config.max_retries_per_window,
+                "tokens_available": round(self._tokens, 2),
+                "total_allowed": self._total_allowed,
+                "total_shed": self._total_shed,
+                "shed_rate": round(
+                    self._total_shed / max(self._total_allowed + self._total_shed, 1),
+                    4,
+                ),
+            }
 ```
 
-## Solution 2: Budget-Aware Retry Policy
+## Solution 2: Retry Budget Registry
 
 ```python
-from dataclasses import dataclass
-from typing import Optional
+import threading
+from typing import Dict, Optional
 
 
-@dataclass
-class BudgetAwareRetryPolicy:
-    max_attempts: int = 3
-    base_delay_seconds: float = 0.5
-    max_delay_seconds: float = 30.0
-    jitter_factor: float = 0.25        # random jitter as fraction of delay
-    retryable_status_codes: frozenset = frozenset({429, 500, 502, 503, 504})
-    retryable_exception_types: tuple = ()
-    require_budget: bool = True        # if False, skip budget check
+class RetryBudgetRegistry:
+    """
+    Manages RetryBudgetState instances per service.
+    Provides a single entry point for all retry budget checks.
+    """
 
-    def is_retryable(self, exc: Exception, http_status: Optional[int] = None) -> bool:
-        if http_status in self.retryable_status_codes:
-            return True
-        if self.retryable_exception_types and isinstance(exc, self.retryable_exception_types):
-            return True
-        error_str = str(exc).lower()
-        return any(kw in error_str for kw in ("timeout", "connection", "temporarily"))
+    def __init__(self, default_config: Optional[RetryBudgetConfig] = None):
+        self._budgets: Dict[str, RetryBudgetState] = {}
+        self._configs: Dict[str, RetryBudgetConfig] = {}
+        self._default = default_config
+        self._lock = threading.Lock()
 
-    def delay_seconds(self, attempt: int) -> float:
-        import random
-        base = min(
-            self.base_delay_seconds * (2 ** (attempt - 1)),
-            self.max_delay_seconds,
-        )
-        jitter = base * self.jitter_factor * random.random()
-        return base + jitter
+    def register(self, config: RetryBudgetConfig) -> None:
+        with self._lock:
+            self._configs[config.service_name] = config
+            self._budgets[config.service_name] = RetryBudgetState(config)
+
+    def request_retry(self, service_name: str) -> bool:
+        with self._lock:
+            if service_name not in self._budgets:
+                if self._default:
+                    cfg = RetryBudgetConfig(
+                        service_name=service_name,
+                        max_retries_per_window=self._default.max_retries_per_window,
+                        window_seconds=self._default.window_seconds,
+                        max_retry_rate_per_second=self._default.max_retry_rate_per_second,
+                        burst_capacity=self._default.burst_capacity,
+                    )
+                    self._budgets[service_name] = RetryBudgetState(cfg)
+                else:
+                    return True   # no budget configured — allow
+            budget = self._budgets[service_name]
+        return budget.request_retry()
+
+    def all_stats(self) -> Dict[str, dict]:
+        with self._lock:
+            return {name: b.stats() for name, b in self._budgets.items()}
 ```
 
-## Solution 3: Budget-Controlled Retry Executor
+## Solution 3: Budget-Aware Retry Executor
 
 ```python
 import asyncio
+import time
 from typing import Any, Callable, Optional
 
 
-class BudgetControlledRetryExecutor:
+class RetryBudgetExhaustedError(Exception):
+    def __init__(self, service_name: str):
+        super().__init__(
+            f"retry budget exhausted for service '{service_name}' — request shed"
+        )
+        self.service_name = service_name
+
+
+class BudgetAwareRetryExecutor:
     """
-    Wraps async calls with retry logic gated by the global retry budget.
-    When the budget is exhausted, raises immediately rather than retrying.
-    Releases budget tokens when retries complete (success or final failure).
+    Wraps async calls with budget-checked retry logic.
+    Uses jittered exponential backoff to desynchronize concurrent retries.
     """
+
+    RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
     def __init__(
         self,
-        budget_pool: RetryBudgetTokenPool,
-        policy: BudgetAwareRetryPolicy,
-    ) -> None:
-        self._pool = budget_pool
-        self._policy = policy
+        registry: RetryBudgetRegistry,
+        max_attempts: int = 4,
+        base_delay_seconds: float = 1.0,
+        max_delay_seconds: float = 30.0,
+        jitter_factor: float = 0.3,
+    ):
+        self._registry = registry
+        self._max_attempts = max_attempts
+        self._base = base_delay_seconds
+        self._max_delay = max_delay_seconds
+        self._jitter = jitter_factor
+
+    def _jittered_delay(self, attempt: int) -> float:
+        import random
+        delay = min(self._base * (2 ** (attempt - 1)), self._max_delay)
+        jitter = delay * self._jitter * random.uniform(-1, 1)
+        return max(0.0, delay + jitter)
 
     async def execute(
         self,
-        caller_id: str,
-        fn: Callable,
+        service_name: str,
+        call_fn: Callable,
         *args: Any,
-        http_status_fn: Optional[Callable[[Exception], Optional[int]]] = None,
         **kwargs: Any,
     ) -> Any:
-        """
-        Executes fn with budget-gated retry.
-        http_status_fn: optional callable that extracts HTTP status from an exception.
-        """
-        last_exc = None
+        last_error = None
 
-        for attempt in range(1, self._policy.max_attempts + 1):
+        for attempt in range(1, self._max_attempts + 1):
             try:
-                return await fn(*args, **kwargs)
+                return await call_fn(*args, **kwargs)
             except Exception as exc:
-                last_exc = exc
-                http_status = http_status_fn(exc) if http_status_fn else None
-
-                if attempt >= self._policy.max_attempts:
+                last_error = exc
+                if attempt >= self._max_attempts:
                     break
 
-                if not self._policy.is_retryable(exc, http_status):
-                    break
+                if not self._registry.request_retry(service_name):
+                    raise RetryBudgetExhaustedError(service_name)
 
-                if self._policy.require_budget:
-                    granted = await self._pool.acquire(caller_id)
-                    if not granted:
-                        # Budget exhausted — fail fast instead of retrying
-                        raise RuntimeError(
-                            f"Retry budget exhausted for caller '{caller_id}' — "
-                            f"fast-failing instead of retrying"
-                        ) from exc
+                delay = self._jittered_delay(attempt)
+                await asyncio.sleep(delay)
 
-                delay = self._policy.delay_seconds(attempt)
-                try:
-                    await asyncio.sleep(delay)
-                finally:
-                    if self._policy.require_budget:
-                        await self._pool.release(caller_id)
-
-        raise last_exc
+        raise last_error
 ```
 
-## Solution 4: Retry Pressure Monitor
+## Solution 4: Retry Storm Detector
 
 ```python
 import time
-from typing import List
+import threading
+from typing import Dict, List
 
 
-class RetryPressureMonitor:
+class RetryStormDetector:
     """
-    Tracks retry pressure signals — rejection rate, pool utilization,
-    and per-caller saturation — and fires alerts when pressure is high.
+    Detects retry storms by comparing the retry rate against the
+    baseline request rate. A ratio > 2× for more than 30 seconds signals a storm.
     """
 
     def __init__(
         self,
-        pool: RetryBudgetTokenPool,
-        rejection_rate_alert: float = 0.10,
-        utilization_alert_pct: float = 80.0,
-    ) -> None:
-        self._pool = pool
-        self._rejection_threshold = rejection_rate_alert
-        self._utilization_threshold = utilization_alert_pct
+        registry: RetryBudgetRegistry,
+        storm_ratio_threshold: float = 2.0,
+        storm_duration_seconds: float = 30.0,
+    ):
+        self._registry = registry
+        self._ratio_threshold = storm_ratio_threshold
+        self._duration = storm_duration_seconds
+        self._storm_start: Dict[str, float] = {}
+        self._lock = threading.Lock()
 
     def check(self) -> List[dict]:
-        stats = self._pool.stats()
-        alerts = []
+        storms = []
+        all_stats = self._registry.all_stats()
+        now = time.time()
 
-        if stats["rejection_rate"] >= self._rejection_threshold:
-            alerts.append({
-                "type": "high_retry_rejection_rate",
-                "rejection_rate": stats["rejection_rate"],
-                "threshold": self._rejection_threshold,
-                "severity": "warning",
-                "message": (
-                    f"Retry budget rejecting {stats['rejection_rate']*100:.1f}% of retry attempts — "
-                    "system under retry pressure. Consider increasing budget or reducing call volume."
-                ),
-            })
+        for service_name, stats in all_stats.items():
+            window_retries = stats["window_retries"]
+            window_budget = stats["window_budget"]
+            usage_rate = window_retries / max(window_budget, 1)
 
-        if stats["utilization_pct"] >= self._utilization_threshold:
-            alerts.append({
-                "type": "retry_budget_saturated",
-                "utilization_pct": stats["utilization_pct"],
-                "threshold": self._utilization_threshold,
-                "severity": "critical" if stats["utilization_pct"] >= 95 else "warning",
-                "message": f"Retry budget at {stats['utilization_pct']:.1f}% capacity",
-            })
+            with self._lock:
+                if usage_rate >= self._ratio_threshold / 2:
+                    if service_name not in self._storm_start:
+                        self._storm_start[service_name] = now
+                    elif now - self._storm_start[service_name] >= self._duration:
+                        storms.append({
+                            "service_name": service_name,
+                            "window_retries": window_retries,
+                            "shed_rate": stats["shed_rate"],
+                            "storm_duration_seconds": round(now - self._storm_start[service_name], 1),
+                        })
+                else:
+                    self._storm_start.pop(service_name, None)
 
-        return alerts
-
-    def report(self) -> dict:
-        return {
-            "generated_at": time.time(),
-            "stats": self._pool.stats(),
-            "alerts": self.check(),
-        }
+        return storms
 ```
 
-## Solution 5: Retry Storm Circuit Breaker
+## Solution 5: Adaptive Retry Budget Adjuster
 
 ```python
 import time
-from enum import Enum
-from typing import Optional
+import threading
+from typing import Dict
 
 
-class StormCircuitState(str, Enum):
-    CLOSED = "closed"     # normal operation
-    OPEN = "open"         # all retries blocked
-    HALF_OPEN = "half_open"  # test probe allowed
-
-
-class RetryStormCircuitBreaker:
+class AdaptiveRetryBudgetAdjuster:
     """
-    Opens when the retry rejection rate exceeds a threshold,
-    blocking all retries until pressure drops and a recovery
-    probe succeeds. Prevents the pool from being constantly hammered.
+    Reduces retry budgets dynamically when shed rates are high,
+    preventing runaway retry amplification during sustained outages.
     """
 
     def __init__(
         self,
-        monitor: RetryPressureMonitor,
-        open_threshold_rejection_rate: float = 0.20,
-        recovery_window_seconds: float = 30.0,
-        probe_success_threshold: int = 3,
-    ) -> None:
-        self._monitor = monitor
-        self._open_threshold = open_threshold_rejection_rate
-        self._recovery_window = recovery_window_seconds
-        self._probe_threshold = probe_success_threshold
-        self._state = StormCircuitState.CLOSED
-        self._opened_at: Optional[float] = None
-        self._probe_successes = 0
+        registry: RetryBudgetRegistry,
+        shed_rate_threshold: float = 0.30,
+        reduction_factor: float = 0.5,
+        check_interval_seconds: float = 60.0,
+    ):
+        self._registry = registry
+        self._shed_threshold = shed_rate_threshold
+        self._reduction = reduction_factor
+        self._interval = check_interval_seconds
+        self._adjustments: Dict[str, int] = {}
 
-    def is_open(self) -> bool:
-        if self._state == StormCircuitState.CLOSED:
-            return False
-        if self._state == StormCircuitState.OPEN:
-            if time.time() - (self._opened_at or 0) > self._recovery_window:
-                self._state = StormCircuitState.HALF_OPEN
-                self._probe_successes = 0
-            return True
-        return False   # HALF_OPEN allows probes
+    def check_and_adjust(self) -> List[dict]:
+        adjustments = []
+        all_stats = self._registry.all_stats()
 
-    def record_outcome(self, succeeded: bool) -> None:
-        if self._state == StormCircuitState.HALF_OPEN:
-            if succeeded:
-                self._probe_successes += 1
-                if self._probe_successes >= self._probe_threshold:
-                    self._state = StormCircuitState.CLOSED
-            else:
-                self._state = StormCircuitState.OPEN
-                self._opened_at = time.time()
+        for service_name, stats in all_stats.items():
+            if stats["shed_rate"] >= self._shed_threshold:
+                budget = self._registry._budgets.get(service_name)
+                if budget:
+                    old_max = budget._config.max_retries_per_window
+                    new_max = max(10, int(old_max * self._reduction))
+                    budget._config.max_retries_per_window = new_max
+                    self._adjustments[service_name] = self._adjustments.get(service_name, 0) + 1
+                    adjustments.append({
+                        "service_name": service_name,
+                        "old_max": old_max,
+                        "new_max": new_max,
+                        "reason": f"shed_rate={stats['shed_rate']:.2f} exceeded threshold",
+                    })
 
-    def evaluate(self) -> None:
-        stats = self._monitor._pool.stats()
-        if (self._state == StormCircuitState.CLOSED
-                and stats["rejection_rate"] >= self._open_threshold):
-            self._state = StormCircuitState.OPEN
-            self._opened_at = time.time()
-
-    def state(self) -> StormCircuitState:
-        return self._state
+        return adjustments
 ```
 
 ## Solution 6: Retry Budget Dashboard
@@ -337,41 +328,38 @@ import time
 
 class RetryBudgetDashboard:
     """
-    Combines pool stats, pressure monitor, and circuit breaker state
-    into a single retry infrastructure operational view.
+    Combines budget statistics, storm detection, and adjustment history
+    into a single reliability operations view.
     """
 
     def __init__(
         self,
-        pool: RetryBudgetTokenPool,
-        monitor: RetryPressureMonitor,
-        circuit_breaker: RetryStormCircuitBreaker,
-    ) -> None:
-        self._pool = pool
-        self._monitor = monitor
-        self._circuit_breaker = circuit_breaker
+        registry: RetryBudgetRegistry,
+        storm_detector: RetryStormDetector,
+        adjuster: AdaptiveRetryBudgetAdjuster,
+    ):
+        self._registry = registry
+        self._detector = storm_detector
+        self._adjuster = adjuster
 
     def render(self) -> dict:
-        self._circuit_breaker.evaluate()
-        stats = self._pool.stats()
-        alerts = self._monitor.check()
-
         return {
             "generated_at": time.time(),
-            "retry_budget": stats,
-            "circuit_breaker_state": self._circuit_breaker.state().value,
-            "active_alerts": alerts,
+            "service_budgets": self._registry.all_stats(),
+            "active_storms": self._detector.check(),
+            "budget_adjustments": dict(self._adjuster._adjustments),
         }
 ```
 
 ## Comparison
 
-| Approach | Token Pool | Per-Caller Limit | Retry Gating | Storm Detection | Circuit Breaker |
+| Approach | Window Rate Limit | Token Bucket | Storm Detection | Adaptive Reduction | Dashboard |
 |---|---|---|---|---|---|
-| RetryBudgetTokenPool | Yes (leaky bucket) | Yes | No | No | No |
-| BudgetControlledRetryExecutor | Via pool | Via pool | Yes | No | No |
-| RetryPressureMonitor | No | No | No | Yes | No |
-| RetryStormCircuitBreaker | No | No | No | Via monitor | Yes |
-| RetryBudgetDashboard | No | No | No | No | Via breaker |
+| RetryBudgetState | Yes (sliding) | Yes (burst) | No | No | No |
+| RetryBudgetRegistry | Via state | Via state | No | No | No |
+| BudgetAwareRetryExecutor | Via registry | Via registry | No | No | No |
+| RetryStormDetector | No | No | Yes (ratio+duration) | No | No |
+| AdaptiveRetryBudgetAdjuster | No | No | No | Yes | No |
+| RetryBudgetDashboard | No | No | No | No | Yes |
 
-**Best for production**: Set `total_budget` to 10–20% of your peak concurrent request volume — if you handle 500 concurrent requests at peak, a budget of 50–100 retry tokens is appropriate. Use `per_caller_share=0.10` to prevent any single session from consuming more than 10% of the pool. Set `refill_rate_per_second` to match your provider's recovery rate after incidents — if your provider recovers in 30 seconds, refilling 5 tokens/second ensures the budget is full again within that window. Open the circuit breaker at 20% rejection rate — by that point, retries are making things worse rather than helping recovery.
+**Best for production**: Set `max_retry_rate_per_second=5` and `burst_capacity=10` as fleet-wide defaults — these values allow brief bursts without sustaining storm-level retry rates. Apply jitter with `jitter_factor=0.3` to desynchronize retries across agent instances: synchronized retries are the root cause of storms even when individual instance retry counts are low. Alert when `shed_rate` exceeds 30% for any service: this means the budget is being actively used as a load limiter rather than as a safety net, indicating the service is under sustained pressure that requires investigation rather than retries.
