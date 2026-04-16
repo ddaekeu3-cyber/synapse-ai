@@ -1,303 +1,280 @@
 ---
 title: "Agent Doesn't Implement Speculative Tool Prefetching"
-description: "Agents that execute tools strictly sequentially — waiting for the LLM to emit a tool call, dispatching it, returning the result, then asking the LLM for the next step — waste wall-clock time on round-trips that could be overlapped. When the agent's workflow has predictable tool sequences, prefetch the next likely tool result while the LLM is generating its response to the current result, hiding tool latency behind LLM latency."
+description: "Agents that wait for the LLM to explicitly request each tool call before starting the next one serialize what could be parallelized: while the LLM is processing the result of tool A, tool B — which is almost certainly needed next — sits idle. Implement speculative tool prefetching that predicts likely next tool calls based on current context and begins executing them before the LLM explicitly asks, cancelling unused prefetches and returning prefetched results instantly when confirmed."
 date: 2026-04-16
 difficulty: advanced
 category: performance
 slug: agent-doesnt-implement-speculative-tool-prefetching
-tags: [speculative-execution, tool-prefetching, latency-hiding, pipeline-parallelism, workflow-optimization, agentic-performance]
+tags: [speculative-execution, prefetching, latency-hiding, tool-parallelism, prediction, pipeline-optimization]
 symptoms:
-  - "Agent wall-clock time equals sum of all LLM + tool round-trips even when tools are independent"
-  - "High-latency tools (web search, code execution) are always on the critical path"
-  - "Tool call sequences that nearly always occur together are never parallelized"
-  - "No measurement of how much time is spent waiting for tools vs. waiting for LLM"
-  - "Sequential execution even when the agent's next tool call is highly predictable"
+  - "Tool call latency adds up serially even though most calls are predictable from context"
+  - "LLM always requests the same sequence of tools for a given intent — but waits between each"
+  - "No measurement of how often the next tool call is predictable from the current state"
+  - "Prefetch opportunity rate unknown — cannot quantify the latency hiding potential"
+  - "P99 response latency dominated by sequential tool round-trips"
 ---
 
 ## Why This Happens
 
-LLM inference and tool execution are both high-latency operations. A sequential agent waits for the LLM to emit a tool call, waits for the tool to execute, feeds the result back, and waits for the LLM again. When certain tool sequences are highly predictable — a web search almost always followed by a summarization lookup, or a code execution almost always followed by a lint check — the second tool can be prefetched while the LLM processes the first tool's result. The prefetch is discarded if the prediction was wrong; the result is served instantly if the prediction was correct. Prefetching is most valuable when tool latency exceeds LLM generation latency.
+Sequential tool dispatch is the default because the LLM decides what to call next after seeing each result. But many agent workflows are highly predictable: a weather query almost always follows a location lookup; a product detail fetch almost always follows a search result; a user profile load almost always precedes a permission check. Speculative prefetching starts these predicted calls in the background while the LLM processes the current result. If the prediction is correct, the result is ready instantly. If wrong, the prefetch is cancelled (for cancellable operations) or the result is discarded.
 
-## Solution 1: Tool Sequence Predictor
+## Solution 1: Prefetch Prediction Rule
 
 ```python
-import time
-from collections import defaultdict
 from dataclasses import dataclass, field
-from threading import Lock
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 
 @dataclass
-class ToolTransitionRecord:
-    from_tool: str
-    to_tool: str
-    count: int = 0
-    last_seen: float = field(default_factory=time.time)
-
-
-class ToolSequencePredictor:
+class PrefetchPredictionRule:
     """
-    Learns tool transition probabilities from observed sequences.
-    Predicts which tool is most likely to follow the current one.
+    Declares that after tool `trigger_tool` completes,
+    `predicted_tool` is likely to be called next.
     """
-
-    def __init__(self, min_confidence: float = 0.60, min_observations: int = 5):
-        self._transitions: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        self._lock = Lock()
-        self._min_confidence = min_confidence
-        self._min_observations = min_observations
-
-    def record_transition(self, from_tool: str, to_tool: str) -> None:
-        with self._lock:
-            self._transitions[from_tool][to_tool] += 1
-
-    def predict_next(self, current_tool: str) -> Optional[Tuple[str, float]]:
-        """Returns (predicted_tool, confidence) or None if prediction is uncertain."""
-        with self._lock:
-            following = self._transitions.get(current_tool, {})
-            total = sum(following.values())
-            if total < self._min_observations:
-                return None
-            best_tool = max(following, key=lambda t: following[t])
-            confidence = following[best_tool] / total
-            if confidence < self._min_confidence:
-                return None
-            return best_tool, round(confidence, 3)
-
-    def top_sequences(self, top_n: int = 10) -> List[dict]:
-        with self._lock:
-            results = []
-            for from_tool, successors in self._transitions.items():
-                total = sum(successors.values())
-                for to_tool, count in successors.items():
-                    results.append({
-                        "from_tool": from_tool,
-                        "to_tool": to_tool,
-                        "count": count,
-                        "confidence": round(count / total, 3),
-                    })
-            return sorted(results, key=lambda r: r["count"], reverse=True)[:top_n]
+    trigger_tool: str
+    predicted_tool: str
+    confidence: float = 0.8          # 0.0–1.0; only prefetch if above threshold
+    arg_extractor: Optional[Callable[[Any], Dict[str, Any]]] = None
+    # Extracts args for predicted_tool from trigger_tool's result.
+    # If None, prefetch is started with no args (must be provided on confirm).
+    description: str = ""
 ```
 
-## Solution 2: Prefetch Cache
+## Solution 2: Prefetch Request
 
 ```python
 import asyncio
 import time
-from typing import Any, Dict, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 
 
-class PrefetchEntry:
-    def __init__(self, tool_name: str, args_key: str):
-        self.tool_name = tool_name
-        self.args_key = args_key
-        self.future: asyncio.Future = asyncio.get_event_loop().create_future()
-        self.created_at: float = time.time()
-        self.hit: bool = False
+@dataclass
+class PrefetchRequest:
+    tool_name: str
+    args: Dict[str, Any]
+    triggered_by: str              # which tool result triggered this prefetch
+    started_at: float = field(default_factory=time.time)
+    task: Optional[asyncio.Task] = field(default=None, repr=False)
+    result: Any = None
+    error: Optional[str] = None
+    completed: bool = False
+    cancelled: bool = False
+    used: bool = False
 
-
-class PrefetchCache:
-    """
-    Holds in-flight prefetch futures keyed by (tool_name, args_key).
-    A cache hit returns the awaitable future immediately.
-    Prefetches expire if not consumed within the TTL.
-    """
-
-    def __init__(self, ttl_seconds: float = 30.0):
-        self._entries: Dict[Tuple[str, str], PrefetchEntry] = {}
-        self._ttl = ttl_seconds
-
-    def put(self, tool_name: str, args_key: str) -> PrefetchEntry:
-        self._evict_stale()
-        entry = PrefetchEntry(tool_name, args_key)
-        self._entries[(tool_name, args_key)] = entry
-        return entry
-
-    def get(self, tool_name: str, args_key: str) -> Optional[PrefetchEntry]:
-        self._evict_stale()
-        entry = self._entries.get((tool_name, args_key))
-        if entry:
-            entry.hit = True
-        return entry
-
-    def discard(self, tool_name: str, args_key: str) -> None:
-        self._entries.pop((tool_name, args_key), None)
-
-    def _evict_stale(self) -> None:
-        now = time.time()
-        stale = [k for k, e in self._entries.items() if now - e.created_at > self._ttl]
-        for k in stale:
-            self._entries.pop(k, None)
-
-    def stats(self) -> dict:
-        return {"active_prefetches": len(self._entries)}
+    @property
+    def latency_ms(self) -> float:
+        return round((time.time() - self.started_at) * 1000, 2)
 ```
 
-## Solution 3: Speculative Prefetch Executor
+## Solution 3: Speculative Prefetch Engine
 
 ```python
 import asyncio
-import hashlib
-import json
-from typing import Any, Callable, Dict, Optional
+import time
+from typing import Any, Callable, Dict, List, Optional
 
 
-class SpeculativePrefetchExecutor:
+class SpeculativePrefetchEngine:
     """
-    After each tool call completes, predicts the next tool and starts
-    executing it speculatively. If the prediction is correct, the result
-    is returned immediately from the prefetch cache.
+    Maintains a set of in-flight speculative tool calls.
+    On trigger_tool completion, starts predicted tool calls.
+    On confirm, returns the already-completed result or awaits it.
+    On mismatch, cancels in-flight prefetches.
     """
 
     def __init__(
         self,
-        predictor: ToolSequencePredictor,
-        cache: PrefetchCache,
+        rules: List[PrefetchPredictionRule],
+        min_confidence: float = 0.7,
     ):
-        self._predictor = predictor
-        self._cache = cache
-        self._tool_registry: Dict[str, Callable] = {}
+        self._rules: Dict[str, List[PrefetchPredictionRule]] = {}
+        for rule in rules:
+            self._rules.setdefault(rule.trigger_tool, []).append(rule)
+        self._min_confidence = min_confidence
+        self._prefetches: Dict[str, PrefetchRequest] = {}
+        self._hits = 0
+        self._misses = 0
+        self._total_prefetches = 0
 
-    def register_tool(self, tool_name: str, tool_fn: Callable) -> None:
-        self._tool_registry[tool_name] = tool_fn
+    def on_tool_complete(
+        self,
+        tool_name: str,
+        result: Any,
+        tool_registry: Dict[str, Callable],
+    ) -> List[str]:
+        """
+        Called after a tool completes. Starts eligible prefetches.
+        Returns list of tool names prefetched.
+        """
+        started = []
+        for rule in self._rules.get(tool_name, []):
+            if rule.confidence < self._min_confidence:
+                continue
+            args = {}
+            if rule.arg_extractor:
+                try:
+                    args = rule.arg_extractor(result) or {}
+                except Exception:
+                    continue
+            tool_fn = tool_registry.get(rule.predicted_tool)
+            if not tool_fn:
+                continue
 
-    @staticmethod
-    def _args_key(kwargs: dict) -> str:
+            req = PrefetchRequest(
+                tool_name=rule.predicted_tool,
+                args=args,
+                triggered_by=tool_name,
+            )
+            req.task = asyncio.create_task(self._run(req, tool_fn))
+            self._prefetches[rule.predicted_tool] = req
+            self._total_prefetches += 1
+            started.append(rule.predicted_tool)
+
+        return started
+
+    async def _run(self, req: PrefetchRequest, tool_fn: Callable) -> None:
         try:
-            return hashlib.sha256(
-                json.dumps(kwargs, sort_keys=True, default=str).encode()
-            ).hexdigest()[:12]
-        except Exception:
-            return "unknown"
+            req.result = await tool_fn(**req.args)
+            req.completed = True
+        except Exception as exc:
+            req.error = str(exc)
+            req.completed = True
 
-    async def execute_with_prefetch(
+    async def confirm(
         self,
         tool_name: str,
-        tool_fn: Callable,
-        **kwargs: Any,
-    ) -> Any:
-        args_key = self._args_key(kwargs)
+        args: Dict[str, Any],
+    ) -> Optional[Any]:
+        """
+        Called when the LLM confirms it wants tool_name with args.
+        Returns prefetched result if available, else None (caller dispatches normally).
+        """
+        req = self._prefetches.pop(tool_name, None)
+        if req is None:
+            self._misses += 1
+            return None
 
-        # Check if this call was prefetched
-        entry = self._cache.get(tool_name, args_key)
-        if entry is not None:
+        if not req.completed and req.task:
             try:
-                result = await asyncio.wait_for(entry.future, timeout=0.001)
-                return result
+                await asyncio.wait_for(req.task, timeout=0.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass  # future not ready yet — fall through to real call
+                pass
 
-        # Execute normally
-        result = await tool_fn(**kwargs)
+        if req.completed and req.error is None:
+            req.used = True
+            self._hits += 1
+            return req.result
 
-        # Record transition and launch prefetch for predicted next tool
-        self._predictor.record_transition(tool_name, "__end__")
-        prediction = self._predictor.predict_next(tool_name)
-        if prediction:
-            next_tool, confidence = prediction
-            next_fn = self._tool_registry.get(next_tool)
-            if next_fn:
-                self._launch_prefetch(next_tool, next_fn)
+        self._misses += 1
+        return None
 
-        return result
+    def cancel_all(self) -> None:
+        for req in self._prefetches.values():
+            if req.task and not req.task.done():
+                req.task.cancel()
+                req.cancelled = True
+        self._prefetches.clear()
 
-    def _launch_prefetch(self, tool_name: str, tool_fn: Callable) -> None:
-        args_key = "speculative"
-        entry = self._cache.put(tool_name, args_key)
-
-        async def _run():
-            try:
-                result = await tool_fn()
-                entry.future.set_result(result)
-            except Exception as exc:
-                entry.future.set_exception(exc)
-
-        asyncio.ensure_future(_run())
-```
-
-## Solution 4: Prefetch Effectiveness Tracker
-
-```python
-import time
-from typing import List
-
-
-class PrefetchEffectivenessTracker:
-    """
-    Measures the hit rate and latency savings from speculative prefetching.
-    """
-
-    def __init__(self):
-        self._records: List[dict] = []
-
-    def record(
-        self,
-        tool_name: str,
-        was_prefetch_hit: bool,
-        actual_latency_ms: float,
-        prefetch_latency_ms: Optional[float] = None,
-    ) -> None:
-        self._records.append({
-            "ts": time.time(),
-            "tool_name": tool_name,
-            "prefetch_hit": was_prefetch_hit,
-            "actual_latency_ms": actual_latency_ms,
-            "prefetch_latency_ms": prefetch_latency_ms,
-        })
-
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        recent = [r for r in self._records if r["ts"] >= cutoff]
-        if not recent:
-            return {"window_seconds": window_seconds, "calls": 0}
-
-        hits = [r for r in recent if r["prefetch_hit"]]
-        total_saved_ms = sum(
-            r["actual_latency_ms"]
-            for r in hits
-        )
+    def stats(self) -> dict:
+        total = self._hits + self._misses
         return {
-            "window_seconds": window_seconds,
-            "calls": len(recent),
-            "prefetch_hits": len(hits),
-            "hit_rate": round(len(hits) / len(recent), 4),
-            "total_latency_saved_ms": round(total_saved_ms, 1),
-            "avg_latency_saved_ms": round(total_saved_ms / max(len(hits), 1), 1),
+            "total_prefetches_started": self._total_prefetches,
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": round(self._hits / total, 4) if total else 0.0,
+            "pending": len(self._prefetches),
         }
 ```
 
-## Solution 5: Prefetch Decision Policy
+## Solution 4: Prefetch-Aware Tool Dispatcher
 
 ```python
-from dataclasses import dataclass
-from typing import Optional, Set
+from typing import Any, Callable, Dict, Optional
 
 
-@dataclass
-class PrefetchPolicy:
-    enabled: bool = True
-    min_confidence: float = 0.70
-    max_concurrent_prefetches: int = 3
-    excluded_tools: Set[str] = None  # tools that must never be prefetched (e.g., write ops)
-    prefetch_only_tools: Set[str] = None  # whitelist; if set, only these are prefetched
+class PrefetchAwareToolDispatcher:
+    """
+    Integrates the prefetch engine into the tool dispatch path.
+    On each dispatch, checks for a waiting prefetch result before
+    executing the tool normally.
+    """
 
-    def __post_init__(self):
-        if self.excluded_tools is None:
-            self.excluded_tools = set()
-        if self.prefetch_only_tools is None:
-            self.prefetch_only_tools = set()
+    def __init__(
+        self,
+        engine: SpeculativePrefetchEngine,
+        tool_registry: Dict[str, Callable],
+    ):
+        self._engine = engine
+        self._registry = tool_registry
+        self._prefetch_saves_ms: float = 0.0
 
-    def should_prefetch(self, tool_name: str, confidence: float) -> bool:
-        if not self.enabled:
-            return False
-        if confidence < self.min_confidence:
-            return False
-        if tool_name in self.excluded_tools:
-            return False
-        if self.prefetch_only_tools and tool_name not in self.prefetch_only_tools:
-            return False
-        return True
+    async def dispatch(
+        self,
+        tool_name: str,
+        args: Dict[str, Any],
+    ) -> Any:
+        import time
+        start = time.time()
+
+        prefetched = await self._engine.confirm(tool_name, args)
+        if prefetched is not None:
+            elapsed = round((time.time() - start) * 1000, 2)
+            # Result was ready — near-zero latency
+            return prefetched
+
+        tool_fn = self._registry.get(tool_name)
+        if not tool_fn:
+            raise KeyError(f"Tool '{tool_name}' not in registry")
+
+        result = await tool_fn(**args)
+
+        # Trigger prefetches for next likely calls
+        self._engine.on_tool_complete(tool_name, result, self._registry)
+
+        return result
+```
+
+## Solution 5: Prefetch Hit Rate Tracker
+
+```python
+import time
+from threading import Lock
+from typing import List
+
+
+class PrefetchHitRateTracker:
+    """
+    Accumulates prefetch engine stats snapshots over time.
+    Surfaces hit rate trends to validate that prediction rules are useful.
+    """
+
+    def __init__(self):
+        self._snapshots: List[dict] = []
+        self._lock = Lock()
+
+    def record(self, stats: dict) -> None:
+        with self._lock:
+            self._snapshots.append({"ts": time.time(), **stats})
+            if len(self._snapshots) > 5000:
+                self._snapshots.pop(0)
+
+    def trend(self, window_seconds: float = 3600.0) -> dict:
+        cutoff = time.time() - window_seconds
+        with self._lock:
+            recent = [s for s in self._snapshots if s["ts"] >= cutoff]
+        if not recent:
+            return {"window_seconds": window_seconds, "snapshots": 0}
+        avg_hit_rate = sum(s.get("hit_rate", 0) for s in recent) / len(recent)
+        total_hits = sum(s.get("hits", 0) for s in recent)
+        total_misses = sum(s.get("misses", 0) for s in recent)
+        return {
+            "window_seconds": window_seconds,
+            "snapshots": len(recent),
+            "avg_hit_rate": round(avg_hit_rate, 4),
+            "total_hits": total_hits,
+            "total_misses": total_misses,
+        }
 ```
 
 ## Solution 6: Speculative Prefetch Dashboard
@@ -308,38 +285,41 @@ import time
 
 class SpeculativePrefetchDashboard:
     """
-    Combines prediction accuracy, prefetch hit rate, and cache stats
-    into a single operational view.
+    Combines engine stats, hit rate trends, and active prefetch state
+    into a single operational snapshot.
     """
 
     def __init__(
         self,
-        predictor: ToolSequencePredictor,
-        cache: PrefetchCache,
-        tracker: PrefetchEffectivenessTracker,
+        engine: SpeculativePrefetchEngine,
+        tracker: PrefetchHitRateTracker,
     ):
-        self._predictor = predictor
-        self._cache = cache
+        self._engine = engine
         self._tracker = tracker
 
-    def render(self, window_seconds: float = 3600.0) -> dict:
+    def render(self) -> dict:
+        stats = self._engine.stats()
+        self._tracker.record(stats)
         return {
             "generated_at": time.time(),
-            "prefetch_effectiveness": self._tracker.summary(window_seconds),
-            "active_prefetches": self._cache.stats(),
-            "top_sequences": self._predictor.top_sequences(top_n=5),
+            "engine_stats": stats,
+            "hit_rate_trend_1h": self._tracker.trend(3600.0),
+            "active_prefetches": stats.get("pending", 0),
+            "recommendation": (
+                "hit rate healthy"
+                if stats.get("hit_rate", 0) >= 0.6
+                else "consider removing low-confidence rules"
+            ),
         }
 ```
 
 ## Comparison
 
-| Approach | Sequence Learning | Prefetch Cache | Speculative Launch | Hit Rate Tracking | Policy Control |
+| Approach | Rule-Based Prediction | Background Execution | Result Reuse | Cancel on Miss | Hit Rate Tracking |
 |---|---|---|---|---|---|
-| ToolSequencePredictor | Yes (Markov) | No | No | No | No |
-| PrefetchCache | No | Yes (TTL) | No | No | No |
-| SpeculativePrefetchExecutor | Via predictor | Via cache | Yes | No | No |
-| PrefetchEffectivenessTracker | No | No | No | Yes | No |
-| PrefetchDecisionPolicy | No | No | No | No | Yes |
-| SpeculativePrefetchDashboard | No | No | No | No | No |
+| SpeculativePrefetchEngine | Yes | Yes (asyncio.Task) | Yes | Yes | Yes (counters) |
+| PrefetchAwareToolDispatcher | Via engine | Via engine | Via engine | Via engine | No |
+| PrefetchHitRateTracker | No | No | No | No | Yes (over time) |
+| SpeculativePrefetchDashboard | No | No | No | No | Via tracker |
 
-**Best for production**: Start with the `ToolSequencePredictor` in observation-only mode for the first week to build a transition table from real traffic before enabling prefetching. Set `excluded_tools` to include any tool with write side effects (database writes, email sends, file deletes) — a wrong prefetch prediction that executes a write is a correctness bug, not just wasted compute. Monitor `hit_rate` via `PrefetchEffectivenessTracker`: below 0.40 means predictions are wrong more than they're right and prefetching is net-negative (wasted compute and potential side effects). Disable prefetching for tools with sub-50ms latency — the overhead of managing the cache exceeds the savings.
+**Best for production**: Start with `min_confidence=0.75` and only add rules for tool sequences that appear in more than 30% of sessions — speculative calls that hit less than 60% of the time waste compute and add noise to downstream service logs. Use `arg_extractor` only for idempotent read operations; never speculatively execute write or mutation tools. Call `engine.cancel_all()` at conversation end to avoid dangling tasks. Monitor `hit_rate` via `PrefetchHitRateTracker`: if it drops below 50% after a prompt change, the new prompt is producing different tool-call sequences and the rules need updating.
