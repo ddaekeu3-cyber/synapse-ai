@@ -1,561 +1,320 @@
 ---
-layout: solution
 title: "Agent Doesn't Implement Exponential Backoff with Jitter for API Retries"
+description: "Agents that retry failed API calls immediately or at fixed intervals cause thundering-herd problems: all instances retry simultaneously after a service blip, overwhelming the recovering API. Implement exponential backoff with full jitter that randomizes retry intervals across the exponential envelope, respects Retry-After headers from 429 responses, and caps total retry duration to prevent session hangs."
+date: 2026-04-16
+difficulty: intermediate
 category: reliability
-description: "Agents that retry immediately on failure cause thundering-herd problems and get banned by rate limiters. These patterns show how to implement exponential backoff with jitter so retries are safe, respectful, and effective."
-tags: [reliability, retry, backoff, jitter, rate-limit, anthropic]
+slug: agent-doesnt-implement-exponential-backoff-with-jitter-for-api-retries
+tags: [exponential-backoff, jitter, retry-strategy, rate-limiting, thundering-herd, resilience]
+symptoms:
+  - "All agent instances retry simultaneously after a transient API failure, re-triggering the outage"
+  - "Fixed 1-second retry interval causes 429 cascade when hundreds of sessions retry at once"
+  - "Agent ignores Retry-After header from 429 responses and retries too early"
+  - "Retry loop runs indefinitely — a permanent API error hangs the session for minutes"
+  - "No distinction between retryable errors (429, 503) and non-retryable ones (400, 401)"
 ---
 
-## Problem
+## Why This Happens
 
-An agent that retries a failed API call immediately — or at fixed intervals — amplifies the very problem it tries to solve. A 429 rate-limit error followed by ten instant retries generates ten more 429s. Exponential backoff with jitter spreads retries across time so bursts dissipate, servers recover, and agents self-heal without worsening load.
+The simplest retry is `await asyncio.sleep(1); await api_call()` in a loop. This creates a thundering herd: every instance that received the same 503 at the same time retries at t+1s, t+2s, t+3s — all in synchrony. Exponential backoff spreads retries out exponentially (1s, 2s, 4s, 8s…), and full jitter randomizes each delay within the exponential envelope (0–1s, 0–2s, 0–4s…), ensuring no two instances retry at exactly the same moment. Retry-After header compliance ensures the agent does not retry before the server has explicitly said it is ready.
 
----
-
-### Option 1: Basic Exponential Backoff with Full Jitter
-
-Add random jitter across the full backoff window — the most effective retry strategy against synchronized retry storms.
+## Solution 1: Retry Policy
 
 ```python
-import time
-import random
-import anthropic
-from anthropic import RateLimitError, APIStatusError, APIConnectionError
-
-client = anthropic.Anthropic()
-
-def exponential_backoff_with_jitter(
-    attempt: int,
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-    multiplier: float = 2.0,
-) -> float:
-    """Full jitter: random value in [0, min(max_delay, base * 2^attempt)]."""
-    cap = min(max_delay, base_delay * (multiplier ** attempt))
-    return random.uniform(0, cap)
-
-def call_with_retry(
-    prompt: str,
-    model: str = "claude-sonnet-4-6",
-    max_tokens: int = 1024,
-    max_attempts: int = 5,
-) -> str:
-    last_error = None
-    for attempt in range(max_attempts):
-        try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.content[0].text
-
-        except RateLimitError as e:
-            delay = exponential_backoff_with_jitter(attempt, base_delay=2.0, max_delay=60.0)
-            print(f"[rate limit: attempt {attempt+1}/{max_attempts}, sleeping {delay:.1f}s]")
-            last_error = e
-
-        except APIConnectionError as e:
-            delay = exponential_backoff_with_jitter(attempt, base_delay=1.0, max_delay=30.0)
-            print(f"[connection error: attempt {attempt+1}/{max_attempts}, sleeping {delay:.1f}s]")
-            last_error = e
-
-        except APIStatusError as e:
-            if e.status_code in (500, 502, 503, 529):
-                delay = exponential_backoff_with_jitter(attempt, base_delay=5.0, max_delay=120.0)
-                print(f"[server error {e.status_code}: attempt {attempt+1}/{max_attempts}, sleeping {delay:.1f}s]")
-                last_error = e
-            else:
-                raise   # 4xx client errors don't retry
-
-        if attempt < max_attempts - 1:
-            time.sleep(exponential_backoff_with_jitter(attempt))
-
-    raise RuntimeError(f"Failed after {max_attempts} attempts: {last_error}")
-
-if __name__ == "__main__":
-    result = call_with_retry("What is the capital of France?", max_attempts=3)
-    print(result)
-
-# Expected Token Savings: Jitter prevents retry storms that waste tokens on redundant 429-error responses
-# Environment: ANTHROPIC_API_KEY
-```
-
----
-
-### Option 2: Retry with Respect for Retry-After Headers
-
-Parse the `retry-after` header from rate-limit responses and honor it before falling back to backoff.
-
-```python
-import time
-import random
-import anthropic
-from anthropic import RateLimitError, APIStatusError
-
-client = anthropic.Anthropic()
-
-def parse_retry_after(error: Exception) -> float | None:
-    """Extract Retry-After value from error headers if present."""
-    headers = getattr(getattr(error, "response", None), "headers", {})
-    raw = headers.get("retry-after") or headers.get("Retry-After")
-    if raw:
-        try:
-            return float(raw)
-        except (ValueError, TypeError):
-            pass
-    return None
-
-def get_delay(attempt: int, error: Exception, base: float = 1.0, max_delay: float = 120.0) -> float:
-    # Honor server-provided retry-after if present
-    server_delay = parse_retry_after(error)
-    if server_delay is not None:
-        jitter = random.uniform(0, min(2.0, server_delay * 0.1))
-        delay = server_delay + jitter
-        print(f"  [using server retry-after: {server_delay}s + {jitter:.2f}s jitter]")
-        return delay
-
-    # Fall back to exponential backoff with full jitter
-    cap = min(max_delay, base * (2 ** attempt))
-    return random.uniform(0, cap)
-
-def retry_respecting_headers(
-    prompt: str,
-    max_attempts: int = 5,
-    model: str = "claude-sonnet-4-6",
-) -> str:
-    for attempt in range(max_attempts):
-        try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            if attempt > 0:
-                print(f"[succeeded on attempt {attempt+1}]")
-            return response.content[0].text
-
-        except (RateLimitError, APIStatusError) as e:
-            if isinstance(e, APIStatusError) and e.status_code not in (429, 500, 502, 503, 529):
-                raise
-            delay = get_delay(attempt, e)
-            print(f"[retry {attempt+1}/{max_attempts}: sleeping {delay:.2f}s]")
-            if attempt < max_attempts - 1:
-                time.sleep(delay)
-
-    raise RuntimeError(f"Exhausted {max_attempts} attempts")
-
-if __name__ == "__main__":
-    result = retry_respecting_headers("Explain eventual consistency.", max_attempts=4)
-    print(result[:300])
-
-# Expected Token Savings: Honoring retry-after prevents wasted calls during server-specified cooldown periods
-# Environment: ANTHROPIC_API_KEY
-```
-
----
-
-### Option 3: Async Retry with Decorrelated Jitter
-
-Use decorrelated jitter (AWS-recommended) which produces better backoff distributions than full jitter for high-concurrency scenarios.
-
-```python
-import asyncio
-import random
-import anthropic
-from anthropic import RateLimitError, APIStatusError, APIConnectionError
-
-client = anthropic.AsyncAnthropic()
-
-def decorrelated_jitter(attempt: int, prev_sleep: float,
-                         base: float = 1.0, max_delay: float = 60.0) -> float:
-    """Decorrelated jitter: sleep = random(base, prev_sleep * 3), capped at max_delay."""
-    return min(max_delay, random.uniform(base, prev_sleep * 3))
-
-RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 529}
-
-async def async_call_with_retry(
-    prompt: str,
-    model: str = "claude-sonnet-4-6",
-    max_tokens: int = 1024,
-    max_attempts: int = 6,
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-) -> str:
-    sleep = base_delay
-    for attempt in range(max_attempts):
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.content[0].text
-
-        except RateLimitError:
-            sleep = decorrelated_jitter(attempt, sleep, base_delay, max_delay)
-            print(f"[rate limit: attempt {attempt+1}, sleep={sleep:.2f}s]")
-
-        except APIConnectionError:
-            sleep = decorrelated_jitter(attempt, sleep, base_delay / 2, max_delay / 2)
-            print(f"[conn error: attempt {attempt+1}, sleep={sleep:.2f}s]")
-
-        except APIStatusError as e:
-            if e.status_code not in RETRYABLE_STATUS_CODES:
-                raise
-            sleep = decorrelated_jitter(attempt, sleep, base_delay * 2, max_delay)
-            print(f"[status {e.status_code}: attempt {attempt+1}, sleep={sleep:.2f}s]")
-
-        if attempt < max_attempts - 1:
-            await asyncio.sleep(sleep)
-
-    raise RuntimeError(f"Failed after {max_attempts} attempts")
-
-async def run_parallel_with_retry(prompts: list[str]) -> list[str]:
-    """Run multiple prompts concurrently, each with independent retry."""
-    tasks = [async_call_with_retry(p) for p in prompts]
-    return await asyncio.gather(*tasks, return_exceptions=True)
-
-if __name__ == "__main__":
-    async def main():
-        prompts = [
-            "What is a hash map?",
-            "Explain TCP handshake.",
-            "What is CAP theorem?",
-        ]
-        results = await run_parallel_with_retry(prompts)
-        for p, r in zip(prompts, results):
-            print(f"Q: {p}")
-            if isinstance(r, Exception):
-                print(f"  ERROR: {r}")
-            else:
-                print(f"  A: {r[:100]}")
-    asyncio.run(main())
-
-# Expected Token Savings: Decorrelated jitter further reduces retry clustering vs full jitter in high-concurrency
-# Environment: ANTHROPIC_API_KEY
-```
-
----
-
-### Option 4: Retry Budget with Per-Error-Class Limits
-
-Enforce a total retry budget so misbehaving callers can't consume infinite retries on persistent failures.
-
-```python
-import asyncio
-import random
-import time
 from dataclasses import dataclass, field
-from collections import defaultdict
-import anthropic
-from anthropic import RateLimitError, APIStatusError, APIConnectionError
+from typing import FrozenSet, Tuple, Type
 
-client = anthropic.AsyncAnthropic()
 
 @dataclass
-class RetryBudget:
-    max_total_retries: int = 20
-    max_retries_per_error: dict = field(default_factory=lambda: {
-        "rate_limit": 8,
-        "server_error": 5,
-        "connection": 4,
-    })
-    _used: dict = field(default_factory=lambda: defaultdict(int))
-    _total: int = 0
+class RetryPolicy:
+    max_attempts: int = 4
+    base_delay_seconds: float = 1.0
+    max_delay_seconds: float = 60.0
+    multiplier: float = 2.0
+    jitter: str = "full"          # "full" | "equal" | "none"
+    max_total_seconds: float = 120.0
+    retryable_status_codes: FrozenSet[int] = field(
+        default_factory=lambda: frozenset({429, 500, 502, 503, 504})
+    )
+    retryable_exceptions: Tuple[Type[Exception], ...] = field(
+        default_factory=lambda: (TimeoutError, ConnectionError, OSError)
+    )
 
-    def consume(self, error_class: str) -> bool:
-        """Returns True if retry is allowed."""
-        if self._total >= self.max_total_retries:
-            return False
-        if self._used[error_class] >= self.max_retries_per_error.get(error_class, 3):
-            return False
-        self._used[error_class] += 1
-        self._total += 1
-        return True
+    def is_retryable_status(self, status_code: int) -> bool:
+        return status_code in self.retryable_status_codes
 
-    def summary(self) -> str:
-        return f"total={self._total}/{self.max_total_retries}, " + \
-               ", ".join(f"{k}={v}" for k, v in self._used.items())
+    def is_retryable_exception(self, exc: Exception) -> bool:
+        return isinstance(exc, self.retryable_exceptions)
+```
 
-def classify_error(e: Exception) -> str | None:
-    if isinstance(e, RateLimitError):
-        return "rate_limit"
-    if isinstance(e, APIConnectionError):
-        return "connection"
-    if isinstance(e, APIStatusError) and e.status_code in (500, 502, 503, 529):
-        return "server_error"
-    return None  # non-retryable
+## Solution 2: Jittered Delay Calculator
 
-async def budgeted_retry(
-    prompt: str,
-    budget: RetryBudget,
-    model: str = "claude-sonnet-4-6",
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-) -> str:
-    attempt = 0
-    while True:
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.content[0].text
+```python
+import random
+from typing import Optional
 
-        except Exception as e:
-            error_class = classify_error(e)
-            if error_class is None:
-                raise  # non-retryable
 
-            if not budget.consume(error_class):
-                raise RuntimeError(
-                    f"Retry budget exhausted ({budget.summary()}): {e}"
-                )
+class JitteredDelayCalculator:
+    """
+    Computes the retry delay for a given attempt number using
+    exponential backoff with configurable jitter strategy.
 
-            cap = min(max_delay, base_delay * (2 ** attempt))
+    full jitter:  uniform(0, min(cap, base * mult^n))
+    equal jitter: half-fixed + half-random: cap/2 + uniform(0, cap/2)
+    none:         min(cap, base * mult^n)
+    """
+
+    def __init__(self, policy: RetryPolicy):
+        self._policy = policy
+
+    def delay(self, attempt: int, retry_after: Optional[float] = None) -> float:
+        """
+        attempt: 0-indexed attempt number (0 = first retry)
+        retry_after: value from Retry-After header in seconds, if present
+        """
+        if retry_after is not None and retry_after > 0:
+            return retry_after + random.uniform(0, 0.5)
+
+        p = self._policy
+        expo = p.base_delay_seconds * (p.multiplier ** attempt)
+        cap = min(expo, p.max_delay_seconds)
+
+        if p.jitter == "full":
             delay = random.uniform(0, cap)
-            print(f"[{error_class}: attempt {attempt+1}, budget {budget.summary()}, sleep {delay:.2f}s]")
-            await asyncio.sleep(delay)
-            attempt += 1
+        elif p.jitter == "equal":
+            delay = cap / 2.0 + random.uniform(0, cap / 2.0)
+        else:
+            delay = cap
 
-async def run_with_shared_budget():
-    budget = RetryBudget(max_total_retries=15)
-    prompts = [
-        "Explain distributed consensus algorithms.",
-        "What is the Raft consensus protocol?",
-        "Compare Raft vs Paxos.",
-    ]
-    tasks = [budgeted_retry(p, budget) for p in prompts]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    print(f"\n[Final budget: {budget.summary()}]")
-    for p, r in zip(prompts, results):
-        status = "OK" if not isinstance(r, Exception) else f"FAIL: {r}"
-        print(f"  {p[:40]}: {status}")
-    return results
-
-if __name__ == "__main__":
-    asyncio.run(run_with_shared_budget())
-
-# Expected Token Savings: Budget prevents runaway retry loops from consuming all tokens on persistent failures
-# Environment: ANTHROPIC_API_KEY
+        return round(delay, 3)
 ```
 
----
+## Solution 3: Retry-After Header Parser
 
-### Option 5: Adaptive Backoff Tuned by Observed Success Rate
+```python
+import email.utils
+import re
+import time
+from typing import Optional
 
-Track recent success/failure rates and increase or decrease backoff dynamically.
+
+class RetryAfterParser:
+    """
+    Parses the Retry-After header from HTTP responses.
+    Supports both integer seconds and HTTP-date formats.
+    """
+
+    @staticmethod
+    def parse(header_value: Optional[str]) -> Optional[float]:
+        if not header_value:
+            return None
+        header_value = header_value.strip()
+
+        if re.fullmatch(r"\d+", header_value):
+            return float(header_value)
+
+        try:
+            retry_at = email.utils.parsedate_to_datetime(header_value).timestamp()
+            delay = retry_at - time.time()
+            return max(0.0, delay)
+        except Exception:
+            return None
+```
+
+## Solution 4: Exponential Backoff Retry Executor
 
 ```python
 import asyncio
-import random
 import time
-from collections import deque
-from dataclasses import dataclass, field
-import anthropic
-from anthropic import RateLimitError, APIStatusError
+from typing import Any, Callable, Optional
 
-client = anthropic.AsyncAnthropic()
 
-@dataclass
-class AdaptiveBackoff:
-    window_size: int = 20
-    base_delay: float = 0.5
-    max_delay: float = 60.0
-    _history: deque = field(default_factory=lambda: deque(maxlen=20))
-    _current_multiplier: float = 1.0
+class ExponentialBackoffRetryExecutor:
+    """
+    Executes an async callable with exponential backoff + full jitter retries.
+    Respects Retry-After headers returned via exception attributes.
+    Aborts if total elapsed time exceeds policy.max_total_seconds.
+    """
 
-    def record(self, success: bool):
-        self._history.append(1 if success else 0)
-        if len(self._history) >= 5:
-            rate = sum(self._history) / len(self._history)
-            if rate > 0.9:
-                # High success: slowly reduce multiplier
-                self._current_multiplier = max(1.0, self._current_multiplier * 0.8)
-            elif rate < 0.5:
-                # Many failures: increase multiplier
-                self._current_multiplier = min(8.0, self._current_multiplier * 1.5)
+    def __init__(
+        self,
+        policy: RetryPolicy,
+        calculator: JitteredDelayCalculator,
+        parser: RetryAfterParser,
+    ):
+        self._policy = policy
+        self._calc = calculator
+        self._parser = parser
+        self._attempts_made = 0
+        self._total_delay_seconds = 0.0
 
-    def get_delay(self, attempt: int) -> float:
-        cap = min(self.max_delay, self.base_delay * self._current_multiplier * (2 ** attempt))
-        return random.uniform(0, cap)
+    async def execute(self, fn: Callable, *args: Any, **kwargs: Any) -> Any:
+        start = time.time()
+        last_exc: Optional[Exception] = None
 
-    @property
-    def success_rate(self) -> float:
-        if not self._history:
-            return 1.0
-        return sum(self._history) / len(self._history)
+        for attempt in range(self._policy.max_attempts):
+            self._attempts_made += 1
+            if time.time() - start >= self._policy.max_total_seconds:
+                raise TimeoutError(
+                    f"Retry budget exhausted after {time.time()-start:.1f}s"
+                ) from last_exc
 
-backoff = AdaptiveBackoff()
+            try:
+                return await fn(*args, **kwargs)
+            except Exception as exc:
+                last_exc = exc
+                retry_after = self._extract_retry_after(exc)
+                retryable = (
+                    self._policy.is_retryable_exception(exc)
+                    or self._is_retryable_http_error(exc)
+                )
+                if not retryable:
+                    raise
+                if attempt == self._policy.max_attempts - 1:
+                    break
 
-async def adaptive_call(prompt: str, model: str = "claude-haiku-4-5-20251001",
-                         max_attempts: int = 5) -> str:
-    for attempt in range(max_attempts):
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=256,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            backoff.record(True)
-            return response.content[0].text
-
-        except (RateLimitError, APIStatusError) as e:
-            if isinstance(e, APIStatusError) and e.status_code not in (429, 500, 502, 503):
-                raise
-            backoff.record(False)
-            delay = backoff.get_delay(attempt)
-            print(f"[adaptive: rate={backoff.success_rate:.0%}, "
-                  f"multiplier={backoff._current_multiplier:.1f}, sleep={delay:.2f}s]")
-            if attempt < max_attempts - 1:
+                delay = self._calc.delay(attempt, retry_after)
+                remaining = self._policy.max_total_seconds - (time.time() - start)
+                delay = min(delay, max(0, remaining - 0.1))
+                self._total_delay_seconds += delay
                 await asyncio.sleep(delay)
 
-    raise RuntimeError(f"Failed after {max_attempts} attempts")
+        raise last_exc
 
-async def run_batch(prompts: list[str]) -> list[str]:
-    results = []
-    for p in prompts:
-        try:
-            r = await adaptive_call(p)
-            results.append(r)
-        except Exception as e:
-            results.append(f"ERROR: {e}")
-    print(f"\n[final success rate: {backoff.success_rate:.0%}, "
-          f"multiplier: {backoff._current_multiplier:.2f}]")
-    return results
+    def _extract_retry_after(self, exc: Exception) -> Optional[float]:
+        raw = getattr(exc, "retry_after_seconds", None)
+        if raw is not None:
+            return float(raw)
+        headers = getattr(exc, "headers", None) or {}
+        return self._parser.parse(headers.get("Retry-After"))
 
-if __name__ == "__main__":
-    async def main():
-        prompts = [f"Give me a one-sentence fact about topic #{i}" for i in range(6)]
-        results = await run_batch(prompts)
-        for p, r in zip(prompts, results):
-            print(f"  {p}: {r[:80]}")
-    asyncio.run(main())
+    def _is_retryable_http_error(self, exc: Exception) -> bool:
+        status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+        if status is not None:
+            return self._policy.is_retryable_status(int(status))
+        return False
 
-# Expected Token Savings: Reduces backoff overhead during healthy periods; self-heals during bursts
-# Environment: ANTHROPIC_API_KEY
+    def stats(self) -> dict:
+        return {
+            "attempts_made": self._attempts_made,
+            "total_delay_seconds": round(self._total_delay_seconds, 3),
+        }
 ```
 
----
+## Solution 5: Per-Endpoint Retry Manager
 
-### Option 6: Retry Middleware with Prometheus Metrics
+```python
+from typing import Any, Callable, Dict
 
-Wrap all API calls in a retry middleware that emits metrics for retry rate, latency, and error class.
+
+class PerEndpointRetryManager:
+    """
+    Maintains separate retry policies for each registered endpoint.
+    Allows different APIs to have different backoff profiles.
+    """
+
+    def __init__(self):
+        self._policies: Dict[str, RetryPolicy] = {}
+        self._parser = RetryAfterParser()
+
+    def register(self, endpoint: str, policy: RetryPolicy) -> None:
+        self._policies[endpoint] = policy
+
+    def get_policy(self, endpoint: str) -> RetryPolicy:
+        return self._policies.get(endpoint, RetryPolicy())
+
+    def _make_executor(self, policy: RetryPolicy) -> ExponentialBackoffRetryExecutor:
+        return ExponentialBackoffRetryExecutor(
+            policy, JitteredDelayCalculator(policy), self._parser
+        )
+
+    async def call(
+        self,
+        endpoint: str,
+        fn: Callable,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        executor = self._make_executor(self.get_policy(endpoint))
+        return await executor.execute(fn, *args, **kwargs)
+```
+
+## Solution 6: Retry Metrics Collector
 
 ```python
 import time
-import random
-import asyncio
-from dataclasses import dataclass, field
 from collections import defaultdict
-import anthropic
-from anthropic import RateLimitError, APIStatusError, APIConnectionError
+from dataclasses import dataclass, field
+from typing import Dict, List
 
-client = anthropic.AsyncAnthropic()
 
 @dataclass
-class RetryMetrics:
-    """Simple Prometheus-style counter/histogram."""
-    _counters: dict = field(default_factory=lambda: defaultdict(int))
-    _durations: list = field(default_factory=list)
+class RetryMetricEvent:
+    endpoint: str
+    attempts: int
+    succeeded: bool
+    total_delay_seconds: float
+    timestamp: float = field(default_factory=time.time)
 
-    def inc(self, name: str, labels: dict = None):
-        key = name + ("_" + "_".join(f"{k}={v}" for k, v in (labels or {}).items()) if labels else "")
-        self._counters[key] += 1
 
-    def observe(self, name: str, value: float, labels: dict = None):
-        self._durations.append((name, value, labels or {}))
+class RetryMetricsCollector:
+    """
+    Accumulates retry events and computes per-endpoint retry statistics.
+    High avg_attempts on a specific endpoint indicates a chronic reliability issue.
+    """
 
-    def report(self):
-        print("\n=== Retry Metrics ===")
-        for key, count in sorted(self._counters.items()):
-            print(f"  {key}: {count}")
-        if self._durations:
-            durations = [d[1] for d in self._durations]
-            print(f"  call_duration_ms: p50={sorted(durations)[len(durations)//2]*1000:.0f} "
-                  f"max={max(durations)*1000:.0f}")
+    def __init__(self, window_seconds: float = 3600.0):
+        self._events: List[RetryMetricEvent] = []
+        self._window = window_seconds
 
-metrics = RetryMetrics()
+    def record(
+        self,
+        endpoint: str,
+        attempts: int,
+        succeeded: bool,
+        total_delay_seconds: float,
+    ) -> None:
+        self._events.append(RetryMetricEvent(
+            endpoint=endpoint,
+            attempts=attempts,
+            succeeded=succeeded,
+            total_delay_seconds=total_delay_seconds,
+        ))
 
-async def instrumented_retry(
-    prompt: str,
-    model: str = "claude-sonnet-4-6",
-    max_tokens: int = 512,
-    max_attempts: int = 5,
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-) -> str:
-    metrics.inc("api_calls_total")
-    call_start = time.monotonic()
+    def _trim(self) -> None:
+        cutoff = time.time() - self._window
+        self._events = [e for e in self._events if e.timestamp >= cutoff]
 
-    for attempt in range(max_attempts):
-        attempt_start = time.monotonic()
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            metrics.inc("api_calls_success")
-            metrics.observe("call_duration_s", time.monotonic() - call_start)
-            if attempt > 0:
-                metrics.inc("retry_success", {"attempt": str(attempt)})
-            return response.content[0].text
+    def summary(self) -> dict:
+        self._trim()
+        by_endpoint: Dict[str, list] = defaultdict(list)
+        for e in self._events:
+            by_endpoint[e.endpoint].append(e)
 
-        except RateLimitError as e:
-            error_class = "rate_limit"
-            metrics.inc("api_errors_total", {"class": error_class, "attempt": str(attempt)})
-
-        except APIConnectionError as e:
-            error_class = "connection"
-            metrics.inc("api_errors_total", {"class": error_class, "attempt": str(attempt)})
-
-        except APIStatusError as e:
-            if e.status_code not in (429, 500, 502, 503, 529):
-                metrics.inc("api_errors_total", {"class": f"http_{e.status_code}", "attempt": str(attempt)})
-                raise
-            error_class = f"http_{e.status_code}"
-            metrics.inc("api_errors_total", {"class": error_class, "attempt": str(attempt)})
-
-        if attempt < max_attempts - 1:
-            cap = min(max_delay, base_delay * (2 ** attempt))
-            delay = random.uniform(0, cap)
-            metrics.inc("retries_total", {"attempt": str(attempt + 1)})
-            print(f"[retry {attempt+1}/{max_attempts}: sleeping {delay:.2f}s]")
-            await asyncio.sleep(delay)
-
-    metrics.inc("api_calls_exhausted")
-    raise RuntimeError(f"Exhausted {max_attempts} attempts")
-
-async def run_batch_instrumented(prompts: list[str]) -> list[str]:
-    tasks = [instrumented_retry(p) for p in prompts]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    metrics.report()
-    return [r if not isinstance(r, Exception) else f"ERROR: {r}" for r in results]
-
-if __name__ == "__main__":
-    async def main():
-        prompts = ["What is CAP theorem?", "Explain eventual consistency.", "What is Raft?"]
-        results = await run_batch_instrumented(prompts)
-        for p, r in zip(prompts, results):
-            print(f"  {p[:40]}: {r[:80]}")
-    asyncio.run(main())
-
-# Expected Token Savings: Metrics identify which error classes dominate — enables targeted fixes vs. brute retry
-# Environment: ANTHROPIC_API_KEY
+        result = {}
+        for endpoint, events in by_endpoint.items():
+            success = [e for e in events if e.succeeded]
+            result[endpoint] = {
+                "total_calls": len(events),
+                "success_rate": round(len(success) / max(len(events), 1), 4),
+                "avg_attempts": round(
+                    sum(e.attempts for e in events) / max(len(events), 1), 2
+                ),
+                "avg_delay_seconds": round(
+                    sum(e.total_delay_seconds for e in events) / max(len(events), 1), 3
+                ),
+                "max_attempts": max(e.attempts for e in events),
+            }
+        return result
 ```
-
----
 
 ## Comparison
 
-| Option | Jitter Strategy | Retry Budget | Observability | Best For |
-|--------|----------------|--------------|---------------|----------|
-| 1 | Full jitter | Per-call limit | Print only | Simple scripts, quick fixes |
-| 2 | Full jitter + retry-after | Per-call limit | Print only | APIs that return Retry-After headers |
-| 3 | Decorrelated jitter | Per-call limit | Print only | High-concurrency async workloads |
-| 4 | Full jitter | Shared budget | Print only | Multi-agent systems with shared quota |
-| 5 | Adaptive (success-rate driven) | Per-call limit | Print only | Long-running sessions needing self-tuning |
-| 6 | Full jitter | Per-call limit | Prometheus metrics | Production systems needing retry observability |
+| Approach | Jitter Strategy | Retry-After Support | Per-Endpoint Policy | Total Time Cap | Metrics |
+|---|---|---|---|---|---|
+| JitteredDelayCalculator | full / equal / none | Via parameter | No | No | No |
+| ExponentialBackoffRetryExecutor | Via calculator | Yes (auto-parsed) | No | Yes | Yes (per call) |
+| PerEndpointRetryManager | Via policy | Via executor | Yes | Via policy | No |
+| RetryMetricsCollector | No | No | No | No | Yes (fleet-level) |
+
+**Best for production**: Use `jitter="full"` — it provides the best thundering-herd prevention because the entire delay range is randomized. Set `max_total_seconds=120` for LLM API calls and `max_total_seconds=10` for cache lookups (fast-fail and degrade). Always honour `Retry-After` headers from 429 responses — ignoring them is the primary cause of repeat rate-limit violations. Register each downstream API with `PerEndpointRetryManager` so LLM, search, and database calls can each have appropriate `max_attempts` and `max_delay_seconds`. Monitor `RetryMetricsCollector.summary()`: avg_attempts above 1.5 on any endpoint signals a chronic reliability problem that warrants investigation beyond retry tuning.
