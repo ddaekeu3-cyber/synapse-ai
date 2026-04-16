@@ -1,22 +1,22 @@
 ---
 title: "Agent Doesn't Implement Conversation Turn Depth Tracking"
-description: "Agents that do not track how many turns a conversation has consumed before reaching a conclusion have no visibility into efficiency: a task that requires 20 turns to complete is indistinguishable from one that requires 3, and both are counted equally in request metrics. Implement conversation turn depth tracking that counts user and agent turns, identifies high-depth sessions, correlates turn depth with goal completion and token cost, and alerts when sessions are trending toward excessive depth."
+description: "Agents that do not track conversation turn depth have no signal for detecting runaway multi-turn loops, measuring task complexity, or correlating turn count with user satisfaction and cost. Without turn depth metrics, engineers cannot identify sessions where the agent got stuck in a clarification loop, failed to resolve a request within a reasonable number of turns, or produced unexpectedly long conversations that consumed excessive tokens. Implement conversation turn depth tracking with anomaly detection and per-turn cost attribution."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-conversation-turn-depth-tracking
-tags: [turn-depth, conversation-efficiency, session-analytics, turn-count, multi-turn, depth-tracking]
+tags: [turn-depth, conversation-tracking, loop-detection, multi-turn, session-analytics, turn-cost]
 symptoms:
-  - "No metric exists for how many turns a task requires — only total sessions are counted"
-  - "Some sessions consume 10× the tokens of others with no indicator of depth difference"
-  - "Cannot identify which task types require the most back-and-forth before completion"
-  - "No alert when a session is trending toward excessive turn depth without progress"
-  - "Turn count data is unavailable for correlating with user satisfaction or cost"
+  - "No record of how many turns a session took before the user abandoned or the task completed"
+  - "Agent enters clarification loops that consume 20+ turns before timing out — no alert fires"
+  - "Cannot correlate session turn count with user satisfaction or task completion rate"
+  - "Token cost per session is unknown because turns are not individually attributed"
+  - "No maximum turn limit enforced — loops run until context window is exhausted"
 ---
 
 ## Why This Happens
 
-Request-level metrics capture individual turns in isolation. Session-level metrics capture overall success or failure. Neither captures depth: how many exchanges were required between a user request and a satisfying conclusion. Turn depth is the primary driver of cost efficiency — a task that requires 15 turns costs 5× more than one that requires 3, and if both end in success the difference is invisible to request metrics. Tracking turn depth makes inefficiency observable: high-depth sessions identify poorly scoped prompts, tool loops, or task categories where the agent lacks sufficient context to answer in fewer exchanges.
+Turn count is typically implicit: the conversation history list grows with each exchange, but the agent does not record the count as a metric or check it against a threshold. Without explicit tracking, there is no signal for a 30-turn session that indicates the agent is stuck versus a legitimately complex 30-turn research task. Turn depth tracking adds a counter to each session, records cost and latency per turn, checks the count against configured limits, and emits structured events so dashboards can show turn-count distributions, identify anomalous sessions, and correlate depth with outcomes.
 
 ## Solution 1: Turn Record
 
@@ -29,152 +29,175 @@ from typing import Any, Dict, Optional
 
 class TurnRole(str, Enum):
     USER = "user"
-    AGENT = "agent"
+    ASSISTANT = "assistant"
     TOOL = "tool"
-    SYSTEM = "system"
 
 
 @dataclass
 class TurnRecord:
-    turn_index: int
+    session_id: str
+    turn_number: int           # 1-indexed, increments on each user message
     role: TurnRole
-    recorded_at: float = field(default_factory=time.time)
-    token_count: Optional[int] = None
+    started_at: float = field(default_factory=time.time)
+    ended_at: Optional[float] = None
+    input_tokens: int = 0
+    output_tokens: int = 0
     tool_calls_made: int = 0
-    latency_ms: Optional[float] = None
+    cost_usd: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def latency_ms(self) -> Optional[float]:
+        if self.ended_at is None:
+            return None
+        return round((self.ended_at - self.started_at) * 1000, 2)
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
 ```
 
 ## Solution 2: Turn Depth Tracker
 
 ```python
-import threading
 import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 
 class TurnDepthTracker:
     """
-    Tracks the sequence of turns within a single session.
-    Provides turn counts by role and depth statistics.
+    Tracks turn count and per-turn records for a single session.
+    Enforces an optional max turn limit and fires a callback when exceeded.
     """
 
-    def __init__(self, session_id: str):
+    def __init__(
+        self,
+        session_id: str,
+        max_turns: Optional[int] = 50,
+        on_limit_exceeded=None,
+    ):
         self._session_id = session_id
+        self._max_turns = max_turns
+        self._on_limit = on_limit_exceeded
         self._turns: List[TurnRecord] = []
-        self._lock = threading.Lock()
+        self._current_turn: Optional[TurnRecord] = None
         self._started_at = time.time()
 
-    def record_turn(
+    @property
+    def turn_count(self) -> int:
+        return len([t for t in self._turns if t.role == TurnRole.USER])
+
+    def begin_turn(self, role: TurnRole = TurnRole.USER) -> TurnRecord:
+        turn_number = self.turn_count + (1 if role == TurnRole.USER else 0)
+        turn = TurnRecord(
+            session_id=self._session_id,
+            turn_number=turn_number,
+            role=role,
+        )
+        self._current_turn = turn
+        self._turns.append(turn)
+
+        if role == TurnRole.USER and self._max_turns and turn_number > self._max_turns:
+            if self._on_limit:
+                self._on_limit(self._session_id, turn_number, self._max_turns)
+
+        return turn
+
+    def end_turn(
         self,
-        role: TurnRole,
-        token_count: Optional[int] = None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
         tool_calls_made: int = 0,
-        latency_ms: Optional[float] = None,
-        metadata: Optional[dict] = None,
-    ) -> TurnRecord:
-        with self._lock:
-            turn = TurnRecord(
-                turn_index=len(self._turns),
-                role=role,
-                token_count=token_count,
-                tool_calls_made=tool_calls_made,
-                latency_ms=latency_ms,
-                metadata=metadata or {},
-            )
-            self._turns.append(turn)
-            return turn
+        cost_usd: float = 0.0,
+    ) -> Optional[TurnRecord]:
+        if self._current_turn is None:
+            return None
+        self._current_turn.ended_at = time.time()
+        self._current_turn.input_tokens = input_tokens
+        self._current_turn.output_tokens = output_tokens
+        self._current_turn.tool_calls_made = tool_calls_made
+        self._current_turn.cost_usd = cost_usd
+        completed = self._current_turn
+        self._current_turn = None
+        return completed
 
-    def total_turns(self) -> int:
-        with self._lock:
-            return len(self._turns)
+    def is_limit_exceeded(self) -> bool:
+        return self._max_turns is not None and self.turn_count > self._max_turns
 
-    def user_turns(self) -> int:
-        with self._lock:
-            return sum(1 for t in self._turns if t.role == TurnRole.USER)
-
-    def agent_turns(self) -> int:
-        with self._lock:
-            return sum(1 for t in self._turns if t.role == TurnRole.AGENT)
-
-    def total_tokens(self) -> int:
-        with self._lock:
-            return sum(t.token_count or 0 for t in self._turns)
-
-    def total_tool_calls(self) -> int:
-        with self._lock:
-            return sum(t.tool_calls_made for t in self._turns)
-
-    def session_duration_seconds(self) -> float:
-        return round(time.time() - self._started_at, 2)
-
-    def snapshot(self) -> dict:
+    def summary(self) -> dict:
+        user_turns = [t for t in self._turns if t.role == TurnRole.USER]
+        latencies = [t.latency_ms for t in user_turns if t.latency_ms is not None]
+        total_cost = sum(t.cost_usd for t in self._turns)
+        total_tokens = sum(t.total_tokens for t in self._turns)
         return {
             "session_id": self._session_id,
-            "total_turns": self.total_turns(),
-            "user_turns": self.user_turns(),
-            "agent_turns": self.agent_turns(),
-            "total_tokens": self.total_tokens(),
-            "total_tool_calls": self.total_tool_calls(),
-            "session_duration_seconds": self.session_duration_seconds(),
+            "turn_count": self.turn_count,
+            "total_tokens": total_tokens,
+            "total_cost_usd": round(total_cost, 6),
+            "avg_turn_latency_ms": round(sum(latencies) / max(len(latencies), 1), 2) if latencies else None,
+            "max_turn_latency_ms": round(max(latencies), 2) if latencies else None,
+            "total_tool_calls": sum(t.tool_calls_made for t in self._turns),
+            "session_duration_ms": round((time.time() - self._started_at) * 1000, 2),
+            "limit_exceeded": self.is_limit_exceeded(),
         }
 ```
 
-## Solution 3: Excessive Depth Alert
+## Solution 3: Turn Depth Anomaly Detector
 
 ```python
-from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 
-@dataclass
-class DepthAlertConfig:
-    warn_threshold: int = 10      # turns before warning
-    critical_threshold: int = 20  # turns before critical alert
-    stall_detection_turns: int = 5  # no progress in N turns = stall
-
-
-class ExcessiveDepthAlerter:
+class TurnDepthAnomalyDetector:
     """
-    Evaluates current session depth against thresholds and detects
-    stalled sessions (many turns without goal progress).
+    Detects sessions with abnormally high turn counts compared to
+    a rolling baseline. Flags potential clarification loops or stuck agents.
     """
 
-    def __init__(self, config: DepthAlertConfig = None):
-        self._config = config or DepthAlertConfig()
-
-    def check(
+    def __init__(
         self,
-        tracker: TurnDepthTracker,
-        goal_completed: bool = False,
-    ) -> dict:
-        depth = tracker.total_turns()
-        user_turns = tracker.user_turns()
+        warning_threshold: int = 15,
+        critical_threshold: int = 30,
+        clarification_loop_pattern: int = 5,   # N consecutive turns with no tool calls
+    ):
+        self._warning = warning_threshold
+        self._critical = critical_threshold
+        self._loop_pattern = clarification_loop_pattern
 
-        if goal_completed:
-            severity = "none"
-            message = "goal completed"
-        elif depth >= self._config.critical_threshold:
-            severity = "critical"
-            message = f"session depth {depth} exceeds critical threshold {self._config.critical_threshold}"
-        elif depth >= self._config.warn_threshold:
-            severity = "warning"
-            message = f"session depth {depth} exceeds warn threshold {self._config.warn_threshold}"
-        else:
-            severity = "none"
-            message = "depth within bounds"
+    def analyze(self, tracker: TurnDepthTracker) -> dict:
+        turn_count = tracker.turn_count
+        user_turns = [t for t in tracker._turns if t.role == TurnRole.USER]
+
+        # Detect clarification loop: many consecutive turns with 0 tool calls
+        no_tool_streak = 0
+        max_no_tool_streak = 0
+        for turn in user_turns:
+            if turn.tool_calls_made == 0:
+                no_tool_streak += 1
+                max_no_tool_streak = max(max_no_tool_streak, no_tool_streak)
+            else:
+                no_tool_streak = 0
+
+        anomalies = []
+        if turn_count >= self._critical:
+            anomalies.append(f"critical_turn_depth: {turn_count} turns (threshold {self._critical})")
+        elif turn_count >= self._warning:
+            anomalies.append(f"high_turn_depth: {turn_count} turns (threshold {self._warning})")
+
+        if max_no_tool_streak >= self._loop_pattern:
+            anomalies.append(f"clarification_loop: {max_no_tool_streak} consecutive turns without tool calls")
 
         return {
             "session_id": tracker._session_id,
-            "current_depth": depth,
-            "user_turns": user_turns,
-            "severity": severity,
-            "message": message,
-            "goal_completed": goal_completed,
+            "turn_count": turn_count,
+            "anomalies": anomalies,
+            "max_no_tool_streak": max_no_tool_streak,
+            "severity": "critical" if any("critical" in a for a in anomalies)
+                        else "warning" if anomalies else "ok",
         }
 ```
 
-## Solution 4: Turn Depth Metrics Recorder
+## Solution 4: Cross-Session Turn Depth Store
 
 ```python
 import time
@@ -183,122 +206,87 @@ from threading import Lock
 from typing import Deque, Dict, List, Optional, Tuple
 
 
-class TurnDepthMetricsRecorder:
+class CrossSessionTurnDepthStore:
     """
-    Accumulates completed session depth observations.
-    Supports percentile queries and category-level breakdowns.
+    Accumulates per-session turn summaries for aggregate analysis:
+    turn count distributions, cost-per-turn averages, and anomaly rates.
     """
 
-    def __init__(self, max_records: int = 20000):
-        self._max = max_records
+    def __init__(self, max_sessions: int = 5000):
+        self._max = max_sessions
         self._records: Deque[Tuple[float, dict]] = deque()
         self._lock = Lock()
 
-    def record(self, snapshot: dict, category: str = "general") -> None:
-        entry = {**snapshot, "category": category, "recorded_at": time.time()}
+    def record(self, summary: dict) -> None:
         with self._lock:
-            self._records.append((time.time(), entry))
+            self._records.append((time.time(), summary))
             if len(self._records) > self._max:
                 self._records.popleft()
 
-    def percentile(
-        self,
-        field: str,
-        pct: float,
-        window_seconds: float = 3600.0,
-        category: Optional[str] = None,
-    ) -> Optional[float]:
+    def aggregate(self, window_seconds: float = 3600.0) -> dict:
         cutoff = time.time() - window_seconds
         with self._lock:
-            values = sorted(
-                r[field] for _, r in self._records
-                if r["recorded_at"] >= cutoff
-                and (category is None or r.get("category") == category)
-                and field in r and r[field] is not None
-            )
-        if not values:
-            return None
-        idx = min(int(len(values) * pct / 100.0), len(values) - 1)
-        return round(values[idx], 2)
-
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        with self._lock:
-            recent = [r for _, r in self._records if r["recorded_at"] >= cutoff]
-
+            recent = [s for ts, s in self._records if ts >= cutoff]
         if not recent:
             return {"window_seconds": window_seconds, "sessions": 0}
 
-        by_cat: Dict[str, List[int]] = {}
-        for r in recent:
-            cat = r.get("category", "general")
-            by_cat.setdefault(cat, []).append(r.get("total_turns", 0))
+        turn_counts = [s["turn_count"] for s in recent]
+        costs = [s["total_cost_usd"] for s in recent]
+        exceeded = sum(1 for s in recent if s.get("limit_exceeded"))
 
         return {
             "window_seconds": window_seconds,
             "sessions": len(recent),
-            "p50_turns": self.percentile("total_turns", 50, window_seconds),
-            "p95_turns": self.percentile("total_turns", 95, window_seconds),
-            "p99_turns": self.percentile("total_turns", 99, window_seconds),
-            "avg_tokens": round(
-                sum(r.get("total_tokens", 0) for r in recent) / len(recent), 1
-            ),
-            "by_category": {
-                cat: {
-                    "sessions": len(depths),
-                    "avg_turns": round(sum(depths) / len(depths), 2),
-                    "max_turns": max(depths),
-                }
-                for cat, depths in by_cat.items()
-            },
+            "turn_count_p50": sorted(turn_counts)[len(turn_counts) // 2],
+            "turn_count_p95": sorted(turn_counts)[int(len(turn_counts) * 0.95)],
+            "turn_count_max": max(turn_counts),
+            "avg_cost_usd": round(sum(costs) / max(len(costs), 1), 6),
+            "limit_exceeded_sessions": exceeded,
+            "limit_exceeded_rate": round(exceeded / max(len(recent), 1), 4),
         }
 ```
 
-## Solution 5: Turn Efficiency Analyzer
+## Solution 5: Turn Cost Attributor
 
 ```python
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List
 
 
-class TurnEfficiencyAnalyzer:
+@dataclass
+class TurnCostBreakdown:
+    session_id: str
+    turn_number: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    tool_calls: int
+    cost_per_tool_call: float
+
+
+class TurnCostAttributor:
     """
-    Correlates turn depth with goal completion and token cost to
-    identify which session characteristics predict low efficiency.
+    Breaks down total session cost into per-turn attribution for
+    identifying which turns drove the most spend.
     """
 
-    def __init__(self, recorder: TurnDepthMetricsRecorder):
-        self._recorder = recorder
-
-    def efficiency_report(self, window_seconds: float = 86400.0) -> dict:
-        import time
-        cutoff = time.time() - window_seconds
-        with self._recorder._lock:
-            recent = [r for _, r in self._recorder._records if r["recorded_at"] >= cutoff]
-
-        if not recent:
-            return {"window_seconds": window_seconds, "sessions": 0}
-
-        completed = [r for r in recent if r.get("goal_completed", False)]
-        not_completed = [r for r in recent if not r.get("goal_completed", False)]
-
-        def avg_turns(records):
-            if not records:
-                return None
-            return round(sum(r.get("total_turns", 0) for r in records) / len(records), 2)
-
-        high_depth = [r for r in recent if r.get("total_turns", 0) >= 15]
-
-        return {
-            "window_seconds": window_seconds,
-            "total_sessions": len(recent),
-            "avg_turns_completed": avg_turns(completed),
-            "avg_turns_not_completed": avg_turns(not_completed),
-            "high_depth_sessions": len(high_depth),
-            "high_depth_completion_rate": round(
-                sum(1 for r in high_depth if r.get("goal_completed", False)) / max(len(high_depth), 1),
-                4,
-            ),
-        }
+    def attribute(self, tracker: TurnDepthTracker) -> List[TurnCostBreakdown]:
+        breakdowns = []
+        for turn in tracker._turns:
+            if turn.role != TurnRole.USER:
+                continue
+            breakdowns.append(TurnCostBreakdown(
+                session_id=turn.session_id,
+                turn_number=turn.turn_number,
+                input_tokens=turn.input_tokens,
+                output_tokens=turn.output_tokens,
+                cost_usd=round(turn.cost_usd, 6),
+                tool_calls=turn.tool_calls_made,
+                cost_per_tool_call=round(
+                    turn.cost_usd / max(turn.tool_calls_made, 1), 6
+                ),
+            ))
+        return sorted(breakdowns, key=lambda b: b.cost_usd, reverse=True)
 ```
 
 ## Solution 6: Turn Depth Dashboard
@@ -307,46 +295,41 @@ class TurnEfficiencyAnalyzer:
 import time
 
 
-class TurnDepthDashboard:
+class ConversationTurnDepthDashboard:
     """
-    Combines live session depth, historical percentiles, and efficiency
-    analysis into a single observability report.
+    Combines aggregate turn depth metrics, anomaly detection results,
+    and cost attribution into a single operational report.
     """
 
     def __init__(
         self,
-        recorder: TurnDepthMetricsRecorder,
-        alerter: ExcessiveDepthAlerter,
-        analyzer: TurnEfficiencyAnalyzer,
+        store: CrossSessionTurnDepthStore,
+        detector: TurnDepthAnomalyDetector,
     ):
-        self._recorder = recorder
-        self._alerter = alerter
-        self._analyzer = analyzer
+        self._store = store
+        self._detector = detector
 
-    def render(self, active_trackers: list = None) -> dict:
-        active_alerts = []
-        if active_trackers:
-            for tracker in active_trackers:
-                alert = self._alerter.check(tracker)
-                if alert["severity"] != "none":
-                    active_alerts.append(alert)
-
+    def render(self, window_seconds: float = 3600.0) -> dict:
+        aggregate = self._store.aggregate(window_seconds)
         return {
             "generated_at": time.time(),
-            "historical": self._recorder.summary(window_seconds=3600.0),
-            "efficiency": self._analyzer.efficiency_report(window_seconds=86400.0),
-            "active_depth_alerts": active_alerts,
+            "aggregate": aggregate,
+            "thresholds": {
+                "warning_turns": self._detector._warning,
+                "critical_turns": self._detector._critical,
+                "loop_detection_streak": self._detector._loop_pattern,
+            },
         }
 ```
 
 ## Comparison
 
-| Approach | Per-Turn Recording | Depth Thresholds | Historical Percentiles | Category Breakdown | Efficiency Correlation |
+| Approach | Per-Turn Recording | Max Turn Enforcement | Loop Detection | Cross-Session Aggregate | Cost Attribution |
 |---|---|---|---|---|---|
-| TurnDepthTracker | Yes (per role) | No | No | No | No |
-| ExcessiveDepthAlerter | No | Yes (warn/critical) | No | No | No |
-| TurnDepthMetricsRecorder | No | No | Yes (P50/P95/P99) | Yes | No |
-| TurnEfficiencyAnalyzer | No | No | Via recorder | No | Yes |
-| TurnDepthDashboard | No | Via alerter | Via recorder | Via recorder | Via analyzer |
+| TurnDepthTracker | Yes | Yes (callback) | No | No | Partial (per-turn cost) |
+| TurnDepthAnomalyDetector | No | No | Yes (streak) | No | No |
+| CrossSessionTurnDepthStore | No | No | No | Yes (P50/P95) | No |
+| TurnCostAttributor | No | No | No | No | Yes |
+| ConversationTurnDepthDashboard | No | No | No | Via store | No |
 
-**Best for production**: Record turn depth per session and segment by goal category — this surfaces which task types require the most back-and-forth and are candidates for prompt or context improvements. Alert when a live session crosses `warn_threshold=10` user turns without a goal completion signal: at this depth, the agent is likely in a loop or the user's request is underdefined. Track `avg_turns_completed` vs `avg_turns_not_completed` in `TurnEfficiencyAnalyzer` — a large gap means high-depth sessions tend to fail, which indicates the agent should escalate or ask clarifying questions earlier rather than making additional attempts.
+**Best for production**: Set `max_turns=50` as the hard limit for general-purpose agents — legitimate complex tasks rarely exceed this; runaway loops always do. Alert when `limit_exceeded_rate` exceeds 0.05 (5% of sessions) — this indicates a systemic prompt or tool issue causing the agent to loop rather than resolve. Track `turn_count_p95` as a UX proxy: if it increases week-over-week without a corresponding increase in task complexity, the agent is becoming less efficient at resolving requests. Use `TurnCostAttributor` to identify which turn numbers are most expensive — turns 1-3 typically dominate due to large context setup, while later turns reveal whether tool calls are multiplying unnecessarily.
