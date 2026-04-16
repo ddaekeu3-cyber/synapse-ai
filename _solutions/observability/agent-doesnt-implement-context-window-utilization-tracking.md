@@ -1,339 +1,378 @@
 ---
 title: "Agent Doesn't Implement Context Window Utilization Tracking"
-description: "Agents that never measure context window fill level cannot predict when the window will be exhausted, cannot distinguish sessions that fail from context overflow vs. other errors, and cannot optimize prompt structure based on which components consume the most tokens. Implement context window utilization tracking that measures token counts per context component, projects fill rate over the conversation, and alerts when utilization approaches the model's limit."
+description: "Agents that don't track context window fill rate operate blindly until they hit a context overflow error — no warning before truncation, no visibility into which sessions are consuming the most context, and no signal to trigger proactive summarization before the window fills. Implement context window utilization tracking that measures token fill percentage per turn, projects turns-to-overflow at the current growth rate, and alerts when utilization crosses warning thresholds."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-context-window-utilization-tracking
-tags: [context-window, token-tracking, context-utilization, window-overflow, prompt-optimization, token-budget]
+tags: [context-window, token-utilization, overflow-prevention, context-management, turn-tracking, context-observability]
 symptoms:
-  - "Sessions silently fail when context window fills up — error message is cryptic"
-  - "No visibility into what fraction of the context window is used vs. available"
-  - "Cannot tell whether system prompt, conversation history, or tool schemas uses the most tokens"
-  - "Long conversations degrade in quality as older context is truncated without warning"
-  - "No alert when a session is approaching the model's context limit"
+  - "Agent crashes with context length exceeded error with no prior warning"
+  - "No per-session metric for how full the context window is at each turn"
+  - "Cannot predict which sessions will overflow in the next 3 turns"
+  - "Truncation happens silently — oldest messages disappear with no log entry"
+  - "No signal to trigger proactive summarization before hitting the hard limit"
 ---
 
 ## Why This Happens
 
-Token counts are computed by the LLM API but rarely surfaced as structured metrics. Most agents track total tokens for cost purposes but not the per-component breakdown within the context window. Without per-component tracking, optimizing prompt size is guesswork. Without fill-rate projection, context overflow is always a surprise. Context window utilization tracking requires counting tokens per component (system prompt, history, tool schemas, retrieved chunks, current turn) and monitoring the trajectory as the conversation grows.
+Context window overflow is a predictable, gradual failure — the window fills token by token across turns. Without turn-by-turn fill rate measurement, the agent has no early warning. The first signal is either a provider error (hard overflow) or silent truncation (missing context). Utilization tracking transforms this from a surprise failure into a monitored metric: track tokens per turn, compute fill percentage, project overflow timing, and trigger summarization or truncation before the limit is reached.
 
-## Solution 1: Context Component Record
-
-```python
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, Optional
-
-
-class ContextComponent(str, Enum):
-    SYSTEM_PROMPT = "system_prompt"
-    CONVERSATION_HISTORY = "conversation_history"
-    TOOL_SCHEMAS = "tool_schemas"
-    RETRIEVED_CHUNKS = "retrieved_chunks"
-    CURRENT_TURN = "current_turn"
-    TOOL_RESULTS = "tool_results"
-    CUSTOM = "custom"
-
-
-@dataclass
-class ContextComponentRecord:
-    component: ContextComponent
-    label: str
-    token_count: int
-    turn_index: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
-```
-
-## Solution 2: Context Window Snapshot
+## Solution 1: Context Window Snapshot
 
 ```python
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 
 @dataclass
 class ContextWindowSnapshot:
     session_id: str
-    model_id: str
-    context_limit: int
-    turn_index: int
-    components: List[ContextComponentRecord]
-    captured_at: float = field(default_factory=time.time)
+    turn_number: int
+    model: str
+    context_limit_tokens: int
+    used_tokens: int
+    system_tokens: int
+    history_tokens: int
+    tool_result_tokens: int
+    recorded_at: float = field(default_factory=time.time)
 
-    def total_tokens(self) -> int:
-        return sum(c.token_count for c in self.components)
-
-    def utilization(self) -> float:
-        return self.total_tokens() / max(self.context_limit, 1)
+    def utilization_pct(self) -> float:
+        return round(self.used_tokens / max(self.context_limit_tokens, 1) * 100, 2)
 
     def tokens_remaining(self) -> int:
-        return max(0, self.context_limit - self.total_tokens())
+        return max(0, self.context_limit_tokens - self.used_tokens)
 
-    def by_component(self) -> Dict[str, int]:
-        result: Dict[str, int] = {}
-        for c in self.components:
-            result[c.label] = result.get(c.label, 0) + c.token_count
-        return result
+    def is_critical(self, critical_threshold: float = 90.0) -> bool:
+        return self.utilization_pct() >= critical_threshold
 
-    def largest_component(self) -> Optional[str]:
-        bc = self.by_component()
-        if not bc:
-            return None
-        return max(bc, key=bc.get)
+    def is_warning(self, warning_threshold: float = 70.0) -> bool:
+        return self.utilization_pct() >= warning_threshold
+```
+
+## Solution 2: Per-Model Context Limit Registry
+
+```python
+from typing import Dict, Optional
+
+
+MODEL_CONTEXT_LIMITS: Dict[str, int] = {
+    # Anthropic
+    "claude-opus-4-6": 200_000,
+    "claude-sonnet-4-6": 200_000,
+    "claude-haiku-4-5-20251001": 200_000,
+    "claude-3-5-sonnet-20241022": 200_000,
+    "claude-3-5-haiku-20241022": 200_000,
+    # OpenAI
+    "gpt-4o": 128_000,
+    "gpt-4o-mini": 128_000,
+    "gpt-4-turbo": 128_000,
+    "gpt-3.5-turbo": 16_385,
+    # Google
+    "gemini-1.5-pro": 1_000_000,
+    "gemini-1.5-flash": 1_000_000,
+}
+
+
+class ModelContextLimitRegistry:
+    """
+    Returns the context window size for a given model.
+    Falls back to a conservative default for unknown models.
+    """
+
+    DEFAULT_LIMIT = 8_192
+
+    def __init__(self, overrides: Optional[Dict[str, int]] = None) -> None:
+        self._limits = dict(MODEL_CONTEXT_LIMITS)
+        if overrides:
+            self._limits.update(overrides)
+
+    def get(self, model: str) -> int:
+        return self._limits.get(model, self.DEFAULT_LIMIT)
+
+    def register(self, model: str, limit: int) -> None:
+        self._limits[model] = limit
+
+    def all_limits(self) -> Dict[str, int]:
+        return dict(self._limits)
 ```
 
 ## Solution 3: Context Utilization Tracker
 
 ```python
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Dict, List, Optional
 
 
-class ContextWindowUtilizationTracker:
+class ContextUtilizationTracker:
     """
-    Tracks context window snapshots per session.
-    Computes fill rate (tokens per turn) and projects when the window will be exhausted.
-    """
-
-    def __init__(self):
-        self._snapshots: Dict[str, List[ContextWindowSnapshot]] = defaultdict(list)
-
-    def record(self, snapshot: ContextWindowSnapshot) -> None:
-        self._snapshots[snapshot.session_id].append(snapshot)
-
-    def snapshots(self, session_id: str) -> List[ContextWindowSnapshot]:
-        return list(self._snapshots.get(session_id, []))
-
-    def fill_rate_tokens_per_turn(self, session_id: str) -> Optional[float]:
-        snaps = self._snapshots.get(session_id, [])
-        if len(snaps) < 2:
-            return None
-        first = snaps[0]
-        last = snaps[-1]
-        turn_delta = last.turn_index - first.turn_index
-        token_delta = last.total_tokens() - first.total_tokens()
-        if turn_delta == 0:
-            return None
-        return round(token_delta / turn_delta, 1)
-
-    def turns_until_exhaustion(self, session_id: str) -> Optional[float]:
-        snaps = self._snapshots.get(session_id, [])
-        if not snaps:
-            return None
-        last = snaps[-1]
-        rate = self.fill_rate_tokens_per_turn(session_id)
-        if rate is None or rate <= 0:
-            return None
-        remaining = last.tokens_remaining()
-        return round(remaining / rate, 1)
-
-    def current_utilization(self, session_id: str) -> Optional[float]:
-        snaps = self._snapshots.get(session_id, [])
-        if not snaps:
-            return None
-        return snaps[-1].utilization()
-```
-
-## Solution 4: Token Counter
-
-```python
-import re
-from typing import List, Optional
-
-
-class ApproximateTokenCounter:
-    """
-    Fast approximate token counter without requiring a tokenizer library.
-    Uses the heuristic: 1 token ≈ 4 characters for English text.
-    For production, replace with the model's actual tokenizer.
-    """
-
-    CHARS_PER_TOKEN = 4.0
-
-    @classmethod
-    def count(cls, text: str) -> int:
-        if not text:
-            return 0
-        return max(1, round(len(text) / cls.CHARS_PER_TOKEN))
-
-    @classmethod
-    def count_messages(cls, messages: List[dict]) -> int:
-        total = 0
-        for msg in messages:
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                total += cls.count(content)
-            elif isinstance(content, list):
-                for block in content:
-                    total += cls.count(str(block.get("text", "")))
-            total += 4   # message overhead tokens
-        return total
-
-    @classmethod
-    def count_tool_schemas(cls, tools: List[dict]) -> int:
-        import json
-        return cls.count(json.dumps(tools, separators=(",", ":")))
-```
-
-## Solution 5: Context Window Alert Manager
-
-```python
-import time
-from dataclasses import dataclass, field
-from typing import Callable, List, Optional
-
-
-@dataclass
-class ContextWindowAlert:
-    session_id: str
-    alert_type: str   # "high_utilization" | "near_exhaustion" | "overflow_risk"
-    utilization: float
-    tokens_remaining: int
-    turns_until_exhaustion: Optional[float]
-    message: str
-    fired_at: float = field(default_factory=time.time)
-
-
-class ContextWindowAlertManager:
-    """
-    Fires alerts when context window utilization crosses thresholds.
+    Records context window snapshots per session and computes
+    growth rate, turns-to-overflow projection, and utilization trends.
     """
 
     def __init__(
         self,
-        tracker: ContextWindowUtilizationTracker,
-        warning_utilization: float = 0.70,
-        critical_utilization: float = 0.90,
-        turns_warning_threshold: float = 5.0,
-    ):
+        limit_registry: ModelContextLimitRegistry,
+        max_history_per_session: int = 100,
+    ) -> None:
+        self._registry = limit_registry
+        self._max_history = max_history_per_session
+        self._sessions: Dict[str, deque] = defaultdict(
+            lambda: deque(maxlen=max_history_per_session)
+        )
+
+    def record(
+        self,
+        session_id: str,
+        turn_number: int,
+        model: str,
+        used_tokens: int,
+        system_tokens: int = 0,
+        history_tokens: int = 0,
+        tool_result_tokens: int = 0,
+    ) -> ContextWindowSnapshot:
+        limit = self._registry.get(model)
+        snap = ContextWindowSnapshot(
+            session_id=session_id,
+            turn_number=turn_number,
+            model=model,
+            context_limit_tokens=limit,
+            used_tokens=used_tokens,
+            system_tokens=system_tokens,
+            history_tokens=history_tokens,
+            tool_result_tokens=tool_result_tokens,
+        )
+        self._sessions[session_id].append(snap)
+        return snap
+
+    def latest(self, session_id: str) -> Optional[ContextWindowSnapshot]:
+        history = self._sessions.get(session_id)
+        if not history:
+            return None
+        return history[-1]
+
+    def growth_rate_tokens_per_turn(self, session_id: str, window: int = 5) -> Optional[float]:
+        """Average token growth per turn over the last `window` snapshots."""
+        history = list(self._sessions.get(session_id, []))
+        if len(history) < 2:
+            return None
+        recent = history[-window:]
+        if len(recent) < 2:
+            return None
+        delta_tokens = recent[-1].used_tokens - recent[0].used_tokens
+        delta_turns = recent[-1].turn_number - recent[0].turn_number
+        if delta_turns <= 0:
+            return None
+        return round(delta_tokens / delta_turns, 1)
+
+    def turns_to_overflow(
+        self,
+        session_id: str,
+        warning_pct: float = 95.0,
+    ) -> Optional[float]:
+        snap = self.latest(session_id)
+        if not snap:
+            return None
+        rate = self.growth_rate_tokens_per_turn(session_id)
+        if rate is None or rate <= 0:
+            return None
+        target = snap.context_limit_tokens * (warning_pct / 100.0)
+        remaining = target - snap.used_tokens
+        if remaining <= 0:
+            return 0.0
+        return round(remaining / rate, 1)
+
+    def utilization_trend(self, session_id: str) -> List[dict]:
+        return [
+            {
+                "turn": s.turn_number,
+                "used_tokens": s.used_tokens,
+                "utilization_pct": s.utilization_pct(),
+            }
+            for s in self._sessions.get(session_id, [])
+        ]
+```
+
+## Solution 4: Context Overflow Alert Manager
+
+```python
+import time
+from typing import Callable, Dict, List, Optional
+
+
+class ContextOverflowAlertManager:
+    """
+    Fires alerts when context utilization crosses warning or critical thresholds,
+    or when overflow is projected within a configurable number of turns.
+    """
+
+    def __init__(
+        self,
+        tracker: ContextUtilizationTracker,
+        warning_pct: float = 70.0,
+        critical_pct: float = 90.0,
+        tte_warning_turns: float = 5.0,
+        handler: Optional[Callable[[dict], None]] = None,
+        cooldown_seconds: float = 120.0,
+    ) -> None:
         self._tracker = tracker
-        self._warning = warning_utilization
-        self._critical = critical_utilization
-        self._turns_warning = turns_warning_threshold
-        self._handlers: List[Callable[[ContextWindowAlert], None]] = []
+        self._warning = warning_pct
+        self._critical = critical_pct
+        self._tte_turns = tte_warning_turns
+        self._handler = handler
+        self._cooldown = cooldown_seconds
+        self._last_fired: Dict[str, float] = {}
 
-    def add_handler(self, fn: Callable[[ContextWindowAlert], None]) -> None:
-        self._handlers.append(fn)
+    def _can_fire(self, key: str) -> bool:
+        last = self._last_fired.get(key, 0.0)
+        if time.time() - last >= self._cooldown:
+            self._last_fired[key] = time.time()
+            return True
+        return False
 
-    def evaluate(self, session_id: str) -> List[ContextWindowAlert]:
-        util = self._tracker.current_utilization(session_id)
-        if util is None:
+    def check(self, session_id: str) -> List[dict]:
+        snap = self._tracker.latest(session_id)
+        if not snap:
             return []
 
-        snaps = self._tracker.snapshots(session_id)
-        if not snaps:
-            return []
-        last_snap = snaps[-1]
-        turns_left = self._tracker.turns_until_exhaustion(session_id)
         alerts = []
+        pct = snap.utilization_pct()
+        tte = self._tracker.turns_to_overflow(session_id)
 
-        if util >= self._critical:
-            alert = ContextWindowAlert(
-                session_id=session_id,
-                alert_type="near_exhaustion",
-                utilization=round(util, 4),
-                tokens_remaining=last_snap.tokens_remaining(),
-                turns_until_exhaustion=turns_left,
-                message=(
-                    f"Context window {util*100:.1f}% full "
-                    f"({last_snap.tokens_remaining()} tokens remaining)"
+        if pct >= self._critical and self._can_fire(f"{session_id}:critical"):
+            alerts.append({
+                "type": "context_critical",
+                "session_id": session_id,
+                "utilization_pct": pct,
+                "used_tokens": snap.used_tokens,
+                "limit_tokens": snap.context_limit_tokens,
+                "severity": "critical",
+                "message": f"Session '{session_id}' context at {pct:.1f}% — overflow imminent",
+            })
+        elif pct >= self._warning and self._can_fire(f"{session_id}:warning"):
+            alerts.append({
+                "type": "context_warning",
+                "session_id": session_id,
+                "utilization_pct": pct,
+                "severity": "warning",
+                "message": f"Session '{session_id}' context at {pct:.1f}%",
+            })
+
+        if tte is not None and tte <= self._tte_turns and self._can_fire(f"{session_id}:tte"):
+            alerts.append({
+                "type": "context_overflow_imminent",
+                "session_id": session_id,
+                "turns_to_overflow": tte,
+                "severity": "warning",
+                "message": (
+                    f"Session '{session_id}' will overflow in ~{tte:.0f} turns "
+                    "at current growth rate — trigger summarization"
                 ),
-            )
-            alerts.append(alert)
-        elif util >= self._warning:
-            alert = ContextWindowAlert(
-                session_id=session_id,
-                alert_type="high_utilization",
-                utilization=round(util, 4),
-                tokens_remaining=last_snap.tokens_remaining(),
-                turns_until_exhaustion=turns_left,
-                message=f"Context window {util*100:.1f}% full — consider pruning history",
-            )
-            alerts.append(alert)
-
-        if turns_left is not None and turns_left <= self._turns_warning and util < self._critical:
-            alert = ContextWindowAlert(
-                session_id=session_id,
-                alert_type="overflow_risk",
-                utilization=round(util, 4),
-                tokens_remaining=last_snap.tokens_remaining(),
-                turns_until_exhaustion=turns_left,
-                message=f"At current fill rate, context will exhaust in ~{turns_left:.0f} turns",
-            )
-            alerts.append(alert)
+                "suggested_action": "summarize_and_truncate",
+            })
 
         for alert in alerts:
-            for h in self._handlers:
+            if self._handler:
                 try:
-                    h(alert)
+                    self._handler(alert)
                 except Exception:
                     pass
 
         return alerts
 ```
 
-## Solution 6: Context Utilization Dashboard
+## Solution 5: Fleet-Wide Utilization Aggregator
 
 ```python
 import time
-from typing import List
+from typing import Dict, List
 
 
-class ContextWindowUtilizationDashboard:
-    """Aggregates context utilization across all active sessions."""
+class FleetContextUtilizationAggregator:
+    """
+    Aggregates context utilization across all active sessions
+    to identify fleet-wide trends and high-utilization outliers.
+    """
 
     def __init__(
         self,
-        tracker: ContextWindowUtilizationTracker,
-        alert_manager: ContextWindowAlertManager,
-    ):
+        tracker: ContextUtilizationTracker,
+        high_utilization_threshold: float = 80.0,
+    ) -> None:
         self._tracker = tracker
-        self._alert_manager = alert_manager
+        self._threshold = high_utilization_threshold
 
-    def render(self, session_ids: List[str]) -> dict:
-        session_reports = []
-        for sid in session_ids:
-            util = self._tracker.current_utilization(sid)
-            snaps = self._tracker.snapshots(sid)
-            if not snaps or util is None:
-                continue
-            last = snaps[-1]
-            session_reports.append({
-                "session_id": sid,
-                "utilization": round(util, 4),
-                "total_tokens": last.total_tokens(),
-                "tokens_remaining": last.tokens_remaining(),
-                "turns_until_exhaustion": self._tracker.turns_until_exhaustion(sid),
-                "largest_component": last.largest_component(),
-                "breakdown": last.by_component(),
-            })
+    def aggregate(self, session_ids: List[str]) -> dict:
+        snapshots = [
+            self._tracker.latest(sid)
+            for sid in session_ids
+            if self._tracker.latest(sid)
+        ]
+        if not snapshots:
+            return {"sessions": 0}
 
-        session_reports.sort(key=lambda x: -x["utilization"])
-        high_util = [s for s in session_reports if s["utilization"] >= 0.70]
+        utilizations = [s.utilization_pct() for s in snapshots]
+        high_util = [s for s in snapshots if s.utilization_pct() >= self._threshold]
+
+        return {
+            "sessions": len(snapshots),
+            "mean_utilization_pct": round(sum(utilizations) / len(utilizations), 2),
+            "max_utilization_pct": round(max(utilizations), 2),
+            "high_utilization_sessions": len(high_util),
+            "high_utilization_pct": round(len(high_util) / len(snapshots) * 100, 1),
+            "at_risk_sessions": [
+                {"session_id": s.session_id, "utilization_pct": s.utilization_pct()}
+                for s in sorted(high_util, key=lambda x: -x.utilization_pct())[:10]
+            ],
+        }
+```
+
+## Solution 6: Context Window Utilization Dashboard
+
+```python
+import time
+
+
+class ContextWindowUtilizationDashboard:
+    """
+    Combines per-session snapshots, fleet aggregation, and overflow alerts
+    into a single context management observability report.
+    """
+
+    def __init__(
+        self,
+        tracker: ContextUtilizationTracker,
+        alert_manager: ContextOverflowAlertManager,
+        aggregator: FleetContextUtilizationAggregator,
+    ) -> None:
+        self._tracker = tracker
+        self._alerts = alert_manager
+        self._aggregator = aggregator
+
+    def render(self, active_session_ids: List[str]) -> dict:
+        fleet = self._aggregator.aggregate(active_session_ids)
+        all_alerts = []
+        for sid in active_session_ids:
+            all_alerts.extend(self._alerts.check(sid))
+
+        critical_alerts = [a for a in all_alerts if a.get("severity") == "critical"]
 
         return {
             "generated_at": time.time(),
-            "sessions_tracked": len(session_reports),
-            "high_utilization_sessions": len(high_util),
-            "avg_utilization": round(
-                sum(s["utilization"] for s in session_reports)
-                / max(len(session_reports), 1),
-                4,
-            ),
-            "top_sessions_by_utilization": session_reports[:5],
+            "fleet": fleet,
+            "active_alerts": all_alerts,
+            "critical_count": len(critical_alerts),
         }
 ```
 
 ## Comparison
 
-| Approach | Per-Component Tracking | Fill Rate Projection | Exhaustion Forecast | Alerts | Dashboard |
+| Approach | Per-Turn Tracking | Growth Rate | Overflow Projection | Fleet View | Alerts |
 |---|---|---|---|---|---|
-| ContextWindowSnapshot | Yes (per-component) | No | No | No | No |
-| ContextWindowUtilizationTracker | Via snapshots | Yes (per-turn rate) | Yes (turns left) | No | No |
-| ApproximateTokenCounter | No | No | No | No | No |
-| ContextWindowAlertManager | Via tracker | Via tracker | Via tracker | Yes | No |
-| ContextWindowUtilizationDashboard | Via tracker | No | Via tracker | Via manager | Yes |
+| ContextUtilizationTracker | Yes | Yes (sliding window) | Yes (turns-to-overflow) | No | No |
+| ContextOverflowAlertManager | Via tracker | Via tracker | Via tracker | No | Yes (with cooldown) |
+| FleetContextUtilizationAggregator | No | No | No | Yes | No |
+| ContextWindowUtilizationDashboard | No | No | No | Via aggregator | Via manager |
 
-**Best for production**: Snapshot the context window after every turn — this is cheap and provides the fill-rate data needed for projection. Track at minimum four components: `system_prompt` (fixed cost), `conversation_history` (grows per turn), `tool_schemas` (often the largest fixed cost), and `retrieved_chunks` (variable per turn). The `largest_component` field typically reveals the optimization target: if `tool_schemas` accounts for 30% of the window, switch to lazy tool loading; if `conversation_history` is 60%, implement history pruning. Alert at 70% utilization to give the pruning system time to act before the window fills.
+**Best for production**: Record a `ContextWindowSnapshot` after every LLM response using the token counts from the API response's `usage` field — these are exact, not estimated. Set `warning_pct=70` and `critical_pct=90`: at 70% there is still time for summarization; at 90% the window for graceful intervention is closing. Wire `suggested_action: summarize_and_truncate` alerts to automatically trigger a conversation summarization step rather than waiting for manual intervention. For long-running agents (customer support, research assistants), target keeping context utilization below 60% by summarizing proactively — this reserves headroom for tool results and long model responses.
