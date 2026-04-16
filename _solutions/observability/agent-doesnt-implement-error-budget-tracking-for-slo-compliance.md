@@ -1,307 +1,289 @@
 ---
 title: "Agent Doesn't Implement Error Budget Tracking for SLO Compliance"
-description: "Agents that track only raw error rates miss the operational model that makes SLOs actionable: an error budget that quantifies how much unreliability is permitted before the SLO is breached, and burns down in real time as errors occur. Without error budget tracking, on-call engineers cannot answer 'how close are we to breaching?' or 'at this burn rate, when do we run out of budget?' Implement error budget calculation, burn rate alerting, and budget exhaustion forecasting."
+description: "Agents that measure uptime and error rate but do not compute error budgets cannot answer whether they are on track to meet their SLOs for the month: a 2% error rate today may consume the entire monthly error budget in a week. Implement error budget tracking that converts SLO targets into a rolling budget of allowable failures, tracks actual consumption against that budget, and surfaces burn rate alerts when the agent is on pace to exhaust the budget before the period ends."
 date: 2026-04-16
 difficulty: advanced
 category: observability
 slug: agent-doesnt-implement-error-budget-tracking-for-slo-compliance
-tags: [slo, error-budget, burn-rate, reliability-engineering, sre, alerting]
+tags: [error-budget, slo, burn-rate, reliability-targets, budget-exhaustion, sre-observability]
 symptoms:
-  - "Team knows the error rate but cannot say how much budget remains for the month"
-  - "Alerts fire on raw error rate thresholds that don't account for the SLO window"
-  - "No early warning when burn rate is elevated — only notified after SLO is already breached"
-  - "Error budget resets are missed — the monthly window rolled over but counters didn't"
-  - "Cannot compare error budget consumption across different SLO dimensions (latency vs. errors)"
+  - "Error rate is monitored but no error budget calculation exists"
+  - "Cannot determine whether current error rate will exhaust the monthly budget"
+  - "SLO compliance is checked at end of month — no early warning when budget burns fast"
+  - "No distinction between slow budget consumption (sustainable) and fast burns (incident)"
+  - "On-call alerts fire on error rate spikes but not on cumulative budget burn"
 ---
 
 ## Why This Happens
 
-An SLO defines a target reliability level over a rolling window (e.g., 99.9% success rate over 30 days). The error budget is the complement: 0.1% of requests may fail before the SLO is breached. Without tracking events against this budget in real time, teams react to individual errors rather than to budget burn rate — the rate at which the budget is being consumed relative to the rate that would exhaust it by the window's end. A burn rate of 1× means exactly on track to use all the budget; a burn rate of 10× means the budget will be exhausted in 1/10 of the window. Multi-window burn rate alerting (short window for fast detection, long window to avoid false positives) is the standard pattern from Google SRE practice.
+An SLO is a commitment about a period, not a moment. A 99.5% monthly availability SLO means the service can be unavailable for about 3.6 hours per month. Monitoring instantaneous error rate misses the cumulative picture: a 1% error rate sustained for 5 days consumes more budget than a 10% spike that lasts 10 minutes. Error budget tracking converts the SLO into a count of allowable failures per period, tracks each failure against that budget, and alerts on burn rate — the rate at which the budget is being consumed — rather than just the raw error rate. A high burn rate means the SLO will be violated before the period ends, giving teams time to intervene.
 
 ## Solution 1: SLO Definition
 
 ```python
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
 
-class SLOType(str, Enum):
-    AVAILABILITY = "availability"   # success / total
-    LATENCY = "latency"             # requests under threshold / total
-    THROUGHPUT = "throughput"       # requests processed / requests received
+class SLOPeriod(str, Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    ROLLING_30D = "rolling_30d"
 
 
 @dataclass
 class SLODefinition:
     name: str
-    slo_type: SLOType
-    target_ratio: float             # e.g., 0.999 for 99.9%
-    window_seconds: float = 2592000.0  # 30 days
-    latency_threshold_ms: Optional[float] = None  # only for LATENCY type
+    target_success_rate: float         # e.g. 0.995 for 99.5%
+    period: SLOPeriod
+    total_requests_estimate: Optional[int] = None   # expected requests in period
 
     @property
-    def error_budget_ratio(self) -> float:
-        return round(1.0 - self.target_ratio, 6)
+    def error_rate_budget(self) -> float:
+        return 1.0 - self.target_success_rate
 
-    def allowed_bad_events(self, total_events: int) -> float:
-        return total_events * self.error_budget_ratio
+    def period_seconds(self) -> float:
+        mapping = {
+            SLOPeriod.DAILY: 86400.0,
+            SLOPeriod.WEEKLY: 604800.0,
+            SLOPeriod.MONTHLY: 2592000.0,
+            SLOPeriod.ROLLING_30D: 2592000.0,
+        }
+        return mapping[self.period]
 
-    def __post_init__(self) -> None:
-        if not 0 < self.target_ratio < 1:
-            raise ValueError(f"target_ratio must be between 0 and 1, got {self.target_ratio}")
+    def allowable_downtime_seconds(self) -> float:
+        return self.period_seconds() * self.error_rate_budget
+
+    def allowable_failures(self, total_requests: int) -> int:
+        return int(total_requests * self.error_rate_budget)
 ```
 
-## Solution 2: Event Counter
+## Solution 2: Error Budget State
 
 ```python
 import time
-from collections import deque
-from threading import Lock
-from typing import Deque, Tuple
-
-
-class SLOEventCounter:
-    """
-    Thread-safe sliding window counter for SLO good/bad events.
-    Supports arbitrary window sizes and sub-window queries.
-    """
-
-    def __init__(self, window_seconds: float):
-        self._window = window_seconds
-        self._good: Deque[float] = deque()
-        self._bad: Deque[float] = deque()
-        self._lock = Lock()
-
-    def record_good(self, count: int = 1) -> None:
-        now = time.time()
-        with self._lock:
-            for _ in range(count):
-                self._good.append(now)
-            self._evict(now)
-
-    def record_bad(self, count: int = 1) -> None:
-        now = time.time()
-        with self._lock:
-            for _ in range(count):
-                self._bad.append(now)
-            self._evict(now)
-
-    def _evict(self, now: float) -> None:
-        cutoff = now - self._window
-        while self._good and self._good[0] < cutoff:
-            self._good.popleft()
-        while self._bad and self._bad[0] < cutoff:
-            self._bad.popleft()
-
-    def counts(self, sub_window_seconds: Optional[float] = None) -> Tuple[int, int]:
-        """Returns (good_count, bad_count) within sub_window or full window."""
-        now = time.time()
-        cutoff = now - (sub_window_seconds or self._window)
-        with self._lock:
-            good = sum(1 for ts in self._good if ts >= cutoff)
-            bad = sum(1 for ts in self._bad if ts >= cutoff)
-            return good, bad
-
-    def current_ratio(self, sub_window_seconds: Optional[float] = None) -> Optional[float]:
-        good, bad = self.counts(sub_window_seconds)
-        total = good + bad
-        if total == 0:
-            return None
-        return round(good / total, 6)
-```
-
-## Solution 3: Error Budget Calculator
-
-```python
-import time
+from dataclasses import dataclass, field
 from typing import Optional
 
 
-class ErrorBudgetCalculator:
-    """
-    Computes error budget remaining, burn rate, and exhaustion forecast
-    from an SLO definition and a live event counter.
-    """
-
-    def __init__(self, slo: SLODefinition, counter: SLOEventCounter):
-        self._slo = slo
-        self._counter = counter
-
-    def budget_remaining_ratio(self) -> Optional[float]:
-        """Fraction of error budget remaining (0=exhausted, 1=fully intact)."""
-        good, bad = self._counter.counts()
-        total = good + bad
-        if total == 0:
-            return 1.0
-        allowed_bad = total * self._slo.error_budget_ratio
-        if allowed_bad <= 0:
-            return 0.0
-        remaining = max(0.0, allowed_bad - bad) / allowed_bad
-        return round(remaining, 4)
-
-    def burn_rate(self, window_seconds: float) -> Optional[float]:
-        """
-        Burn rate = actual error ratio / SLO error budget ratio.
-        A burn rate of 1.0 means consuming budget at exactly the sustainable rate.
-        A burn rate > 1.0 means budget will be exhausted before the window ends.
-        """
-        actual_ratio = self._counter.current_ratio(window_seconds)
-        if actual_ratio is None:
-            return None
-        actual_error_ratio = 1.0 - actual_ratio
-        if self._slo.error_budget_ratio == 0:
-            return None
-        return round(actual_error_ratio / self._slo.error_budget_ratio, 3)
-
-    def exhaustion_forecast_seconds(self) -> Optional[float]:
-        """
-        Estimates seconds until error budget exhaustion at the current burn rate.
-        Returns None if burn rate is <= 1 (not on track to exhaust).
-        """
-        br = self.burn_rate(self._slo.window_seconds)
-        if br is None or br <= 1.0:
-            return None
-        remaining = self.budget_remaining_ratio()
-        if remaining is None or remaining <= 0:
-            return 0.0
-        # At burn rate BR, budget exhausts in window * remaining / BR
-        seconds = self._slo.window_seconds * remaining / br
-        return round(seconds, 1)
-
-    def snapshot(self) -> dict:
-        good, bad = self._counter.counts()
-        total = good + bad
-        return {
-            "slo_name": self._slo.name,
-            "target_ratio": self._slo.target_ratio,
-            "total_events": total,
-            "bad_events": bad,
-            "current_ratio": self._counter.current_ratio(),
-            "budget_remaining_ratio": self.budget_remaining_ratio(),
-            "burn_rate_1h": self.burn_rate(3600),
-            "burn_rate_6h": self.burn_rate(21600),
-            "exhaustion_forecast_seconds": self.exhaustion_forecast_seconds(),
-        }
-```
-
-## Solution 4: Multi-Window Burn Rate Alerter
-
-```python
-import time
-from dataclasses import dataclass
-from typing import List, Optional
-
-
 @dataclass
-class BurnRateAlert:
+class ErrorBudgetState:
     slo_name: str
-    alert_name: str
-    short_window_seconds: float
-    long_window_seconds: float
-    burn_rate_threshold: float
-    triggered: bool = False
-    short_burn_rate: Optional[float] = None
-    long_burn_rate: Optional[float] = None
-    triggered_at: Optional[float] = None
+    period_start: float
+    total_requests: int = 0
+    total_errors: int = 0
+    budget_consumed_pct: float = 0.0
+    burn_rate_1h: float = 0.0       # budget consumed per hour (relative to period)
+    burn_rate_6h: float = 0.0
+    updated_at: float = field(default_factory=time.time)
 
+    def success_rate(self) -> float:
+        if self.total_requests == 0:
+            return 1.0
+        return round(1.0 - (self.total_errors / self.total_requests), 6)
 
-class MultiWindowBurnRateAlerter:
-    """
-    Implements the two-window burn rate alerting pattern from Google SRE.
-    An alert fires when BOTH the short and long window burn rates exceed
-    the threshold — short window ensures fast detection, long window
-    suppresses false positives from brief spikes.
-    """
+    def time_elapsed_fraction(self, period_seconds: float) -> float:
+        elapsed = time.time() - self.period_start
+        return min(1.0, elapsed / period_seconds)
 
-    # Standard Google SRE alert tiers
-    DEFAULT_ALERTS = [
-        # (alert_name, short_window_h, long_window_h, burn_rate_threshold)
-        ("page_critical", 1, 6, 14.4),    # exhausts 30d budget in 2h
-        ("page_high", 6, 24, 6.0),        # exhausts 30d budget in 5d
-        ("ticket_medium", 24, 72, 3.0),   # exhausts 30d budget in 10d
-        ("ticket_low", 72, 168, 1.0),     # consuming at sustainable rate
-    ]
-
-    def __init__(self, calculator: ErrorBudgetCalculator):
-        self._calc = calculator
-        self._slo_name = calculator._slo.name
-        self._alert_history: List[dict] = []
-
-    def evaluate(self) -> List[BurnRateAlert]:
-        alerts = []
-        for alert_name, short_h, long_h, threshold in self.DEFAULT_ALERTS:
-            short_br = self._calc.burn_rate(short_h * 3600)
-            long_br = self._calc.burn_rate(long_h * 3600)
-            triggered = (
-                short_br is not None and long_br is not None
-                and short_br >= threshold and long_br >= threshold
-            )
-            alert = BurnRateAlert(
-                slo_name=self._slo_name,
-                alert_name=alert_name,
-                short_window_seconds=short_h * 3600,
-                long_window_seconds=long_h * 3600,
-                burn_rate_threshold=threshold,
-                triggered=triggered,
-                short_burn_rate=short_br,
-                long_burn_rate=long_br,
-                triggered_at=time.time() if triggered else None,
-            )
-            alerts.append(alert)
-            if triggered:
-                self._alert_history.append({
-                    "ts": time.time(),
-                    "alert_name": alert_name,
-                    "short_burn_rate": short_br,
-                    "long_burn_rate": long_br,
-                })
-        return alerts
+    def projected_budget_consumed_eop(self) -> Optional[float]:
+        """Projects budget consumption at end of period at current burn rate."""
+        elapsed_frac = self.time_elapsed_fraction(1.0)  # placeholder
+        if elapsed_frac <= 0:
+            return None
+        return round(self.budget_consumed_pct / max(elapsed_frac, 0.001), 1)
 ```
 
-## Solution 5: Error Budget Report
+## Solution 3: Error Budget Tracker
 
 ```python
 import time
-from typing import List
+import threading
+from collections import deque
+from typing import Deque, Optional, Tuple
 
 
-class ErrorBudgetReporter:
+class ErrorBudgetTracker:
     """
-    Produces structured error budget status reports for multiple SLOs.
+    Tracks request outcomes against an SLO definition and maintains
+    rolling error counts for burn rate calculation.
     """
 
     def __init__(
         self,
-        calculators: List[ErrorBudgetCalculator],
-        alerter_map: Optional[dict] = None,
+        slo: SLODefinition,
+        window_seconds_1h: float = 3600.0,
+        window_seconds_6h: float = 21600.0,
     ):
-        self._calcs = calculators
-        self._alerters = alerter_map or {}
+        self._slo = slo
+        self._win_1h = window_seconds_1h
+        self._win_6h = window_seconds_6h
+        self._events: Deque[Tuple[float, bool]] = deque()  # (ts, is_error)
+        self._period_start = time.time()
+        self._lock = threading.Lock()
 
-    def report(self) -> dict:
-        slo_reports = []
-        for calc in self._calcs:
-            snap = calc.snapshot()
-            alerter = self._alerters.get(calc._slo.name)
-            active_alerts = []
-            if alerter:
-                active_alerts = [
-                    {"name": a.alert_name, "short_br": a.short_burn_rate, "long_br": a.long_burn_rate}
-                    for a in alerter.evaluate()
-                    if a.triggered
-                ]
-            slo_reports.append({**snap, "active_alerts": active_alerts})
+    def record(self, is_error: bool) -> None:
+        with self._lock:
+            self._events.append((time.time(), is_error))
+            self._evict()
 
-        overall_healthy = all(
-            (r["budget_remaining_ratio"] or 1.0) > 0.10
-            for r in slo_reports
+    def _evict(self) -> None:
+        cutoff = time.time() - self._slo.period_seconds()
+        while self._events and self._events[0][0] < cutoff:
+            self._events.popleft()
+
+    def _window_stats(self, window_seconds: float) -> Tuple[int, int]:
+        cutoff = time.time() - window_seconds
+        requests = errors = 0
+        for ts, is_error in self._events:
+            if ts >= cutoff:
+                requests += 1
+                if is_error:
+                    errors += 1
+        return requests, errors
+
+    def _period_stats(self) -> Tuple[int, int]:
+        return self._window_stats(self._slo.period_seconds())
+
+    def compute_state(self) -> ErrorBudgetState:
+        with self._lock:
+            total_req, total_err = self._period_stats()
+            req_1h, err_1h = self._window_stats(self._win_1h)
+            req_6h, err_6h = self._window_stats(self._win_6h)
+
+        error_budget = self._slo.error_rate_budget
+        period_s = self._slo.period_seconds()
+
+        # Budget consumed = actual error rate / budget error rate
+        actual_err_rate = total_err / max(total_req, 1)
+        budget_consumed_pct = round(actual_err_rate / max(error_budget, 0.0001) * 100, 2)
+
+        # Burn rate = (error_rate_in_window / error_budget) * (period / window)
+        err_rate_1h = err_1h / max(req_1h, 1)
+        err_rate_6h = err_6h / max(req_6h, 1)
+        burn_1h = round(err_rate_1h / max(error_budget, 0.0001) * (period_s / self._win_1h), 4)
+        burn_6h = round(err_rate_6h / max(error_budget, 0.0001) * (period_s / self._win_6h), 4)
+
+        state = ErrorBudgetState(
+            slo_name=self._slo.name,
+            period_start=self._period_start,
+            total_requests=total_req,
+            total_errors=total_err,
+            budget_consumed_pct=budget_consumed_pct,
+            burn_rate_1h=burn_1h,
+            burn_rate_6h=burn_6h,
         )
-        return {
-            "generated_at": time.time(),
-            "overall_healthy": overall_healthy,
-            "slos": slo_reports,
-        }
+        return state
+```
+
+## Solution 4: Burn Rate Alerter
+
+```python
+from dataclasses import dataclass
+from typing import List
+
+
+@dataclass
+class BurnRateAlert:
+    severity: str
+    burn_rate: float
+    window: str
+    message: str
+    budget_consumed_pct: float
+
+
+class BurnRateAlerter:
+    """
+    Evaluates error budget state against burn rate thresholds.
+    Uses multi-window burn rate alerts: fast burn on 1h window,
+    slower sustained burn on 6h window.
+    """
+
+    # Google SRE-style burn rate thresholds
+    CRITICAL_BURN_RATE = 14.4    # exhausts monthly budget in 2 hours
+    HIGH_BURN_RATE = 6.0         # exhausts monthly budget in 5 hours
+    MEDIUM_BURN_RATE = 3.0       # exhausts monthly budget in ~10 hours
+    WARN_BUDGET_CONSUMED = 50.0  # consumed >50% of period budget
+
+    def check(self, state: ErrorBudgetState) -> List[BurnRateAlert]:
+        alerts = []
+
+        if state.burn_rate_1h >= self.CRITICAL_BURN_RATE:
+            alerts.append(BurnRateAlert(
+                severity="critical",
+                burn_rate=state.burn_rate_1h,
+                window="1h",
+                message=f"critical burn rate {state.burn_rate_1h:.1f}x — budget exhausted in ~{60/state.burn_rate_1h:.0f}m",
+                budget_consumed_pct=state.budget_consumed_pct,
+            ))
+        elif state.burn_rate_1h >= self.HIGH_BURN_RATE:
+            alerts.append(BurnRateAlert(
+                severity="high",
+                burn_rate=state.burn_rate_1h,
+                window="1h",
+                message=f"high burn rate {state.burn_rate_1h:.1f}x on 1h window",
+                budget_consumed_pct=state.budget_consumed_pct,
+            ))
+
+        if state.burn_rate_6h >= self.MEDIUM_BURN_RATE:
+            alerts.append(BurnRateAlert(
+                severity="medium",
+                burn_rate=state.burn_rate_6h,
+                window="6h",
+                message=f"sustained burn rate {state.burn_rate_6h:.1f}x on 6h window",
+                budget_consumed_pct=state.budget_consumed_pct,
+            ))
+
+        if state.budget_consumed_pct >= self.WARN_BUDGET_CONSUMED:
+            alerts.append(BurnRateAlert(
+                severity="warning",
+                burn_rate=0.0,
+                window="period",
+                message=f"budget {state.budget_consumed_pct:.1f}% consumed for this period",
+                budget_consumed_pct=state.budget_consumed_pct,
+            ))
+
+        return alerts
+```
+
+## Solution 5: Multi-SLO Budget Registry
+
+```python
+import time
+from typing import Dict, List
+
+
+class MultiSLOBudgetRegistry:
+    """
+    Manages multiple SLO trackers and alerters in a single registry.
+    Supports recording events by SLO name and querying all states at once.
+    """
+
+    def __init__(self):
+        self._trackers: Dict[str, ErrorBudgetTracker] = {}
+        self._alerters: Dict[str, BurnRateAlerter] = {}
+
+    def register(self, slo: SLODefinition) -> None:
+        self._trackers[slo.name] = ErrorBudgetTracker(slo)
+        self._alerters[slo.name] = BurnRateAlerter()
+
+    def record(self, slo_name: str, is_error: bool) -> None:
+        tracker = self._trackers.get(slo_name)
+        if tracker:
+            tracker.record(is_error)
+
+    def all_states(self) -> Dict[str, ErrorBudgetState]:
+        return {name: t.compute_state() for name, t in self._trackers.items()}
+
+    def all_alerts(self) -> Dict[str, List[BurnRateAlert]]:
+        result = {}
+        for name, tracker in self._trackers.items():
+            state = tracker.compute_state()
+            alerter = self._alerters[name]
+            result[name] = alerter.check(state)
+        return result
 ```
 
 ## Solution 6: Error Budget Dashboard
@@ -312,50 +294,56 @@ import time
 
 class ErrorBudgetDashboard:
     """
-    Single-call render of error budget status with traffic-light summary.
+    Renders per-SLO budget states and active burn rate alerts
+    into a single operational report.
     """
 
-    def __init__(self, reporter: ErrorBudgetReporter):
-        self._reporter = reporter
+    def __init__(self, registry: MultiSLOBudgetRegistry):
+        self._registry = registry
 
     def render(self) -> dict:
-        report = self._reporter.report()
-        slos = report["slos"]
+        states = self._registry.all_states()
+        alerts = self._registry.all_alerts()
 
-        def traffic_light(remaining: Optional[float]) -> str:
-            if remaining is None:
-                return "unknown"
-            if remaining > 0.50:
-                return "green"
-            if remaining > 0.10:
-                return "yellow"
-            return "red"
+        slo_summaries = {}
+        for name, state in states.items():
+            slo_summaries[name] = {
+                "success_rate": state.success_rate(),
+                "budget_consumed_pct": state.budget_consumed_pct,
+                "burn_rate_1h": state.burn_rate_1h,
+                "burn_rate_6h": state.burn_rate_6h,
+                "total_requests": state.total_requests,
+                "total_errors": state.total_errors,
+                "alert_count": len(alerts.get(name, [])),
+                "highest_severity": (
+                    alerts[name][0].severity if alerts.get(name) else "none"
+                ),
+            }
+
+        all_active_alerts = [
+            {**vars(alert), "slo_name": name}
+            for name, slo_alerts in alerts.items()
+            for alert in slo_alerts
+        ]
 
         return {
             "generated_at": time.time(),
-            "overall_status": "healthy" if report["overall_healthy"] else "at_risk",
-            "slo_summary": [
-                {
-                    "name": s["slo_name"],
-                    "status": traffic_light(s.get("budget_remaining_ratio")),
-                    "budget_remaining_pct": round((s.get("budget_remaining_ratio") or 0) * 100, 1),
-                    "burn_rate_1h": s.get("burn_rate_1h"),
-                    "active_alert_count": len(s.get("active_alerts", [])),
-                }
-                for s in slos
+            "slos": slo_summaries,
+            "active_alerts": all_active_alerts,
+            "slos_at_risk": [
+                name for name, s in slo_summaries.items()
+                if s["budget_consumed_pct"] > 80 or s["burn_rate_1h"] > 3.0
             ],
         }
 ```
 
 ## Comparison
 
-| Approach | SLO Definition | Event Counting | Budget Math | Burn Rate Alerts | Dashboard |
+| Approach | Budget Calculation | Burn Rate | Multi-Window | Multi-SLO | Dashboard |
 |---|---|---|---|---|---|
-| SLODefinition | Yes | No | No | No | No |
-| SLOEventCounter | No | Yes (sliding window) | No | No | No |
-| ErrorBudgetCalculator | Via SLO | Via counter | Yes | No | No |
-| MultiWindowBurnRateAlerter | Via calculator | Via calculator | Via calculator | Yes (2-window) | No |
-| ErrorBudgetReporter | Via calculators | Via calculators | Via calculators | Via alerters | No |
-| ErrorBudgetDashboard | No | No | No | No | Yes |
+| ErrorBudgetTracker | Yes | Yes (1h + 6h) | Yes | No | No |
+| BurnRateAlerter | No | Yes (thresholds) | Yes | No | No |
+| MultiSLOBudgetRegistry | Via trackers | Via alerters | Via trackers | Yes | No |
+| ErrorBudgetDashboard | No | No | No | Via registry | Yes |
 
-**Best for production**: Define SLOs at the service boundary — one for availability (success/total), one for P99 latency (requests under threshold/total). Set the `page_critical` alert threshold to 14.4× burn rate (exhausts 30-day budget in 2 hours) and route it to PagerDuty. Set `ticket_medium` at 3× and route to a Slack channel for async review. Check `budget_remaining_ratio` in your deployment gate — if less than 10% of budget remains, block non-emergency deploys until the window resets. Monitor `exhaustion_forecast_seconds` in the dashboard: if it shows less than 48 hours, freeze feature work and investigate root cause immediately.
+**Best for production**: Use Google SRE-style multi-window burn rate thresholds: alert at 14.4× (2-hour exhaustion) for paging, 6× (5-hour) for ticket creation, and 3× sustained for trend monitoring. Record every agent request outcome — success or error — to the relevant SLO tracker immediately after the response is sent. Define separate SLOs for different agent capabilities (tool-assisted queries, direct responses, streaming sessions) so that a failure in one area does not mask healthy performance in another, and the responsible team gets the right alert.
