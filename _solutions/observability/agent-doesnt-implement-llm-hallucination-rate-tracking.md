@@ -1,696 +1,343 @@
 ---
 title: "Agent Doesn't Implement LLM Hallucination Rate Tracking"
-description: "Agents that don't measure hallucination rates have no visibility into factual reliability degradation, model drift toward confabulation, or which prompt patterns produce unverifiable claims."
+description: "Agents that do not measure hallucination rates have no signal for when a model change, prompt change, or context shift has increased the frequency of factually incorrect outputs: a model update that doubles the hallucination rate goes undetected until users report errors. Implement hallucination rate tracking using automated fact-checking heuristics, citation verification, and user feedback correlation to surface degradation before it becomes a user-facing incident."
+date: 2026-04-16
 difficulty: advanced
 category: observability
-tags: [hallucination, factuality, quality, llm, tracking, observability, grounding]
+slug: agent-doesnt-implement-llm-hallucination-rate-tracking
+tags: [hallucination-detection, output-quality, fact-checking, citation-verification, model-evaluation, quality-regression]
+symptoms:
+  - "No measurement of how often agent outputs contain factually incorrect information"
+  - "Model or prompt changes are deployed without verifying hallucination rate regression"
+  - "User feedback about incorrect answers is not correlated with specific output patterns"
+  - "No baseline hallucination rate to compare against after deployments"
+  - "Hallucination detection is entirely manual — reviewers spot-check randomly"
 ---
 
-## Problem
+## Why This Happens
 
-LLM outputs sometimes contain plausible-sounding but factually incorrect information. Without tracking, teams only learn about hallucinations from user complaints. By the time the signal is clear, thousands of incorrect responses may have been delivered. Systematic measurement enables proactive detection of model drift, prompt regressions, and domain-specific reliability gaps.
+Hallucination is hard to detect automatically because it requires knowing what is true — which the agent may not have access to. However, several tractable proxies exist: citation verification (did the agent claim a document says X when it does not?), consistency checks (does the agent give the same answer to the same question twice?), confidence calibration (does the agent express high certainty for answers that are frequently corrected?), and user feedback correlation (do corrected responses share patterns?). Measuring these proxies over time enables detection of hallucination rate regressions without requiring ground truth for every output.
+
+## Solution 1: Hallucination Signal Types
 
 ```python
-# Broken: no hallucination tracking — reliability is unknown
-async def answer(question: str) -> str:
-    response = await client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=512,
-        messages=[{"role": "user", "content": question}]
-    )
-    return response.content[0].text
-# No measurement of factual accuracy over time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+
+class HallucinationSignalType(str, Enum):
+    CITATION_MISMATCH = "citation_mismatch"      # output claims source says X but source says Y
+    CONSISTENCY_FAILURE = "consistency_failure"   # same question, different answers
+    USER_CORRECTION = "user_correction"           # user explicitly corrected the agent
+    CONFIDENCE_MISCALIBRATION = "confidence_miscalibration"  # high confidence + wrong
+    ENTITY_FABRICATION = "entity_fabrication"    # named entity not in source documents
+    FACTUAL_CONTRADICTION = "factual_contradiction"  # contradicts known facts
+
+
+class HallucinationSeverity(str, Enum):
+    LOW = "low"        # minor inaccuracy, does not mislead
+    MEDIUM = "medium"  # factual error, potentially misleading
+    HIGH = "high"      # confident false claim, likely to mislead
+
+
+@dataclass
+class HallucinationSignal:
+    signal_type: HallucinationSignalType
+    severity: HallucinationSeverity
+    conversation_id: str
+    turn_number: int
+    output_excerpt: str       # first 200 chars of the offending output
+    evidence: str             # why this is flagged
+    tool_name: str = ""       # which tool provided the grounding (if any)
+    model_id: str = ""
+    confidence_score: float = 0.0   # agent's expressed confidence (if extractable)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    timestamp: float = field(default_factory=lambda: __import__("time").time())
 ```
 
----
-
-## Solution 1: Citation Grounding Check
+## Solution 2: Citation Verifier
 
 ```python
-import asyncio
 import re
-from anthropic import AsyncAnthropic
-from dataclasses import dataclass, field
-from typing import Any
+from typing import List, Optional, Tuple
 
-client = AsyncAnthropic()
 
-@dataclass
-class GroundingResult:
-    claim: str
-    grounded: bool   # True if claim is supported by source context
-    confidence: float
-    source_snippet: str | None = None
-
-async def check_claim_grounding(claim: str, source_context: str) -> GroundingResult:
+class CitationVerifier:
     """
-    Ask a cheap model to verify whether a specific claim is supported
-    by the provided source context.
+    Verifies that claims attributed to source documents are actually
+    present in those documents. Detects fabricated citations.
     """
-    response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=100,
-        system=(
-            "You are a fact-checking assistant. Given a claim and source context, "
-            "respond with JSON only: "
-            '{"supported": true/false, "confidence": 0.0-1.0, "evidence": "quote or null"}'
-        ),
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Source context:\n{source_context[:2000]}\n\n"
-                f"Claim to verify: {claim}"
-            )
-        }]
-    )
-    import json
-    try:
-        result = json.loads(response.content[0].text)
-        return GroundingResult(
-            claim=claim,
-            grounded=result.get("supported", False),
-            confidence=float(result.get("confidence", 0.5)),
-            source_snippet=result.get("evidence"),
+
+    def __init__(self, min_match_length: int = 30):
+        self._min_match = min_match_length
+
+    def _normalize(self, text: str) -> str:
+        return re.sub(r"\s+", " ", text.lower().strip())
+
+    def verify_citation(
+        self,
+        agent_claim: str,
+        source_documents: List[str],
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Returns (verified, supporting_document_excerpt).
+        verified=False means the claim was not found in any source.
+        """
+        norm_claim = self._normalize(agent_claim)
+        if len(norm_claim) < self._min_match:
+            return True, None  # too short to verify
+
+        # Check for substantial overlap with any source
+        for doc in source_documents:
+            norm_doc = self._normalize(doc)
+            # Sliding window check
+            words = norm_claim.split()
+            for size in range(min(10, len(words)), max(3, len(words) // 2), -1):
+                window = " ".join(words[:size])
+                if window in norm_doc:
+                    return True, doc[:100]
+
+        return False, None
+
+    def extract_claims(self, output: str) -> List[str]:
+        """Extract sentences that make verifiable factual claims."""
+        sentences = re.split(r"(?<=[.!?])\s+", output)
+        # Heuristic: sentences with specific numbers, names, or dates
+        claim_pattern = re.compile(
+            r"\b(\d{4}|\d+%|[A-Z][a-z]+ [A-Z][a-z]+|\$\d+)\b"
         )
-    except Exception:
-        return GroundingResult(claim=claim, grounded=False, confidence=0.0)
-
-def extract_factual_claims(text: str) -> list[str]:
-    """
-    Heuristic extraction of factual claims from LLM output.
-    Targets sentences with assertive structure and specific facts.
-    """
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-    claims = []
-    for s in sentences:
-        s = s.strip()
-        if len(s) < 20:
-            continue
-        # Skip hedged statements
-        if any(hedge in s.lower() for hedge in
-               ["i think", "i believe", "might", "could be", "perhaps",
-                "it seems", "possibly", "approximately"]):
-            continue
-        # Prefer sentences with numbers, named entities, or specific assertions
-        if re.search(r'\d{4}|\d+\s*%|\$\d+|[A-Z][a-z]+\s+[A-Z][a-z]+', s):
-            claims.append(s)
-        elif re.match(r'^(The|A|An|In|On|At|By|According)', s):
-            claims.append(s)
-    return claims[:5]  # check at most 5 claims per response
-
-class HallucinationGroundingChecker:
-    """Check how many claims in a response are grounded in provided context."""
-
-    def __init__(self):
-        self._total_claims = 0
-        self._ungrounded_claims = 0
-        self._checks_by_type: dict[str, dict] = {}
-
-    async def check_response(self, response_text: str, source_context: str,
-                              query_type: str = "general") -> dict:
-        claims = extract_factual_claims(response_text)
-        if not claims:
-            return {"hallucination_rate": 0.0, "claims_checked": 0,
-                    "ungrounded": []}
-
-        results = await asyncio.gather(*[
-            check_claim_grounding(claim, source_context) for claim in claims
-        ])
-
-        ungrounded = [r for r in results if not r.grounded]
-        hallucination_rate = len(ungrounded) / len(results)
-
-        self._total_claims += len(results)
-        self._ungrounded_claims += len(ungrounded)
-
-        # Track by query type
-        if query_type not in self._checks_by_type:
-            self._checks_by_type[query_type] = {"total": 0, "ungrounded": 0}
-        self._checks_by_type[query_type]["total"] += len(results)
-        self._checks_by_type[query_type]["ungrounded"] += len(ungrounded)
-
-        return {
-            "hallucination_rate": round(hallucination_rate, 3),
-            "claims_checked": len(results),
-            "ungrounded": [r.claim for r in ungrounded],
-            "query_type": query_type,
-        }
-
-    def global_stats(self) -> dict:
-        rate = (self._ungrounded_claims / max(1, self._total_claims))
-        return {
-            "global_hallucination_rate": round(rate, 4),
-            "total_claims_checked": self._total_claims,
-            "total_ungrounded": self._ungrounded_claims,
-            "by_query_type": {
-                t: {
-                    "rate": round(v["ungrounded"] / max(1, v["total"]), 4),
-                    "n": v["total"]
-                }
-                for t, v in self._checks_by_type.items()
-            }
-        }
+        return [s for s in sentences if claim_pattern.search(s) and len(s) > 20]
 ```
 
----
-
-## Solution 2: Self-Consistency Sampling for Hallucination Detection
+## Solution 3: Consistency Checker
 
 ```python
-import asyncio
-from anthropic import AsyncAnthropic
-from dataclasses import dataclass
+import math
+from typing import Dict, List, Optional, Tuple
 
-client = AsyncAnthropic()
 
-@dataclass
-class ConsistencyResult:
-    question: str
-    answers: list[str]
-    is_consistent: bool
-    agreement_score: float   # 0.0–1.0: fraction of pairs that agree
-    consensus_answer: str | None
-
-async def sample_multiple_responses(question: str,
-                                     n_samples: int = 3,
-                                     temperature: float = 0.7) -> list[str]:
-    """Generate N independent responses to the same question."""
-    tasks = [
-        client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=256,
-            messages=[{"role": "user", "content": question}],
-        )
-        for _ in range(n_samples)
-    ]
-    responses = await asyncio.gather(*tasks)
-    return [r.content[0].text for r in responses]
-
-async def check_agreement(answer_a: str, answer_b: str) -> float:
-    """Ask a model to judge if two answers agree semantically (0.0–1.0)."""
-    response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=10,
-        system="Reply with only a number between 0.0 and 1.0 indicating semantic agreement.",
-        messages=[{
-            "role": "user",
-            "content": f"Answer A: {answer_a[:200]}\n\nAnswer B: {answer_b[:200]}"
-        }]
-    )
-    try:
-        return float(response.content[0].text.strip())
-    except ValueError:
-        return 0.5
-
-async def self_consistency_check(question: str,
-                                  n_samples: int = 3) -> ConsistencyResult:
+class ConsistencyChecker:
     """
-    High self-consistency → model is confident and likely correct.
-    Low self-consistency → model is uncertain → hallucination risk.
+    Detects hallucination by comparing responses to the same or similar
+    queries across conversations. Inconsistent answers suggest fabrication.
     """
-    answers = await sample_multiple_responses(question, n_samples)
 
-    # Check all pairs
-    pairs = [(i, j) for i in range(len(answers))
-             for j in range(i + 1, len(answers))]
-    agreement_scores = await asyncio.gather(*[
-        check_agreement(answers[i], answers[j]) for i, j in pairs
-    ])
+    def __init__(self, similarity_threshold: float = 0.85):
+        self._threshold = similarity_threshold
+        self._response_cache: Dict[str, List[str]] = {}  # query_hash -> responses
 
-    avg_agreement = sum(agreement_scores) / max(1, len(agreement_scores))
-    is_consistent = avg_agreement >= 0.75
+    @staticmethod
+    def _shingles(text: str, k: int = 5) -> set:
+        import re
+        norm = re.sub(r"\s+", " ", text.lower().strip())
+        return {norm[i:i+k] for i in range(len(norm) - k + 1)}
 
-    # Pick most representative answer (highest mean agreement with others)
-    mean_agreements = []
-    for i, answer in enumerate(answers):
-        related = [score for (a, b), score in zip(pairs, agreement_scores)
-                   if a == i or b == i]
-        mean_agreements.append(sum(related) / max(1, len(related)))
+    def _jaccard(self, a: str, b: str) -> float:
+        sa, sb = self._shingles(a), self._shingles(b)
+        if not sa and not sb:
+            return 1.0
+        return len(sa & sb) / len(sa | sb)
 
-    best_idx = max(range(len(answers)), key=lambda i: mean_agreements[i])
+    def record_response(self, query: str, response: str) -> Optional[float]:
+        """
+        Records a response and returns minimum similarity to prior responses.
+        Low similarity to prior responses for same query signals inconsistency.
+        """
+        import hashlib
+        query_hash = hashlib.sha256(query.encode()).hexdigest()[:16]
+        prior = self._response_cache.get(query_hash, [])
 
-    return ConsistencyResult(
-        question=question,
-        answers=answers,
-        is_consistent=is_consistent,
-        agreement_score=round(avg_agreement, 3),
-        consensus_answer=answers[best_idx] if is_consistent else None,
-    )
+        min_similarity = 1.0
+        for prev_response in prior[-5:]:  # compare against last 5
+            sim = self._jaccard(response, prev_response)
+            min_similarity = min(min_similarity, sim)
 
-class SelfConsistencyTracker:
-    """Track self-consistency scores over time to detect model drift."""
+        prior.append(response)
+        self._response_cache[query_hash] = prior[-10:]  # keep last 10
+        return min_similarity if prior else None
 
-    def __init__(self, low_threshold: float = 0.6):
-        self._scores: list[float] = []
-        self._low_threshold = low_threshold
-        self._low_count = 0
-
-    def record(self, result: ConsistencyResult):
-        self._scores.append(result.agreement_score)
-        if result.agreement_score < self._low_threshold:
-            self._low_count += 1
-
-    def hallucination_risk_rate(self) -> float:
-        return self._low_count / max(1, len(self._scores))
-
-    def rolling_avg(self, window: int = 50) -> float:
-        if not self._scores:
-            return 0.0
-        recent = self._scores[-window:]
-        return sum(recent) / len(recent)
-
-    def stats(self) -> dict:
-        return {
-            "total_checks": len(self._scores),
-            "low_consistency_rate": round(self.hallucination_risk_rate(), 4),
-            "rolling_avg_agreement": round(self.rolling_avg(), 4),
-            "trend": "degrading" if self.rolling_avg(10) < self.rolling_avg(50) else "stable",
-        }
+    def is_inconsistent(self, similarity: Optional[float]) -> bool:
+        if similarity is None:
+            return False
+        return similarity < 1.0 - self._threshold
 ```
 
----
-
-## Solution 3: Reference-Based Factual Accuracy Benchmark
+## Solution 4: Hallucination Rate Tracker
 
 ```python
-import asyncio
-import json
-from anthropic import AsyncAnthropic
-from dataclasses import dataclass, field
-from typing import Any
-
-client = AsyncAnthropic()
-
-@dataclass
-class BenchmarkQuestion:
-    question: str
-    expected_answer: str
-    category: str
-    difficulty: str = "medium"  # easy, medium, hard
-
-@dataclass
-class BenchmarkResult:
-    question: str
-    model_answer: str
-    expected_answer: str
-    is_correct: bool
-    correctness_score: float  # 0.0–1.0
-    category: str
-
-async def judge_answer(question: str, model_answer: str,
-                        expected_answer: str) -> tuple[bool, float]:
-    """Use an LLM judge to evaluate answer correctness."""
-    response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=60,
-        system=(
-            "You are an answer grader. Compare the model answer to the expected "
-            "answer and respond with JSON only: "
-            '{"correct": true/false, "score": 0.0-1.0}'
-            " Score 1.0=exact match, 0.5=partially correct, 0.0=wrong."
-        ),
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Question: {question}\n"
-                f"Expected: {expected_answer}\n"
-                f"Model answer: {model_answer}"
-            )
-        }]
-    )
-    try:
-        result = json.loads(response.content[0].text)
-        return result.get("correct", False), float(result.get("score", 0.0))
-    except Exception:
-        return False, 0.0
-
-class HallucinationBenchmark:
-    """
-    Runs a fixed set of questions and measures factual accuracy.
-    Run periodically (daily/per-deploy) to detect regressions.
-    """
-
-    def __init__(self, questions: list[BenchmarkQuestion],
-                 model_under_test: str = "claude-opus-4-6"):
-        self._questions = questions
-        self._model = model_under_test
-        self._runs: list[dict] = []
-
-    async def run(self) -> dict:
-        """Run all benchmark questions and return accuracy metrics."""
-        async def evaluate_one(q: BenchmarkQuestion) -> BenchmarkResult:
-            response = await client.messages.create(
-                model=self._model,
-                max_tokens=256,
-                messages=[{"role": "user", "content": q.question}]
-            )
-            answer = response.content[0].text
-            correct, score = await judge_answer(q.question, answer, q.expected_answer)
-            return BenchmarkResult(
-                question=q.question,
-                model_answer=answer,
-                expected_answer=q.expected_answer,
-                is_correct=correct,
-                correctness_score=score,
-                category=q.category,
-            )
-
-        results = await asyncio.gather(*[evaluate_one(q) for q in self._questions])
-
-        by_category: dict[str, list[float]] = {}
-        for r in results:
-            by_category.setdefault(r.category, []).append(r.correctness_score)
-
-        run_summary = {
-            "model": self._model,
-            "total": len(results),
-            "correct": sum(1 for r in results if r.is_correct),
-            "accuracy": round(sum(1 for r in results if r.is_correct) / len(results), 4),
-            "avg_score": round(sum(r.correctness_score for r in results) / len(results), 4),
-            "by_category": {
-                cat: round(sum(scores) / len(scores), 4)
-                for cat, scores in by_category.items()
-            },
-        }
-        self._runs.append(run_summary)
-        return run_summary
-
-    def detect_regression(self, threshold: float = 0.05) -> dict | None:
-        """Compare last two runs. Returns regression report if accuracy dropped > threshold."""
-        if len(self._runs) < 2:
-            return None
-        prev = self._runs[-2]["accuracy"]
-        current = self._runs[-1]["accuracy"]
-        drop = prev - current
-        if drop > threshold:
-            return {
-                "regression_detected": True,
-                "prev_accuracy": prev,
-                "current_accuracy": current,
-                "accuracy_drop": round(drop, 4),
-                "model": self._model,
-            }
-        return None
-```
-
----
-
-## Solution 4: Continuous Hallucination Rate Monitor with Prometheus
-
-```python
-import asyncio
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Callable, Awaitable
+from threading import Lock
+from typing import Deque, Dict, List, Optional, Tuple
 
-try:
-    from prometheus_client import Counter, Histogram, Gauge
-    HAS_PROMETHEUS = True
-except ImportError:
-    HAS_PROMETHEUS = False
 
-@dataclass
-class HallucinationEvent:
-    timestamp: float = field(default_factory=time.time)
-    model: str = ""
-    query_type: str = "general"
-    hallucination_rate: float = 0.0
-    ungrounded_count: int = 0
-    total_claims: int = 0
-    session_id: str = ""
-
-class ContinuousHallucinationMonitor:
+class HallucinationRateTracker:
     """
-    Records hallucination events and exports metrics.
-    Alerts when rolling hallucination rate exceeds threshold.
+    Accumulates hallucination signals and computes rates over sliding windows.
+    Provides regression detection by comparing current rate to a baseline.
     """
 
-    def __init__(self, alert_threshold: float = 0.15,
-                 window_size: int = 100):
-        self._events: deque[HallucinationEvent] = deque(maxlen=window_size)
-        self._alert_threshold = alert_threshold
-        self._total_events = 0
-        self._alert_callbacks: list[Callable[[dict], Awaitable[None]]] = []
+    def __init__(self, window_seconds: int = 86400, max_signals: int = 100_000):
+        self._window = window_seconds
+        self._max = max_signals
+        self._signals: Deque[HallucinationSignal] = deque()
+        self._total_outputs = 0
+        self._baseline_rate: Optional[float] = None
+        self._lock = Lock()
 
-        if HAS_PROMETHEUS:
-            self._counter = Counter(
-                "agent_hallucination_events_total",
-                "Total responses flagged for potential hallucination",
-                ["model", "query_type"]
-            )
-            self._rate_gauge = Gauge(
-                "agent_hallucination_rate",
-                "Rolling hallucination rate",
-                ["model"]
-            )
-            self._score_hist = Histogram(
-                "agent_hallucination_score",
-                "Per-response hallucination rate",
-                ["model", "query_type"],
-                buckets=[0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0]
-            )
+    def record_output(self) -> None:
+        with self._lock:
+            self._total_outputs += 1
 
-    def add_alert_callback(self, fn: Callable[[dict], Awaitable[None]]):
-        self._alert_callbacks.append(fn)
+    def record_signal(self, signal: HallucinationSignal) -> None:
+        with self._lock:
+            self._signals.append(signal)
+            if len(self._signals) > self._max:
+                self._signals.popleft()
 
-    async def record(self, event: HallucinationEvent):
-        self._events.append(event)
-        self._total_events += 1
+    def _recent_signals(self, sub_window: Optional[int] = None) -> List[HallucinationSignal]:
+        cutoff = time.time() - (sub_window or self._window)
+        with self._lock:
+            return [s for s in self._signals if s.timestamp >= cutoff]
 
-        if HAS_PROMETHEUS:
-            if event.hallucination_rate > 0:
-                self._counter.labels(event.model, event.query_type).inc()
-            self._score_hist.labels(event.model, event.query_type).observe(
-                event.hallucination_rate
-            )
-            rolling = self.rolling_rate()
-            self._rate_gauge.labels(event.model).set(rolling)
-
-        # Alert check
-        rolling = self.rolling_rate()
-        if rolling > self._alert_threshold and len(self._events) >= 10:
-            alert = {
-                "alert": "hallucination_rate_high",
-                "rolling_rate": round(rolling, 4),
-                "threshold": self._alert_threshold,
-                "window": len(self._events),
-                "model": event.model,
-            }
-            for callback in self._alert_callbacks:
-                try:
-                    await callback(alert)
-                except Exception as e:
-                    print(f"[HallucinationMonitor] Alert callback failed: {e}")
-
-    def rolling_rate(self) -> float:
-        if not self._events:
+    def hallucination_rate(self, sub_window_seconds: Optional[int] = None) -> float:
+        """Signals per total outputs in the window (proxy for hallucination rate)."""
+        signals = self._recent_signals(sub_window_seconds)
+        if self._total_outputs == 0:
             return 0.0
-        return sum(e.hallucination_rate for e in self._events) / len(self._events)
+        return len(signals) / self._total_outputs
 
-    def stats(self) -> dict:
-        if not self._events:
-            return {"status": "no_data"}
+    def set_baseline(self) -> float:
+        rate = self.hallucination_rate()
+        self._baseline_rate = rate
+        return rate
+
+    def regression_detected(self, threshold_multiplier: float = 2.0) -> bool:
+        if self._baseline_rate is None:
+            return False
+        current = self.hallucination_rate()
+        return current > self._baseline_rate * threshold_multiplier
+
+    def by_type(self, sub_window_seconds: Optional[int] = None) -> Dict[str, int]:
+        signals = self._recent_signals(sub_window_seconds)
+        result: dict = {}
+        for s in signals:
+            result[s.signal_type.value] = result.get(s.signal_type.value, 0) + 1
+        return result
+
+    def by_severity(self, sub_window_seconds: Optional[int] = None) -> Dict[str, int]:
+        signals = self._recent_signals(sub_window_seconds)
+        result: dict = {}
+        for s in signals:
+            result[s.severity.value] = result.get(s.severity.value, 0) + 1
+        return result
+
+    def summary(self, sub_window_seconds: Optional[int] = None) -> dict:
+        signals = self._recent_signals(sub_window_seconds)
         return {
-            "total_responses_monitored": self._total_events,
-            "rolling_rate": round(self.rolling_rate(), 4),
-            "window_size": len(self._events),
-            "alert_threshold": self._alert_threshold,
-            "status": "alert" if self.rolling_rate() > self._alert_threshold else "ok",
-            "by_model": self._breakdown_by("model"),
-            "by_query_type": self._breakdown_by("query_type"),
-        }
-
-    def _breakdown_by(self, field: str) -> dict[str, float]:
-        groups: dict[str, list[float]] = {}
-        for e in self._events:
-            key = getattr(e, field, "unknown")
-            groups.setdefault(key, []).append(e.hallucination_rate)
-        return {k: round(sum(v) / len(v), 4) for k, v in groups.items()}
-```
-
----
-
-## Solution 5: Uncertainty Expression Tracker
-
-```python
-import asyncio
-import re
-from dataclasses import dataclass
-
-# Patterns that signal the model is uncertain (good: hedging)
-UNCERTAINTY_MARKERS = [
-    r"\b(I think|I believe|I'm not sure|I'm uncertain)\b",
-    r"\b(might|could|may|possibly|probably|perhaps|seems? to)\b",
-    r"\b(approximately|roughly|around|about|estimated)\b",
-    r"\b(as of my (training|knowledge)|I don't have (real-time|current))\b",
-    r"\b(you should verify|please confirm|worth checking)\b",
-]
-
-# Patterns that signal confident but potentially incorrect assertion (hallucination risk)
-OVERCONFIDENT_PATTERNS = [
-    r"\b(definitely|certainly|absolutely|always|never|exactly)\b",
-    r"\b(the fact that|it is a fact|it is true that)\b",
-    r"\b(proven|confirmed|established)\b",
-    r"\bid (?:of|number|is)\s+\d{8,}\b",   # long specific IDs (often hallucinated)
-]
-
-@dataclass
-class UncertaintyAnalysis:
-    text: str
-    uncertainty_markers: list[str]
-    overconfident_phrases: list[str]
-    uncertainty_score: float    # higher = more appropriately hedged
-    overconfidence_score: float # higher = more hallucination risk
-    recommendation: str
-
-def analyze_uncertainty_expression(text: str) -> UncertaintyAnalysis:
-    """
-    Measure whether the model appropriately expresses uncertainty.
-    High overconfidence + low uncertainty = hallucination risk.
-    """
-    uncertain_found = []
-    for pattern in UNCERTAINTY_MARKERS:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        uncertain_found.extend(matches)
-
-    overconfident_found = []
-    for pattern in OVERCONFIDENT_PATTERNS:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        overconfident_found.extend(matches)
-
-    word_count = max(1, len(text.split()))
-    uncertainty_score = min(1.0, len(uncertain_found) / (word_count / 50))
-    overconfidence_score = min(1.0, len(overconfident_found) / (word_count / 50))
-
-    if overconfidence_score > 0.3 and uncertainty_score < 0.1:
-        recommendation = "HIGH RISK: overconfident assertions with no hedging"
-    elif uncertainty_score > 0.3:
-        recommendation = "Good: appropriate uncertainty expression"
-    else:
-        recommendation = "Neutral: limited hedging detected"
-
-    return UncertaintyAnalysis(
-        text=text,
-        uncertainty_markers=uncertain_found[:5],
-        overconfident_phrases=overconfident_found[:5],
-        uncertainty_score=round(uncertainty_score, 3),
-        overconfidence_score=round(overconfidence_score, 3),
-        recommendation=recommendation,
-    )
-
-class UncertaintyExpressionTracker:
-    def __init__(self):
-        self._analyses: list[UncertaintyAnalysis] = []
-
-    def track(self, response: str) -> UncertaintyAnalysis:
-        analysis = analyze_uncertainty_expression(response)
-        self._analyses.append(analysis)
-        return analysis
-
-    def summary(self) -> dict:
-        if not self._analyses:
-            return {}
-        avg_oc = sum(a.overconfidence_score for a in self._analyses) / len(self._analyses)
-        high_risk = sum(1 for a in self._analyses if a.overconfidence_score > 0.3)
-        return {
-            "responses_tracked": len(self._analyses),
-            "avg_overconfidence_score": round(avg_oc, 4),
-            "high_risk_pct": round(high_risk / len(self._analyses) * 100, 1),
+            "window_seconds": sub_window_seconds or self._window,
+            "signal_count": len(signals),
+            "total_outputs": self._total_outputs,
+            "hallucination_rate": round(self.hallucination_rate(sub_window_seconds), 6),
+            "baseline_rate": self._baseline_rate,
+            "regression_detected": self.regression_detected(),
+            "by_type": self.by_type(sub_window_seconds),
+            "by_severity": self.by_severity(sub_window_seconds),
         }
 ```
 
----
-
-## Solution 6: Hallucination Regression Dashboard
+## Solution 5: User Correction Correlator
 
 ```python
-import asyncio
-import json
 import time
-from dataclasses import dataclass, field
-from pathlib import Path
+from typing import List
 
-@dataclass
-class HallucinationSnapshot:
-    timestamp: float = field(default_factory=time.time)
-    model: str = ""
-    overall_rate: float = 0.0
-    grounding_rate: float = 0.0
-    self_consistency_score: float = 0.0
-    benchmark_accuracy: float = 0.0
-    overconfidence_score: float = 0.0
-    sample_count: int = 0
 
-class HallucinationDashboard:
+class UserCorrectionCorrelator:
     """
-    Aggregates all hallucination signals into a persistent dashboard.
-    Writes JSONL snapshots for external visualization.
+    Correlates user corrections (explicit "that's wrong" or "actually...")
+    with the outputs that preceded them to identify high-hallucination patterns.
     """
 
-    def __init__(self, output_path: str = "hallucination_dashboard.jsonl"):
-        self._path = Path(output_path)
-        self._snapshots: list[HallucinationSnapshot] = []
+    CORRECTION_PATTERNS = [
+        "that's wrong", "that is wrong", "actually,", "no, that's",
+        "incorrect", "you made an error", "that's not right",
+        "the correct answer", "you're mistaken",
+    ]
 
-    def record_snapshot(self, snap: HallucinationSnapshot):
-        self._snapshots.append(snap)
-        with open(self._path, "a") as f:
-            f.write(json.dumps({
-                "ts": snap.timestamp,
-                "model": snap.model,
-                "overall_rate": snap.overall_rate,
-                "grounding_rate": snap.grounding_rate,
-                "consistency": snap.self_consistency_score,
-                "benchmark": snap.benchmark_accuracy,
-                "overconfidence": snap.overconfidence_score,
-                "n": snap.sample_count,
-            }) + "\n")
+    def __init__(self, tracker: HallucinationRateTracker):
+        self._tracker = tracker
 
-    def detect_regression(self, window: int = 5,
-                           threshold: float = 0.05) -> dict | None:
-        """Compare latest window against prior window."""
-        if len(self._snapshots) < window * 2:
-            return None
-        prev = self._snapshots[-(window * 2):-window]
-        current = self._snapshots[-window:]
-
-        prev_rate = sum(s.overall_rate for s in prev) / len(prev)
-        curr_rate = sum(s.overall_rate for s in current) / len(current)
-
-        if curr_rate - prev_rate > threshold:
-            return {
-                "regression": True,
-                "prev_rate": round(prev_rate, 4),
-                "current_rate": round(curr_rate, 4),
-                "increase": round(curr_rate - prev_rate, 4),
-                "model": current[-1].model,
-            }
-        return None
-
-    def summary(self) -> dict:
-        if not self._snapshots:
-            return {"status": "no_data"}
-        latest = self._snapshots[-1]
-        return {
-            "latest_overall_rate": latest.overall_rate,
-            "latest_benchmark_accuracy": latest.benchmark_accuracy,
-            "latest_consistency": latest.self_consistency_score,
-            "snapshots_recorded": len(self._snapshots),
-            "regression": self.detect_regression() is not None,
-        }
+    def check_user_message(
+        self,
+        user_message: str,
+        previous_output: str,
+        conversation_id: str,
+        turn_number: int,
+        model_id: str = "",
+    ) -> bool:
+        """Returns True if user message appears to be a correction."""
+        lower = user_message.lower().strip()
+        for pattern in self.CORRECTION_PATTERNS:
+            if lower.startswith(pattern) or f" {pattern}" in lower:
+                signal = HallucinationSignal(
+                    signal_type=HallucinationSignalType.USER_CORRECTION,
+                    severity=HallucinationSeverity.MEDIUM,
+                    conversation_id=conversation_id,
+                    turn_number=turn_number,
+                    output_excerpt=previous_output[:200],
+                    evidence=f"user message starts with correction pattern: '{pattern}'",
+                    model_id=model_id,
+                )
+                self._tracker.record_signal(signal)
+                return True
+        return False
 ```
 
----
+## Solution 6: Hallucination Rate Dashboard
+
+```python
+import time
+
+
+class HallucinationRateDashboard:
+    """
+    Combines hallucination rate tracking, regression detection, and
+    citation verification results into a model quality health view.
+    """
+
+    def __init__(
+        self,
+        tracker: HallucinationRateTracker,
+        regression_threshold: float = 2.0,
+    ):
+        self._tracker = tracker
+        self._regression_threshold = regression_threshold
+
+    def render(self) -> dict:
+        summary_1h = self._tracker.summary(sub_window_seconds=3600)
+        summary_24h = self._tracker.summary(sub_window_seconds=86400)
+        regression = self._tracker.regression_detected(self._regression_threshold)
+
+        return {
+            "generated_at": time.time(),
+            "last_1h": summary_1h,
+            "last_24h": summary_24h,
+            "baseline_rate": self._tracker._baseline_rate,
+            "regression_detected": regression,
+            "alert": regression or summary_1h.get("signal_count", 0) > 50,
+        }
+```
 
 ## Comparison
 
-| Solution | Detection Method | Cost | Latency | Continuous | Ground Truth Needed | Best For |
-|---|---|---|---|---|---|---|
-| 1. Citation grounding | Source context check | Low (Haiku) | +100ms | Yes | Source context | RAG agents with retrievals |
-| 2. Self-consistency | Multi-sample agreement | Med (3× calls) | +2-5× | No | No | Uncertainty detection |
-| 3. Reference benchmark | Fixed QA benchmark | Low (batch) | Offline | Scheduled | Yes (gold answers) | Regression testing |
-| 4. Rate monitor + Prometheus | Aggregated signal | Low | None | Yes | No | Production alerting |
-| 5. Uncertainty expression | Lexical analysis | Zero | None | Yes | No | Fast heuristic filter |
-| 6. Regression dashboard | Historical comparison | Low | None | Scheduled | No | Long-term trend analysis |
+| Approach | Citation Check | Consistency Check | User Feedback | Rate Tracking | Regression Detection |
+|---|---|---|---|---|---|
+| CitationVerifier | Yes (overlap) | No | No | No | No |
+| ConsistencyChecker | No | Yes (Jaccard) | No | No | No |
+| HallucinationRateTracker | No | No | No | Yes | Yes |
+| UserCorrectionCorrelator | No | No | Yes (pattern) | Via tracker | No |
+| HallucinationRateDashboard | No | No | No | Via tracker | Yes |
 
-**Key principle**: combine lexical uncertainty analysis (solution 5, zero cost) as a real-time filter with citation grounding (solution 1) for RAG responses and a scheduled benchmark (solution 3) for regression detection. Track the rolling hallucination rate in Prometheus (solution 4) and alert when it exceeds a threshold. Self-consistency sampling (solution 2) is expensive but the most reliable signal for high-stakes queries where ground truth is unavailable.
+**Best for production**: Call `set_baseline()` immediately after each model or prompt deployment — this captures the post-deployment baseline so `regression_detected()` compares current performance to the new baseline, not the pre-deployment one. `UserCorrectionCorrelator` provides the highest-signal hallucination proxy because it is grounded in actual user behavior — prioritize it over automated heuristics. Alert on `regression_detected()` with `threshold_multiplier=2.0` (rate doubled): a single hallucination spike does not necessarily indicate a regression, but a sustained 2× increase almost always does. Track `by_type` over time: a sudden spike in `citation_mismatch` signals that retrieved documents have changed format in a way that breaks citation grounding.
