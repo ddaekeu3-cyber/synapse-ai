@@ -1,702 +1,370 @@
 ---
 title: "Agent Doesn't Implement API Key Rotation Without Downtime"
-slug: agent-doesnt-implement-api-key-rotation-without-downtime
+description: "Agents that store a single API key in an environment variable have no mechanism to rotate credentials without a deployment restart: the key must be updated, the process restarted, and requests fail during the gap. Implement a live key rotation system that loads new credentials from a secret store, validates them before promotion, gracefully drains in-flight requests, and atomically swaps the active key — achieving zero-downtime rotation."
+date: 2026-04-16
+difficulty: advanced
 category: security
-tags: [security, api-key, rotation, secrets, zero-downtime, anthropic-sdk]
-description: >
-  The agent hard-codes or statically loads its Anthropic API key at startup,
-  making it impossible to rotate compromised credentials without restarting
-  every instance. Zero-downtime rotation requires the agent to support multiple
-  concurrent keys, gracefully drain in-flight requests using the old key, and
-  reload secrets from a vault without service interruption.
+slug: agent-doesnt-implement-api-key-rotation-without-downtime
+tags: [api-key-rotation, zero-downtime, secret-management, credential-refresh, atomic-swap, live-rotation]
 symptoms:
-  - Rotating a compromised key requires a full deployment or pod restart
-  - In-flight requests fail when an old key is revoked before rotation completes
-  - No audit trail of which key version served each request
-  - Dev/staging accidentally uses production key because rotation is manual
-related_solutions:
-  - agent-doesnt-implement-input-size-limits-and-payload-validation
-  - agent-doesnt-implement-distributed-trace-propagation
+  - "Rotating an API key requires a full agent restart, causing request failures during the gap"
+  - "Expired keys are discovered only when requests start failing in production"
+  - "No mechanism to validate a new key before promoting it as the active credential"
+  - "In-flight requests using the old key fail immediately when the environment variable is overwritten"
+  - "Key rotation events are not logged, making audit trails for compliance impossible"
 ---
 
-## Problem
+## Why This Happens
 
-API keys expire, leak, and must be rotated. Without a rotation strategy the
-only safe response to a leaked key is emergency downtime: revoke → redeploy →
-resume. A proper zero-downtime rotation strategy supports two simultaneous
-keys (old + new) during the transition window, automatically drains old-key
-requests, and hot-reloads the new key from a secret store without restarting
-any service instances.
+Environment variable–based credentials are read once at process startup and held for the lifetime of the process. Rotating the key in the secret store has no effect until the process restarts. The restart window — however brief — drops in-flight requests and resets connection pools. A live rotation system must solve three problems: discovery (detecting that a new key is available), validation (proving the new key works before promoting it), and drain (allowing in-flight requests using the old key to complete before the old key is invalidated). This requires an abstraction layer between the agent and the raw credential value so the active key can be swapped atomically at runtime.
 
----
-
-## Solution 1 — Dual-Key Switcher with Atomic Swap
-
-Hold two `AsyncAnthropic` client instances (primary and secondary). On rotation,
-the secondary becomes the new primary atomically via a `threading.Lock`-protected
-swap. In-flight calls using the old primary finish normally; new calls use the
-new key immediately.
+## Solution 1: API Key Version Record
 
 ```python
-import anthropic
-import asyncio
-import os
-import threading
+import hashlib
+import time
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
+
+
+class KeyStatus(str, Enum):
+    PENDING = "pending"       # loaded but not yet validated
+    ACTIVE = "active"         # current key in use
+    DRAINING = "draining"     # being phased out; in-flight requests may still use it
+    RETIRED = "retired"       # no longer valid for new requests
 
 
 @dataclass
-class DualKeyClient:
-    """Holds primary + optional secondary key; swaps atomically on rotation."""
-    _primary:   anthropic.AsyncAnthropic = field(init=False)
-    _secondary: anthropic.AsyncAnthropic | None = field(default=None, init=False)
-    _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
-
-    def __post_init__(self):
-        key = os.environ["ANTHROPIC_API_KEY"]
-        self._primary = anthropic.AsyncAnthropic(api_key=key)
+class APIKeyVersion:
+    version_id: str
+    key_value: str            # the raw secret value
+    status: KeyStatus
+    created_at: float = field(default_factory=time.time)
+    activated_at: Optional[float] = None
+    retired_at: Optional[float] = None
+    source: str = ""          # "env" | "vault" | "aws_secrets_manager" | "manual"
 
     @property
-    def client(self) -> anthropic.AsyncAnthropic:
-        with self._lock:
-            return self._primary
+    def fingerprint(self) -> str:
+        """SHA-256 prefix for logging without exposing the key."""
+        return hashlib.sha256(self.key_value.encode()).hexdigest()[:12]
 
-    def stage_new_key(self, new_key: str) -> None:
-        """Load new key as secondary — does not affect in-flight requests yet."""
-        with self._lock:
-            self._secondary = anthropic.AsyncAnthropic(api_key=new_key)
-        print("[rotation] new key staged")
+    def activate(self) -> None:
+        self.status = KeyStatus.ACTIVE
+        self.activated_at = time.time()
 
-    def commit_rotation(self) -> None:
-        """Atomically promote secondary to primary."""
-        with self._lock:
-            if self._secondary is None:
-                raise RuntimeError("No secondary key staged")
-            self._primary = self._secondary
-            self._secondary = None
-        print("[rotation] new key is now primary")
-
-    def rollback(self) -> None:
-        with self._lock:
-            self._secondary = None
-        print("[rotation] rollback — staging cleared")
-
-    async def create_message(self, messages: list, model: str = "claude-sonnet-4-6") -> str:
-        resp = await self.client.messages.create(
-            model=model, max_tokens=512, messages=messages
-        )
-        return resp.content[0].text
-
-
-_client = DualKeyClient()
-
-
-async def demo_rotation():
-    # Normal operation
-    reply = await _client.create_message(
-        [{"role": "user", "content": "What is a nonce in cryptography?"}]
-    )
-    print(f"Before rotation: {reply[:60]}")
-
-    # Stage new key (validate it works before committing)
-    new_key = os.environ.get("ANTHROPIC_API_KEY_NEW", os.environ["ANTHROPIC_API_KEY"])
-    _client.stage_new_key(new_key)
-
-    # Validate new key with a test call before committing
-    test_client = anthropic.AsyncAnthropic(api_key=new_key)
-    try:
-        await test_client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=16,
-            messages=[{"role": "user", "content": "ping"}],
-        )
-        _client.commit_rotation()
-    except anthropic.AuthenticationError:
-        _client.rollback()
-        raise RuntimeError("New key validation failed — rotation aborted")
-
-    # New key is now active
-    reply2 = await _client.create_message(
-        [{"role": "user", "content": "What is HMAC?"}]
-    )
-    print(f"After rotation:  {reply2[:60]}")
-
-
-asyncio.run(demo_rotation())
+    def retire(self) -> None:
+        self.status = KeyStatus.RETIRED
+        self.retired_at = time.time()
 ```
 
----
-
-## Solution 2 — Periodic Secret Reload from Environment / Vault
-
-Poll a secret source (environment variable, file, or Vault HTTP API) on a
-configurable interval and hot-swap the client when the key changes. No restart
-required; rotation happens within one poll interval.
+## Solution 2: Key Validator
 
 ```python
-import anthropic
 import asyncio
-import hashlib
-import os
-import time
-from pathlib import Path
+from typing import Any, Callable, Optional
 
 
-class HotReloadClient:
-    """Reloads Anthropic API key from a secret source on a timer."""
+class APIKeyValidator:
+    """
+    Validates a candidate key by making a lightweight probe request to the
+    target API. Promotion is blocked until validation succeeds.
+    """
 
     def __init__(
         self,
-        source: str = "env",         # "env" | "file:<path>" | "vault:<url>"
-        poll_interval: float = 30.0,  # seconds between checks
+        probe_fn: Callable[[str], Any],   # async fn(key) -> raises on failure
+        timeout_seconds: float = 5.0,
+        max_attempts: int = 3,
+        retry_delay_seconds: float = 1.0,
     ):
-        self._source = source
-        self._poll_interval = poll_interval
-        self._client: anthropic.AsyncAnthropic | None = None
-        self._key_hash: str = ""
+        self._probe = probe_fn
+        self._timeout = timeout_seconds
+        self._max_attempts = max_attempts
+        self._retry_delay = retry_delay_seconds
+
+    async def validate(self, key_version: APIKeyVersion) -> bool:
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                await asyncio.wait_for(
+                    self._probe(key_version.key_value),
+                    timeout=self._timeout,
+                )
+                return True
+            except asyncio.TimeoutError:
+                if attempt == self._max_attempts:
+                    return False
+            except Exception:
+                if attempt == self._max_attempts:
+                    return False
+                await asyncio.sleep(self._retry_delay)
+        return False
+```
+
+## Solution 3: In-Flight Request Tracker
+
+```python
+import asyncio
+import time
+from contextlib import asynccontextmanager
+from typing import Dict, Set
+
+
+class InFlightRequestTracker:
+    """
+    Tracks which requests are currently using a given key version.
+    Rotation waits until all requests using the old key version complete.
+    """
+
+    def __init__(self):
+        self._active: Dict[str, Set[str]] = {}   # version_id -> set of request_ids
         self._lock = asyncio.Lock()
-        self._reload_task: asyncio.Task | None = None
 
-    def _fetch_key(self) -> str:
-        if self._source == "env":
-            return os.environ["ANTHROPIC_API_KEY"]
-        if self._source.startswith("file:"):
-            path = self._source[5:]
-            return Path(path).read_text().strip()
-        if self._source.startswith("vault:"):
-            # In production: call Vault HTTP API
-            # import httpx; resp = httpx.get(url, headers={"X-Vault-Token": token})
-            raise NotImplementedError("Vault source requires httpx + Vault token")
-        raise ValueError(f"Unknown source: {self._source}")
-
-    def _key_fingerprint(self, key: str) -> str:
-        return hashlib.sha256(key.encode()).hexdigest()[:12]
-
-    async def _maybe_reload(self) -> bool:
-        key = self._fetch_key()
-        fp  = self._key_fingerprint(key)
-        if fp == self._key_hash:
-            return False
+    @asynccontextmanager
+    async def track(self, version_id: str, request_id: str):
         async with self._lock:
-            self._client  = anthropic.AsyncAnthropic(api_key=key)
-            old_fp        = self._key_hash
-            self._key_hash = fp
-        print(f"[hot-reload] key rotated  old={old_fp}  new={fp}")
-        return True
+            if version_id not in self._active:
+                self._active[version_id] = set()
+            self._active[version_id].add(request_id)
+        try:
+            yield
+        finally:
+            async with self._lock:
+                self._active.get(version_id, set()).discard(request_id)
+
+    async def wait_for_drain(
+        self,
+        version_id: str,
+        timeout_seconds: float = 30.0,
+        poll_interval: float = 0.1,
+    ) -> bool:
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            async with self._lock:
+                count = len(self._active.get(version_id, set()))
+            if count == 0:
+                return True
+            await asyncio.sleep(poll_interval)
+        return False
+
+    def active_count(self, version_id: str) -> int:
+        return len(self._active.get(version_id, set()))
+```
+
+## Solution 4: Live Key Rotator
+
+```python
+import asyncio
+import time
+import uuid
+from typing import Optional
+
+
+class LiveAPIKeyRotator:
+    """
+    Atomically rotates the active API key with zero downtime.
+    Validates the new key, drains old in-flight requests, then promotes.
+    """
+
+    def __init__(
+        self,
+        validator: APIKeyValidator,
+        tracker: InFlightRequestTracker,
+        drain_timeout_seconds: float = 30.0,
+    ):
+        self._validator = validator
+        self._tracker = tracker
+        self._drain_timeout = drain_timeout_seconds
+        self._active: Optional[APIKeyVersion] = None
+        self._lock = asyncio.Lock()
+
+    async def initialize(self, key_value: str, source: str = "env") -> APIKeyVersion:
+        version = APIKeyVersion(
+            version_id=str(uuid.uuid4()),
+            key_value=key_value,
+            status=KeyStatus.PENDING,
+            source=source,
+        )
+        valid = await self._validator.validate(version)
+        if not valid:
+            raise ValueError(f"Initial key validation failed (fingerprint={version.fingerprint})")
+        version.activate()
+        async with self._lock:
+            self._active = version
+        return version
+
+    async def rotate(self, new_key_value: str, source: str = "manual") -> dict:
+        candidate = APIKeyVersion(
+            version_id=str(uuid.uuid4()),
+            key_value=new_key_value,
+            status=KeyStatus.PENDING,
+            source=source,
+        )
+
+        # Validate before touching the active key
+        valid = await self._validator.validate(candidate)
+        if not valid:
+            return {
+                "success": False,
+                "reason": "validation_failed",
+                "candidate_fingerprint": candidate.fingerprint,
+            }
+
+        async with self._lock:
+            old_version = self._active
+            if old_version:
+                old_version.status = KeyStatus.DRAINING
+
+        # Wait for old key's in-flight requests to finish
+        if old_version:
+            drained = await self._tracker.wait_for_drain(
+                old_version.version_id, self._drain_timeout
+            )
+            if not drained:
+                remaining = self._tracker.active_count(old_version.version_id)
+                # Promote anyway — remaining requests will get errors on their own
+                pass
+            old_version.retire()
+
+        candidate.activate()
+        async with self._lock:
+            self._active = candidate
+
+        return {
+            "success": True,
+            "new_version_id": candidate.version_id,
+            "new_fingerprint": candidate.fingerprint,
+            "old_version_id": old_version.version_id if old_version else None,
+            "rotated_at": time.time(),
+        }
+
+    def current_key(self) -> Optional[str]:
+        return self._active.key_value if self._active else None
+
+    def current_version(self) -> Optional[APIKeyVersion]:
+        return self._active
+```
+
+## Solution 5: Secret Store Poller
+
+```python
+import asyncio
+import time
+from typing import Callable, Optional
+
+
+class SecretStorePoller:
+    """
+    Polls a secret store (Vault, AWS Secrets Manager, etc.) for key updates
+    and triggers rotation automatically when a new version is detected.
+    """
+
+    def __init__(
+        self,
+        rotator: LiveAPIKeyRotator,
+        fetch_fn: Callable[[], str],     # async fn() -> current key value from store
+        poll_interval_seconds: float = 60.0,
+        source_label: str = "secret_store",
+    ):
+        self._rotator = rotator
+        self._fetch = fetch_fn
+        self._interval = poll_interval_seconds
+        self._source = source_label
+        self._last_fingerprint: Optional[str] = None
+        self._rotation_count = 0
+        self._last_rotation_at: Optional[float] = None
+        self._running = False
 
     async def start(self) -> None:
-        await self._maybe_reload()
-        self._reload_task = asyncio.create_task(self._poll_loop())
-
-    async def _poll_loop(self) -> None:
-        while True:
-            await asyncio.sleep(self._poll_interval)
+        self._running = True
+        while self._running:
             try:
-                await self._maybe_reload()
-            except Exception as e:
-                print(f"[hot-reload] reload error: {e}")
+                new_key = await self._fetch()
+                fingerprint = __import__("hashlib").sha256(new_key.encode()).hexdigest()[:12]
+                if fingerprint != self._last_fingerprint:
+                    result = await self._rotator.rotate(new_key, source=self._source)
+                    if result["success"]:
+                        self._last_fingerprint = fingerprint
+                        self._rotation_count += 1
+                        self._last_rotation_at = time.time()
+            except Exception:
+                pass  # next poll will retry
+            await asyncio.sleep(self._interval)
 
-    async def stop(self) -> None:
-        if self._reload_task:
-            self._reload_task.cancel()
+    def stop(self) -> None:
+        self._running = False
 
-    async def create_message(self, messages: list, model: str = "claude-sonnet-4-6") -> str:
-        async with self._lock:
-            client = self._client
-        resp = await client.messages.create(
-            model=model, max_tokens=512, messages=messages
-        )
-        return resp.content[0].text
-
-
-async def demo_hot_reload():
-    manager = HotReloadClient(source="env", poll_interval=5.0)
-    await manager.start()
-
-    for i in range(2):
-        reply = await manager.create_message(
-            [{"role": "user", "content": f"Question {i}: define salting in password hashing."}]
-        )
-        print(f"[{i}] {reply[:60]}")
-        await asyncio.sleep(1)
-
-    await manager.stop()
-
-
-asyncio.run(demo_hot_reload())
-```
-
----
-
-## Solution 3 — Key Version Tagging for Audit Trails
-
-Tag every API call with the key version (fingerprint) so you can correlate
-post-incident which requests used a compromised key and when the rotation took
-effect.
-
-```python
-import anthropic
-import asyncio
-import hashlib
-import json
-import os
-import time
-from dataclasses import dataclass, field
-
-
-@dataclass
-class VersionedKeyStore:
-    _versions: list[dict] = field(default_factory=list)
-    _current_idx: int = 0
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-    async def load_initial(self, key: str) -> None:
-        fp = self._fingerprint(key)
-        async with self._lock:
-            self._versions.append({
-                "key":       key,
-                "fp":        fp,
-                "version":   1,
-                "loaded_at": time.time(),
-                "revoked_at": None,
-            })
-            self._current_idx = 0
-
-    async def rotate(self, new_key: str) -> None:
-        fp = self._fingerprint(new_key)
-        async with self._lock:
-            # Mark current as revoked
-            self._versions[self._current_idx]["revoked_at"] = time.time()
-            # Add new version
-            new_ver = self._versions[-1]["version"] + 1
-            self._versions.append({
-                "key":       new_key,
-                "fp":        fp,
-                "version":   new_ver,
-                "loaded_at": time.time(),
-                "revoked_at": None,
-            })
-            self._current_idx = len(self._versions) - 1
-        print(f"[key-store] rotated to version={new_ver}  fp={fp}")
-
-    async def current(self) -> tuple[str, str, int]:
-        """Returns (key, fingerprint, version)."""
-        async with self._lock:
-            v = self._versions[self._current_idx]
-            return v["key"], v["fp"], v["version"]
-
-    def _fingerprint(self, key: str) -> str:
-        return hashlib.sha256(key.encode()).hexdigest()[:12]
-
-    def audit_log(self) -> list[dict]:
-        return [
-            {k: v for k, v in ver.items() if k != "key"}
-            for ver in self._versions
-        ]
-
-
-_store = VersionedKeyStore()
-
-
-async def versioned_create(messages: list, model: str = "claude-sonnet-4-6") -> dict:
-    key, fp, version = await _store.current()
-    client = anthropic.AsyncAnthropic(api_key=key)
-    resp = await client.messages.create(
-        model=model, max_tokens=256, messages=messages
-    )
-    record = {
-        "key_version":  version,
-        "key_fp":       fp,
-        "model":        model,
-        "input_tokens": resp.usage.input_tokens,
-        "output_tokens": resp.usage.output_tokens,
-        "ts":           time.time(),
-    }
-    print(f"[audit] {json.dumps(record)}")
-    return {"text": resp.content[0].text, **record}
-
-
-async def demo_versioned():
-    initial_key = os.environ["ANTHROPIC_API_KEY"]
-    await _store.load_initial(initial_key)
-
-    r1 = await versioned_create([{"role": "user", "content": "What is certificate pinning?"}])
-    print(f"v{r1['key_version']} response: {r1['text'][:50]}")
-
-    # Simulate rotation
-    await _store.rotate(initial_key)   # same key in demo; in prod: new key
-    r2 = await versioned_create([{"role": "user", "content": "What is PKCE?"}])
-    print(f"v{r2['key_version']} response: {r2['text'][:50]}")
-
-    print("\nAudit log:")
-    for entry in _store.audit_log():
-        print(" ", entry)
-
-
-asyncio.run(demo_versioned())
-```
-
----
-
-## Solution 4 — Graceful Drain During Rotation
-
-Track in-flight requests per key version using an `asyncio.Semaphore`-based
-drain counter. The old key version is not revoked until all its in-flight
-requests complete, preventing mid-request authentication failures.
-
-```python
-import anthropic
-import asyncio
-import os
-import time
-from dataclasses import dataclass, field
-
-
-@dataclass
-class DrainableKey:
-    key:        str
-    version:    int
-    client:     anthropic.AsyncAnthropic = field(init=False)
-    in_flight:  int = 0
-    draining:   bool = False
-    _lock:      asyncio.Lock = field(default_factory=asyncio.Lock)
-    _drained:   asyncio.Event = field(default_factory=asyncio.Event)
-
-    def __post_init__(self):
-        self.client = anthropic.AsyncAnthropic(api_key=self.key)
-        if self.in_flight == 0:
-            self._drained.set()
-
-    async def acquire(self) -> bool:
-        """Returns False if key is draining and should not accept new requests."""
-        async with self._lock:
-            if self.draining:
-                return False
-            self.in_flight += 1
-            self._drained.clear()
-            return True
-
-    async def release(self) -> None:
-        async with self._lock:
-            self.in_flight -= 1
-            if self.in_flight == 0:
-                self._drained.set()
-
-    async def begin_drain(self) -> None:
-        async with self._lock:
-            self.draining = True
-        print(f"[drain] v{self.version}: draining {self.in_flight} in-flight requests")
-        await self._drained.wait()
-        print(f"[drain] v{self.version}: drained — safe to revoke")
-
-
-class ZeroDowntimeRotator:
-    def __init__(self):
-        key = os.environ["ANTHROPIC_API_KEY"]
-        self._active = DrainableKey(key=key, version=1)
-        self._next:   DrainableKey | None = None
-        self._lock = asyncio.Lock()
-
-    async def create_message(self, messages: list, model: str = "claude-sonnet-4-6") -> str:
-        async with self._lock:
-            drainable = self._next if self._next else self._active
-            ok = await drainable.acquire()
-            if not ok and self._active:
-                ok = await self._active.acquire()
-                drainable = self._active
-
-        try:
-            resp = await drainable.client.messages.create(
-                model=model, max_tokens=512, messages=messages
-            )
-            return resp.content[0].text
-        finally:
-            await drainable.release()
-
-    async def rotate(self, new_key: str) -> None:
-        new_version = self._active.version + 1
-        self._next = DrainableKey(key=new_key, version=new_version)
-        old = self._active
-        async with self._lock:
-            self._active = self._next
-            self._next   = None
-        print(f"[rotator] v{new_version} is now active")
-        # Drain old key — wait for in-flight requests to complete
-        await old.begin_drain()
-
-
-async def demo_drain():
-    rotator = ZeroDowntimeRotator()
-
-    async def long_request(i: int):
-        await asyncio.sleep(i * 0.1)  # stagger starts
-        result = await rotator.create_message(
-            [{"role": "user", "content": f"Request {i}: define TLS 1.3."}]
-        )
-        print(f"[req-{i}] {result[:40]}")
-
-    # Start 3 requests, rotate during their execution
-    tasks = [asyncio.create_task(long_request(i)) for i in range(3)]
-    await asyncio.sleep(0.15)
-    await rotator.rotate(os.environ["ANTHROPIC_API_KEY"])  # same key in demo
-    await asyncio.gather(*tasks)
-
-
-asyncio.run(demo_drain())
-```
-
----
-
-## Solution 5 — Multi-Environment Key Resolver
-
-Resolve the correct API key based on the runtime environment (dev / staging /
-prod) and request context (tenant, region). Prevents dev keys leaking into
-production and enables per-tenant key isolation.
-
-```python
-import anthropic
-import asyncio
-import os
-from enum import Enum
-
-
-class Env(str, Enum):
-    DEV     = "dev"
-    STAGING = "staging"
-    PROD    = "prod"
-
-
-class MultiEnvKeyResolver:
-    """
-    Resolves API key based on environment + optional tenant override.
-    In production, each environment reads from its own secret manager path.
-    """
-
-    def __init__(self):
-        # In prod: replace with Vault / AWS SM / GCP Secret Manager lookups
-        self._keys: dict[str, str] = {
-            Env.DEV:     os.environ.get("ANTHROPIC_API_KEY_DEV",     os.environ["ANTHROPIC_API_KEY"]),
-            Env.STAGING: os.environ.get("ANTHROPIC_API_KEY_STAGING", os.environ["ANTHROPIC_API_KEY"]),
-            Env.PROD:    os.environ.get("ANTHROPIC_API_KEY_PROD",    os.environ["ANTHROPIC_API_KEY"]),
+    def stats(self) -> dict:
+        return {
+            "rotation_count": self._rotation_count,
+            "last_rotation_at": self._last_rotation_at,
+            "poll_interval_seconds": self._interval,
         }
-        self._tenant_overrides: dict[str, str] = {}
-        self._clients: dict[str, anthropic.AsyncAnthropic] = {}
-
-    def register_tenant_key(self, tenant_id: str, api_key: str) -> None:
-        """Per-tenant key for BYOK (bring-your-own-key) deployments."""
-        self._tenant_overrides[tenant_id] = api_key
-        self._clients.pop(f"tenant:{tenant_id}", None)
-
-    def _get_key(self, env: Env, tenant_id: str | None) -> str:
-        if tenant_id and tenant_id in self._tenant_overrides:
-            return self._tenant_overrides[tenant_id]
-        return self._keys[env]
-
-    def _client_cache_key(self, env: Env, tenant_id: str | None) -> str:
-        return f"tenant:{tenant_id}" if tenant_id in self._tenant_overrides else env.value
-
-    def get_client(self, env: Env = Env.PROD, tenant_id: str | None = None) -> anthropic.AsyncAnthropic:
-        ck = self._client_cache_key(env, tenant_id)
-        if ck not in self._clients:
-            api_key = self._get_key(env, tenant_id)
-            self._clients[ck] = anthropic.AsyncAnthropic(api_key=api_key)
-        return self._clients[ck]
-
-    def rotate_env_key(self, env: Env, new_key: str) -> None:
-        self._keys[env] = new_key
-        self._clients.pop(env.value, None)
-        print(f"[resolver] {env} key rotated — next call gets new client")
-
-    async def create_message(
-        self,
-        messages: list,
-        env: Env = Env.PROD,
-        tenant_id: str | None = None,
-        model: str = "claude-sonnet-4-6",
-    ) -> str:
-        client = self.get_client(env, tenant_id)
-        resp = await client.messages.create(
-            model=model, max_tokens=256, messages=messages
-        )
-        return resp.content[0].text
-
-
-async def demo_multi_env():
-    resolver = MultiEnvKeyResolver()
-
-    prod_reply = await resolver.create_message(
-        [{"role": "user", "content": "What is mTLS?"}],
-        env=Env.PROD,
-    )
-    print(f"[prod]  {prod_reply[:60]}")
-
-    # Register tenant BYOK
-    resolver.register_tenant_key("acme", os.environ["ANTHROPIC_API_KEY"])
-    tenant_reply = await resolver.create_message(
-        [{"role": "user", "content": "What is OAuth2 PKCE?"}],
-        env=Env.PROD,
-        tenant_id="acme",
-    )
-    print(f"[acme]  {tenant_reply[:60]}")
-
-    # Rotate prod key without restart
-    resolver.rotate_env_key(Env.PROD, os.environ["ANTHROPIC_API_KEY"])
-    print("[resolver] prod key rotated — no restart needed")
-
-
-asyncio.run(demo_multi_env())
 ```
 
----
-
-## Solution 6 — Canary Key Rotation with Traffic Splitting
-
-Direct a small percentage of traffic to the new key first. If error rates stay
-low for a configurable window, automatically promote the new key to 100 %;
-otherwise roll back automatically.
+## Solution 6: Key Rotation Audit Logger
 
 ```python
-import anthropic
-import asyncio
-import os
-import random
 import time
-from dataclasses import dataclass, field
-from collections import deque
+from typing import List
 
 
-@dataclass
-class KeySlot:
-    key:     str
-    version: int
-    weight:  float = 1.0      # 0.0 – 1.0 traffic share
-    errors:  deque = field(default_factory=lambda: deque(maxlen=50))
-    calls:   int   = 0
+class KeyRotationAuditLogger:
+    """
+    Records every key rotation event for compliance audit trails.
+    Stores fingerprints, not raw key values.
+    """
 
-    @property
-    def error_rate(self) -> float:
-        if not self.errors:
-            return 0.0
-        return sum(self.errors) / len(self.errors)
+    def __init__(self, max_records: int = 1000):
+        self._max = max_records
+        self._records: List[dict] = []
 
-    def record(self, ok: bool) -> None:
-        self.errors.append(0 if ok else 1)
-        self.calls += 1
+    def record_rotation(self, rotation_result: dict, trigger: str = "manual") -> None:
+        if len(self._records) >= self._max:
+            self._records.pop(0)
+        self._records.append({
+            "ts": time.time(),
+            "trigger": trigger,
+            "success": rotation_result.get("success", False),
+            "new_fingerprint": rotation_result.get("new_fingerprint"),
+            "old_version_id": rotation_result.get("old_version_id"),
+            "new_version_id": rotation_result.get("new_version_id"),
+            "reason": rotation_result.get("reason"),
+        })
 
+    def record_validation_failure(self, fingerprint: str, reason: str) -> None:
+        if len(self._records) >= self._max:
+            self._records.pop(0)
+        self._records.append({
+            "ts": time.time(),
+            "event": "validation_failure",
+            "fingerprint": fingerprint,
+            "reason": reason,
+        })
 
-class CanaryRotator:
-    def __init__(self, initial_key: str):
-        self._primary = KeySlot(key=initial_key, version=1, weight=1.0)
-        self._canary:  KeySlot | None = None
-        self._lock = asyncio.Lock()
-        self._canary_task: asyncio.Task | None = None
+    def recent(self, limit: int = 20) -> List[dict]:
+        return self._records[-limit:]
 
-    def _choose_slot(self) -> KeySlot:
-        if self._canary is None or self._canary.weight == 0:
-            return self._primary
-        if random.random() < self._canary.weight:
-            return self._canary
-        return self._primary
-
-    async def create_message(self, messages: list, model: str = "claude-sonnet-4-6") -> str:
-        async with self._lock:
-            slot = self._choose_slot()
-
-        client = anthropic.AsyncAnthropic(api_key=slot.key)
-        try:
-            resp = await client.messages.create(
-                model=model, max_tokens=256, messages=messages
-            )
-            async with self._lock:
-                slot.record(ok=True)
-            return resp.content[0].text
-        except Exception as e:
-            async with self._lock:
-                slot.record(ok=False)
-            raise
-
-    async def start_canary(
-        self,
-        new_key: str,
-        initial_weight: float = 0.05,
-        ramp_interval_s: float = 30.0,
-        error_threshold: float = 0.05,
-    ) -> None:
-        async with self._lock:
-            self._canary = KeySlot(key=new_key, version=self._primary.version + 1,
-                                   weight=initial_weight)
-        print(f"[canary] v{self._canary.version} started at {initial_weight*100:.0f}% traffic")
-        self._canary_task = asyncio.create_task(
-            self._ramp(ramp_interval_s, error_threshold)
-        )
-
-    async def _ramp(self, interval_s: float, error_threshold: float) -> None:
-        ramp_steps = [0.05, 0.10, 0.25, 0.50, 1.0]
-        for target_weight in ramp_steps[1:]:
-            await asyncio.sleep(interval_s)
-            async with self._lock:
-                if self._canary is None:
-                    return
-                er = self._canary.error_rate
-                if er > error_threshold:
-                    print(f"[canary] ROLLBACK — error_rate={er:.2%}")
-                    self._canary = None
-                    return
-                self._canary.weight = target_weight
-                print(f"[canary] ramp → {target_weight*100:.0f}%  error_rate={er:.2%}")
-
-        # Full promotion
-        async with self._lock:
-            if self._canary:
-                print(f"[canary] PROMOTED v{self._canary.version} to 100%")
-                self._primary = self._canary
-                self._primary.weight = 1.0
-                self._canary = None
-
-
-async def demo_canary():
-    rotator = CanaryRotator(initial_key=os.environ["ANTHROPIC_API_KEY"])
-
-    # Fire some baseline traffic
-    for i in range(3):
-        r = await rotator.create_message(
-            [{"role": "user", "content": f"Q{i}: what is JWT?"}]
-        )
-        print(f"[baseline-{i}] {r[:40]}")
-
-    # Start canary with same key (demo); in prod use new_key
-    await rotator.start_canary(
-        new_key=os.environ["ANTHROPIC_API_KEY"],
-        initial_weight=0.50,
-        ramp_interval_s=2.0,
-    )
-
-    for i in range(4):
-        await asyncio.sleep(1)
-        r = await rotator.create_message(
-            [{"role": "user", "content": f"Canary Q{i}: what is RBAC?"}]
-        )
-        print(f"[canary-{i}] {r[:40]}")
-
-
-asyncio.run(demo_canary())
+    def summary(self) -> dict:
+        total = len(self._records)
+        successes = sum(1 for r in self._records if r.get("success"))
+        return {
+            "total_events": total,
+            "successful_rotations": successes,
+            "failed_rotations": total - successes,
+        }
 ```
-
----
 
 ## Comparison
 
-| Approach | Rotation downtime | Audit trail | Multi-env | Canary safety | Complexity |
+| Approach | Zero-Downtime | Pre-Promotion Validation | Request Drain | Auto-Poll Secret Store | Audit Log |
 |---|---|---|---|---|---|
-| Dual-key atomic swap | Zero | No | No | No | Low |
-| Periodic secret reload | < poll interval | No | No | No | Low |
-| Key version tagging | Zero | Yes | No | No | Medium |
-| Graceful drain | Zero (waits for in-flight) | No | No | No | Medium |
-| Multi-env resolver | Zero | No | Yes | No | Medium |
-| Canary traffic split | Zero | No | No | Yes — auto-rollback | High |
+| APIKeyVersion | No | No | No | No | No |
+| APIKeyValidator | No | Yes (probe + retry) | No | No | No |
+| InFlightRequestTracker | No | No | Yes (wait + timeout) | No | No |
+| LiveAPIKeyRotator | Yes (atomic swap) | Via validator | Via tracker | No | No |
+| SecretStorePoller | Via rotator | Via rotator | Via rotator | Yes (fingerprint diff) | No |
+| KeyRotationAuditLogger | No | No | No | No | Yes |
 
-**Rule of thumb:**
-- Small service → dual-key atomic swap (Solution 1) + hot-reload (Solution 2)
-- Compliance requirement → add key version tagging (Solution 3) for audit trail
-- High-traffic production → canary rotation (Solution 6) to catch bad keys before full roll-out
-- Multi-tenant SaaS → multi-env resolver (Solution 5) with per-tenant BYOK support
+**Best for production**: Wire `SecretStorePoller` to your secret manager's current-version endpoint and set `poll_interval_seconds=60` — this bounds the window between key issuance and promotion to one minute without burdening the secret store. Always validate before promoting: a misconfigured new key that fails validation leaves the old key active, preventing an outage. Set `drain_timeout_seconds=30` — most agent requests complete within five seconds; thirty seconds accommodates the long tail. Log every rotation event via `KeyRotationAuditLogger` and emit the record to your SIEM: compliance frameworks require a complete audit trail of which credential was active during each time window.
