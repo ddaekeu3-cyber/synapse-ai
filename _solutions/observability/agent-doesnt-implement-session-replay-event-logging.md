@@ -1,381 +1,364 @@
 ---
 title: "Agent Doesn't Implement Session Replay Event Logging"
-description: "Agents that log only final outputs cannot be replayed or debugged after the fact: a user reports a bad response but there is no record of which tools were called, what context was injected, or what the LLM was asked. Implement session replay event logging that captures every agent event — user turn, tool call, tool result, LLM request, LLM response — as a structured, ordered log that can reconstruct the full session state at any point in time."
+description: "Agents that log only final outcomes cannot be replayed for debugging: when a session produces an unexpected result, engineers cannot reconstruct the exact sequence of user inputs, tool calls, LLM responses, and state transitions that led to it. Implement session replay event logging that records every agent event in a structured, ordered log that can be replayed deterministically to reproduce any session."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-session-replay-event-logging
-tags: [session-replay, event-logging, audit-trail, debugging, replay-buffer, structured-logging]
+tags: [session-replay, event-logging, audit-trail, deterministic-replay, debugging, structured-events]
 symptoms:
-  - "User reports bad agent response but no record of what tools were called"
-  - "Cannot reproduce a failure because the intermediate context is not logged"
-  - "LLM prompt content at time of bad response is unrecoverable"
-  - "On-call engineer must ask the user to reproduce the issue manually"
-  - "No ordered event stream — log entries from parallel tool calls appear out of sequence"
+  - "Unexpected agent behavior cannot be reproduced — no record of intermediate steps"
+  - "Debugging requires attaching a debugger to a live session — cannot post-mortem analyze"
+  - "Log entries show only tool call results, not the agent reasoning that preceded them"
+  - "Event timestamps not preserved — cannot determine order of concurrent events"
+  - "Different event types (user input, tool call, LLM response) mixed in a single untyped log"
 ---
 
 ## Why This Happens
 
-Application logs capture what happened at the infrastructure layer — HTTP requests, errors, latencies — but not the agent-layer narrative: what the user asked, how the agent decomposed it, what each tool returned, and what was finally sent to the model. Without an ordered, session-scoped event log, debugging requires guessing from output alone. Session replay logging requires assigning a monotonic sequence number to every agent event, tagging every event with a session ID, and writing events to a durable append-only log that can be read back in order.
+Standard logging captures what happened at a moment in time but not the causal chain that produced it. An agent session is a stateful sequence: user input → LLM response → tool calls → tool results → next LLM call. Without recording each step as a structured event with a monotone sequence number, causal order, and full payload, the session cannot be replayed. Session replay requires an append-only event log per session, typed event schemas for each event kind, and a replay engine that reprocesses the events in order to reconstruct the agent's state at any point in the session.
 
-## Solution 1: Replay Event
+## Solution 1: Session Event Types
 
 ```python
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
-class ReplayEventType(str, Enum):
+class SessionEventKind(str, Enum):
     SESSION_START = "session_start"
-    USER_TURN = "user_turn"
-    TOOL_CALL_START = "tool_call_start"
-    TOOL_CALL_END = "tool_call_end"
-    TOOL_CALL_ERROR = "tool_call_error"
+    USER_INPUT = "user_input"
     LLM_REQUEST = "llm_request"
     LLM_RESPONSE = "llm_response"
-    CONTEXT_ASSEMBLED = "context_assembled"
+    TOOL_CALL_START = "tool_call_start"
+    TOOL_CALL_RESULT = "tool_call_result"
+    TOOL_CALL_ERROR = "tool_call_error"
+    STATE_TRANSITION = "state_transition"
     AGENT_DECISION = "agent_decision"
+    ERROR = "error"
     SESSION_END = "session_end"
 
 
 @dataclass
-class ReplayEvent:
-    session_id: str
-    event_type: ReplayEventType
-    sequence: int                          # monotonic within session
-    timestamp: float = field(default_factory=time.time)
-    event_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+class SessionEvent:
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4())[:16])
+    session_id: str = ""
+    sequence: int = 0              # monotone counter within session
+    kind: SessionEventKind = SessionEventKind.USER_INPUT
     payload: Dict[str, Any] = field(default_factory=dict)
-    parent_event_id: Optional[str] = None  # for nested events (tool call → result)
-    duration_ms: Optional[float] = None
-    error: Optional[str] = None
+    parent_event_id: Optional[str] = None   # causal parent
+    timestamp: float = field(default_factory=time.time)
+    duration_ms: Optional[float] = None     # for events with duration
+    tags: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
-            "session_id": self.session_id,
-            "event_type": self.event_type.value,
-            "sequence": self.sequence,
-            "timestamp": self.timestamp,
             "event_id": self.event_id,
+            "session_id": self.session_id,
+            "seq": self.sequence,
+            "kind": self.kind.value,
             "payload": self.payload,
             "parent_event_id": self.parent_event_id,
+            "ts": round(self.timestamp, 6),
             "duration_ms": self.duration_ms,
-            "error": self.error,
+            "tags": self.tags,
         }
 ```
 
-## Solution 2: Session Event Sequencer
-
-```python
-import threading
-from typing import List
-
-
-class SessionEventSequencer:
-    """
-    Maintains a monotonically increasing sequence counter per session.
-    Thread-safe for concurrent tool calls within one session.
-    """
-
-    def __init__(self, session_id: str):
-        self.session_id = session_id
-        self._counter = 0
-        self._lock = threading.Lock()
-        self._events: List[ReplayEvent] = []
-
-    def next_sequence(self) -> int:
-        with self._lock:
-            self._counter += 1
-            return self._counter
-
-    def emit(
-        self,
-        event_type: ReplayEventType,
-        payload: dict = None,
-        parent_event_id: str = None,
-        duration_ms: float = None,
-        error: str = None,
-    ) -> ReplayEvent:
-        event = ReplayEvent(
-            session_id=self.session_id,
-            event_type=event_type,
-            sequence=self.next_sequence(),
-            payload=payload or {},
-            parent_event_id=parent_event_id,
-            duration_ms=duration_ms,
-            error=error,
-        )
-        with self._lock:
-            self._events.append(event)
-        return event
-
-    def events(self) -> List[ReplayEvent]:
-        with self._lock:
-            return list(self._events)
-
-    def event_count(self) -> int:
-        with self._lock:
-            return len(self._events)
-```
-
-## Solution 3: Session Replay Logger
+## Solution 2: Session Event Log
 
 ```python
 import json
 import time
-from pathlib import Path
 from threading import Lock
-from typing import Callable, Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 
-class SessionReplayLogger:
+class SessionEventLog:
     """
-    Writes session replay events to a per-session JSONL file.
-    Supports in-memory buffering with periodic flush.
+    Append-only, ordered event log for a single session.
+    Events are assigned monotone sequence numbers.
+    Supports serialization for persistence and replay.
     """
 
-    def __init__(
-        self,
-        log_dir: str = "/tmp/agent_replay_logs",
-        flush_every_n: int = 10,
-        write_fn: Optional[Callable[[dict], None]] = None,
-    ):
-        self._dir = Path(log_dir)
-        self._dir.mkdir(parents=True, exist_ok=True)
-        self._flush_n = flush_every_n
-        self._write_fn = write_fn
-        self._buffers: Dict[str, List[dict]] = {}
+    def __init__(self, session_id: str):
+        self._session_id = session_id
+        self._events: List[SessionEvent] = []
         self._lock = Lock()
+        self._seq = 0
 
-    def log(self, event: ReplayEvent) -> None:
-        record = event.to_dict()
-        if self._write_fn:
-            self._write_fn(record)
-
+    def append(
+        self,
+        kind: SessionEventKind,
+        payload: dict,
+        parent_event_id: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        tags: List[str] = None,
+    ) -> SessionEvent:
         with self._lock:
-            session_id = event.session_id
-            buf = self._buffers.setdefault(session_id, [])
-            buf.append(record)
-            if len(buf) >= self._flush_n:
-                self._flush_session(session_id)
+            self._seq += 1
+            event = SessionEvent(
+                session_id=self._session_id,
+                sequence=self._seq,
+                kind=kind,
+                payload=payload,
+                parent_event_id=parent_event_id,
+                duration_ms=duration_ms,
+                tags=tags or [],
+            )
+            self._events.append(event)
+            return event
 
-    def flush(self, session_id: str) -> None:
+    def events_since(self, sequence: int = 0) -> List[SessionEvent]:
         with self._lock:
-            self._flush_session(session_id)
+            return [e for e in self._events if e.sequence > sequence]
 
-    def _flush_session(self, session_id: str) -> None:
-        buf = self._buffers.get(session_id)
-        if not buf:
-            return
-        path = self._dir / f"{session_id}.jsonl"
-        with path.open("a", encoding="utf-8") as f:
-            for record in buf:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        self._buffers[session_id] = []
-
-    def flush_all(self) -> None:
+    def to_json(self) -> str:
         with self._lock:
-            for session_id in list(self._buffers.keys()):
-                self._flush_session(session_id)
+            return json.dumps({
+                "session_id": self._session_id,
+                "event_count": len(self._events),
+                "events": [e.to_dict() for e in self._events],
+            }, indent=2)
 
-    def read_session(self, session_id: str) -> List[dict]:
-        path = self._dir / f"{session_id}.jsonl"
-        if not path.exists():
-            return []
-        events = []
-        with path.open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    events.append(json.loads(line))
-        return sorted(events, key=lambda e: e["sequence"])
+    def event_count(self) -> int:
+        with self._lock:
+            return len(self._events)
+
+    def duration_s(self) -> float:
+        with self._lock:
+            if len(self._events) < 2:
+                return 0.0
+            return round(self._events[-1].timestamp - self._events[0].timestamp, 3)
 ```
 
-## Solution 4: Instrumented Agent Session
+## Solution 3: Session Event Log Registry
 
 ```python
 import time
-from typing import Any, Callable, Optional
+from threading import Lock
+from typing import Dict, List, Optional
 
 
-class InstrumentedAgentSession:
+class SessionEventLogRegistry:
     """
-    Wraps agent session operations and emits replay events for each.
+    Manages event logs for all active sessions.
+    Supports retrieval by session ID and cleanup of expired sessions.
     """
 
-    def __init__(
-        self,
-        session_id: str,
-        sequencer: SessionEventSequencer,
-        logger: SessionReplayLogger,
-    ):
-        self._session_id = session_id
-        self._seq = sequencer
-        self._logger = logger
+    def __init__(self, ttl_seconds: float = 86400.0, max_sessions: int = 10000):
+        self._logs: Dict[str, SessionEventLog] = {}
+        self._created_at: Dict[str, float] = {}
+        self._lock = Lock()
+        self._ttl = ttl_seconds
+        self._max = max_sessions
 
-    def start(self, metadata: dict = None) -> ReplayEvent:
-        event = self._seq.emit(ReplayEventType.SESSION_START, payload=metadata or {})
-        self._logger.log(event)
-        return event
+    def create(self, session_id: str) -> SessionEventLog:
+        log = SessionEventLog(session_id)
+        with self._lock:
+            self._logs[session_id] = log
+            self._created_at[session_id] = time.time()
+            self._evict_if_needed()
+        return log
 
-    def record_user_turn(self, message: str, token_count: int = 0) -> ReplayEvent:
-        event = self._seq.emit(ReplayEventType.USER_TURN, payload={
-            "message": message[:500],  # truncate for log safety
-            "token_count": token_count,
-        })
-        self._logger.log(event)
-        return event
+    def get(self, session_id: str) -> Optional[SessionEventLog]:
+        with self._lock:
+            return self._logs.get(session_id)
 
-    def record_tool_call(
-        self,
-        tool_name: str,
-        args: dict,
-        parent_id: str = None,
-    ) -> ReplayEvent:
-        event = self._seq.emit(ReplayEventType.TOOL_CALL_START, payload={
-            "tool_name": tool_name,
-            "args_keys": list(args.keys()),
-        }, parent_event_id=parent_id)
-        self._logger.log(event)
-        return event
+    def _evict_if_needed(self) -> None:
+        now = time.time()
+        expired = [
+            sid for sid, ts in self._created_at.items()
+            if now - ts > self._ttl
+        ]
+        for sid in expired:
+            self._logs.pop(sid, None)
+            self._created_at.pop(sid, None)
 
-    def record_tool_result(
-        self,
-        tool_name: str,
-        result_summary: str,
-        duration_ms: float,
-        parent_id: str,
-        error: str = None,
-    ) -> ReplayEvent:
-        etype = ReplayEventType.TOOL_CALL_ERROR if error else ReplayEventType.TOOL_CALL_END
-        event = self._seq.emit(etype, payload={
-            "tool_name": tool_name,
-            "result_preview": result_summary[:200],
-        }, parent_event_id=parent_id, duration_ms=duration_ms, error=error)
-        self._logger.log(event)
-        return event
+        if len(self._logs) > self._max:
+            oldest = sorted(self._created_at.items(), key=lambda x: x[1])
+            for sid, _ in oldest[:len(self._logs) - self._max]:
+                self._logs.pop(sid, None)
+                self._created_at.pop(sid, None)
 
-    def record_llm_request(self, prompt_tokens: int, context_summary: str = "") -> ReplayEvent:
-        event = self._seq.emit(ReplayEventType.LLM_REQUEST, payload={
-            "prompt_tokens": prompt_tokens,
-            "context_summary": context_summary[:300],
-        })
-        self._logger.log(event)
-        return event
+    def active_session_count(self) -> int:
+        with self._lock:
+            return len(self._logs)
+```
 
-    def record_llm_response(self, completion_tokens: int, response_preview: str, duration_ms: float) -> ReplayEvent:
-        event = self._seq.emit(ReplayEventType.LLM_RESPONSE, payload={
-            "completion_tokens": completion_tokens,
-            "response_preview": response_preview[:300],
-        }, duration_ms=duration_ms)
-        self._logger.log(event)
-        return event
+## Solution 4: Instrumented Agent Logger
 
-    def end(self, reason: str = "complete") -> None:
-        event = self._seq.emit(ReplayEventType.SESSION_END, payload={"reason": reason})
-        self._logger.log(event)
-        self._logger.flush(self._session_id)
+```python
+import time
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator, Optional
+
+
+class InstrumentedAgentLogger:
+    """
+    Convenience wrapper that records standard agent lifecycle events
+    to a SessionEventLog with minimal boilerplate at call sites.
+    """
+
+    def __init__(self, log: SessionEventLog):
+        self._log = log
+
+    def session_start(self, metadata: dict = None) -> SessionEvent:
+        return self._log.append(
+            SessionEventKind.SESSION_START,
+            payload={"metadata": metadata or {}},
+        )
+
+    def user_input(self, text: str, parent_id: str = None) -> SessionEvent:
+        return self._log.append(
+            SessionEventKind.USER_INPUT,
+            payload={"text": text[:2000]},
+            parent_event_id=parent_id,
+        )
+
+    def llm_request(self, model_id: str, prompt_tokens: int, parent_id: str = None) -> SessionEvent:
+        return self._log.append(
+            SessionEventKind.LLM_REQUEST,
+            payload={"model_id": model_id, "prompt_tokens": prompt_tokens},
+            parent_event_id=parent_id,
+        )
+
+    def llm_response(
+        self, model_id: str, output_tokens: int, latency_ms: float, parent_id: str = None
+    ) -> SessionEvent:
+        return self._log.append(
+            SessionEventKind.LLM_RESPONSE,
+            payload={"model_id": model_id, "output_tokens": output_tokens},
+            parent_event_id=parent_id,
+            duration_ms=latency_ms,
+        )
+
+    @asynccontextmanager
+    async def tool_call(self, tool_name: str, args: dict, parent_id: str = None) -> AsyncIterator[dict]:
+        start_event = self._log.append(
+            SessionEventKind.TOOL_CALL_START,
+            payload={"tool_name": tool_name, "args_keys": list(args.keys())},
+            parent_event_id=parent_id,
+        )
+        start = time.time()
+        ctx = {"start_event_id": start_event.event_id}
+        try:
+            yield ctx
+            latency_ms = round((time.time() - start) * 1000, 2)
+            result = ctx.get("result")
+            self._log.append(
+                SessionEventKind.TOOL_CALL_RESULT,
+                payload={"tool_name": tool_name, "result_type": type(result).__name__},
+                parent_event_id=start_event.event_id,
+                duration_ms=latency_ms,
+            )
+        except Exception as exc:
+            latency_ms = round((time.time() - start) * 1000, 2)
+            self._log.append(
+                SessionEventKind.TOOL_CALL_ERROR,
+                payload={"tool_name": tool_name, "error": str(exc)[:300]},
+                parent_event_id=start_event.event_id,
+                duration_ms=latency_ms,
+            )
+            raise
+
+    def session_end(self, outcome: str = "completed", parent_id: str = None) -> SessionEvent:
+        return self._log.append(
+            SessionEventKind.SESSION_END,
+            payload={"outcome": outcome, "duration_s": self._log.duration_s()},
+            parent_event_id=parent_id,
+        )
 ```
 
 ## Solution 5: Session Replay Reader
 
 ```python
-from typing import Dict, List, Optional
+import json
+from typing import Iterator, List, Optional
 
 
 class SessionReplayReader:
     """
-    Reads a session replay log and provides structured access to
-    events by type, tool name, or time range for debugging.
+    Reads a serialized session event log and replays events in order.
+    Useful for debugging, postmortem analysis, and test fixture generation.
     """
 
-    def __init__(self, logger: SessionReplayLogger):
-        self._logger = logger
+    def __init__(self, log_json: str):
+        data = json.loads(log_json)
+        self._session_id = data["session_id"]
+        raw_events = data.get("events", [])
+        self._events = sorted(raw_events, key=lambda e: e["seq"])
 
-    def get_timeline(self, session_id: str) -> List[dict]:
-        return self._logger.read_session(session_id)
+    def events_of_kind(self, kind: str) -> List[dict]:
+        return [e for e in self._events if e["kind"] == kind]
 
-    def get_tool_calls(self, session_id: str) -> List[dict]:
-        events = self._logger.read_session(session_id)
-        return [e for e in events if e["event_type"] in ("tool_call_start", "tool_call_end", "tool_call_error")]
+    def replay(self) -> Iterator[dict]:
+        for event in self._events:
+            yield event
 
-    def get_llm_exchanges(self, session_id: str) -> List[dict]:
-        events = self._logger.read_session(session_id)
-        return [e for e in events if e["event_type"] in ("llm_request", "llm_response")]
+    def tool_calls(self) -> List[dict]:
+        return self.events_of_kind("tool_call_start")
 
-    def summarize(self, session_id: str) -> dict:
-        events = self._logger.read_session(session_id)
-        if not events:
-            return {"session_id": session_id, "events": 0}
-        tool_calls = [e for e in events if e["event_type"] == "tool_call_start"]
-        errors = [e for e in events if e["event_type"] == "tool_call_error"]
-        llm_reqs = [e for e in events if e["event_type"] == "llm_request"]
+    def errors(self) -> List[dict]:
+        return self.events_of_kind("error") + self.events_of_kind("tool_call_error")
+
+    def summary(self) -> dict:
+        by_kind: dict = {}
+        for e in self._events:
+            by_kind[e["kind"]] = by_kind.get(e["kind"], 0) + 1
+        durations = [e["duration_ms"] for e in self._events if e.get("duration_ms")]
         return {
-            "session_id": session_id,
-            "total_events": len(events),
-            "tool_calls": len(tool_calls),
-            "tool_errors": len(errors),
-            "llm_requests": len(llm_reqs),
-            "duration_ms": round((events[-1]["timestamp"] - events[0]["timestamp"]) * 1000, 2),
-            "unique_tools": list({e["payload"].get("tool_name") for e in tool_calls if e.get("payload")}),
+            "session_id": self._session_id,
+            "event_count": len(self._events),
+            "by_kind": by_kind,
+            "errors": len(self.errors()),
+            "mean_tool_duration_ms": round(sum(durations) / max(len(durations), 1), 2),
         }
 ```
 
-## Solution 6: Replay Log Retention Manager
+## Solution 6: Session Replay Dashboard
 
 ```python
-import os
 import time
-from pathlib import Path
-from typing import List
 
 
-class ReplayLogRetentionManager:
+class SessionReplayDashboard:
     """
-    Prunes session replay logs older than the retention window.
-    Prevents unbounded disk usage from accumulated replay files.
+    Combines registry stats with per-session event breakdowns.
     """
 
-    def __init__(
-        self,
-        log_dir: str,
-        retention_days: float = 7.0,
-    ):
-        self._dir = Path(log_dir)
-        self._retention = retention_days * 86400
+    def __init__(self, registry: SessionEventLogRegistry):
+        self._registry = registry
 
-    def prune(self) -> dict:
-        cutoff = time.time() - self._retention
-        pruned = []
-        kept = []
-        for path in self._dir.glob("*.jsonl"):
-            if path.stat().st_mtime < cutoff:
-                path.unlink()
-                pruned.append(path.name)
-            else:
-                kept.append(path.name)
+    def render(self, sample_session_ids: List[str] = None) -> dict:
+        samples = {}
+        for sid in (sample_session_ids or [])[:5]:
+            log = self._registry.get(sid)
+            if log:
+                samples[sid] = {
+                    "event_count": log.event_count(),
+                    "duration_s": log.duration_s(),
+                }
         return {
-            "pruned": len(pruned),
-            "kept": len(kept),
-            "retention_days": self._retention / 86400,
+            "generated_at": time.time(),
+            "active_sessions": self._registry.active_session_count(),
+            "sample_sessions": samples,
         }
 
-    def disk_usage_mb(self) -> float:
-        total = sum(p.stat().st_size for p in self._dir.glob("*.jsonl"))
-        return round(total / (1024 * 1024), 2)
+from typing import List
 ```
 
 ## Comparison
 
-| Approach | Ordered Events | Per-Session Files | Tool Call Pairing | LLM Exchange Log | Retention |
+| Approach | Ordered Events | Typed Events | Causal Links | JSON Export | Replay |
 |---|---|---|---|---|---|
-| SessionEventSequencer | Yes (monotonic) | No | No | No | No |
-| SessionReplayLogger | Via sequencer | Yes (JSONL) | No | No | No |
-| InstrumentedAgentSession | Via sequencer | Via logger | Yes (parent_id) | Yes | No |
-| SessionReplayReader | No | Via logger | Via event type | Via event type | No |
-| ReplayLogRetentionManager | No | No | No | No | Yes (TTL prune) |
+| SessionEventLog | Yes (seq counter) | Yes (enum) | Yes (parent_id) | Yes | No |
+| SessionEventLogRegistry | No | No | No | No | No |
+| InstrumentedAgentLogger | Via log | Via log | Via log | Via log | No |
+| SessionReplayReader | No | No | No | No | Yes |
+| SessionReplayDashboard | No | No | No | No | Via reader |
 
-**Best for production**: Write replay logs to JSONL (one JSON object per line) — this format is appendable, grep-friendly, and importable into any log aggregation system. Use `parent_event_id` to link tool call start and end events; this allows computing per-tool latency from the replay log without a separate metrics system. Truncate message content in `record_user_turn` and response content in `record_llm_response` to 500 characters for PII compliance — the replay log should capture the structure of what happened, not full plaintext user data. Set `retention_days=7` and run `ReplayLogRetentionManager.prune()` daily; 7 days covers almost all post-incident investigations without unbounded disk growth.
+**Best for production**: Store serialized session event logs in object storage (S3, GCS) keyed by session ID with a 30-day retention policy — they are invaluable for postmortem analysis and test fixture generation. Use `parent_event_id` to build a causal graph: LLM responses should point to the LLM request, tool results should point to the tool call start. Truncate large payloads (LLM response text > 2000 chars) before logging to avoid log storage bloat — store the first 2000 chars and a `truncated=true` flag. Use `SessionReplayReader` in unit tests by replaying a captured production session and asserting on the event sequence.
