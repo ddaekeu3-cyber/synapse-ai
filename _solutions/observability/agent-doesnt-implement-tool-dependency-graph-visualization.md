@@ -1,266 +1,295 @@
 ---
 title: "Agent Doesn't Implement Tool Dependency Graph Visualization"
-description: "Agents with complex multi-tool workflows have implicit dependencies between tool calls — tool B uses the output of tool A, tool C requires both A and B — but these dependencies are never recorded or visualized. Without a dependency graph, engineers cannot determine the critical path, identify parallelization opportunities, or explain why a particular tool was invoked. Implement tool dependency graph recording that captures data-flow edges between tool calls and renders them for inspection."
+description: "Agents with many tools have implicit dependency relationships that are invisible without tooling: tool A always runs before tool B because B needs A's output; tool C and D are always called together; tool E is never called when tool F succeeds. Without a dependency graph, engineers cannot optimize call ordering, identify redundant tool calls, or understand which tools are critical path. Implement tool dependency graph construction from execution traces and visualization-ready export."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-tool-dependency-graph-visualization
-tags: [dependency-graph, tool-tracing, critical-path, data-flow, workflow-visualization, execution-graph]
+tags: [tool-dependency, dependency-graph, execution-tracing, call-ordering, graph-visualization, tool-analysis]
 symptoms:
-  - "No record of which tool call produced the input consumed by a downstream tool call"
-  - "Cannot determine whether two tool calls could have run in parallel but ran sequentially"
-  - "Debugging a wrong answer requires manually tracing which tools fed which other tools"
-  - "Critical path of a multi-tool workflow is unknown — optimization is guesswork"
-  - "Tool execution order is apparent from logs but data dependencies between calls are invisible"
+  - "No visibility into which tools are always called sequentially vs independently"
+  - "Cannot identify which tool is on the critical latency path without manual tracing"
+  - "Tool call ordering is implicit in code — no documentation or diagram exists"
+  - "Redundant tool call patterns (always calling A before B even when B doesn't use A's output) are invisible"
+  - "Engineers must read agent source code to understand tool execution topology"
 ---
 
 ## Why This Happens
 
-Agent frameworks dispatch tool calls and collect results but do not record why a particular tool was called or which prior result was consumed as input. The dependency structure exists implicitly in the LLM's reasoning — it requested tool B because tool A's result contained a value it needed — but this reasoning is not surfaced in telemetry. Recording dependencies requires the agent to annotate tool calls with the IDs of prior calls whose results were referenced in the current call's arguments. This produces a directed acyclic graph (DAG) where nodes are tool calls and edges represent data-flow dependencies.
+Tool relationships emerge from agent behavior over thousands of sessions but are never made explicit. The agent framework knows which tools were called and when, but does not record whether one tool's output was used as input to the next — that relationship exists only in the LLM's reasoning. By observing co-occurrence patterns (tool A appears in the same turn as tool B), sequencing patterns (A always precedes B within a turn), and argument threading (output fields of A appear in arguments of B), a dependency graph can be inferred from execution traces without modifying tool implementations.
 
-## Solution 1: Tool Call Node
+## Solution 1: Tool Execution Node
 
 ```python
-import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
 @dataclass
-class ToolCallNode:
-    call_id: str
+class ToolExecutionNode:
     tool_name: str
-    args_summary: str
-    result_summary: str = ""
-    started_at: float = field(default_factory=time.time)
-    ended_at: Optional[float] = None
-    success: bool = True
-    error: Optional[str] = None
-    session_id: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    turn_index: int
+    call_index: int          # order within the turn
+    args: Dict[str, Any]
+    result: Any
+    latency_ms: float
+    success: bool
+    session_id: str
+    timestamp: float
 
-    @property
-    def latency_ms(self) -> Optional[float]:
-        if self.ended_at is None:
-            return None
-        return round((self.ended_at - self.started_at) * 1000, 2)
+    def arg_values(self) -> set:
+        """Flat set of all string argument values for threading detection."""
+        values = set()
+        for v in self._flatten(self.args):
+            if isinstance(v, str) and len(v) >= 8:
+                values.add(v)
+        return values
+
+    def result_values(self) -> set:
+        """Flat set of all string result values for threading detection."""
+        return {v for v in self._flatten(self.result) if isinstance(v, str) and len(v) >= 8}
+
+    @staticmethod
+    def _flatten(obj: Any, depth: int = 3) -> List[Any]:
+        if depth == 0:
+            return []
+        if isinstance(obj, dict):
+            return [v for val in obj.values() for v in ToolExecutionNode._flatten(val, depth - 1)]
+        if isinstance(obj, list):
+            return [v for item in obj for v in ToolExecutionNode._flatten(item, depth - 1)]
+        return [obj]
 ```
 
 ## Solution 2: Dependency Edge
 
 ```python
 from dataclasses import dataclass
-from enum import Enum
-
-
-class DependencyType(str, Enum):
-    DATA_FLOW = "data_flow"        # result of source was used as arg to target
-    SEQUENTIAL = "sequential"     # target ran after source in the same turn
-    CONDITIONAL = "conditional"   # target ran only because source succeeded
 
 
 @dataclass
 class DependencyEdge:
-    source_call_id: str
-    target_call_id: str
-    dependency_type: DependencyType
-    field_path: str = ""   # e.g. "result.user_id" — which field was consumed
-    description: str = ""
+    source_tool: str
+    target_tool: str
+    edge_type: str       # "sequence" | "co_occurrence" | "argument_thread"
+    observation_count: int
+    confidence: float    # 0.0 – 1.0
+
+    def key(self) -> str:
+        return f"{self.source_tool}->{self.target_tool}:{self.edge_type}"
 ```
 
-## Solution 3: Tool Dependency Graph
+## Solution 3: Dependency Graph Builder
 
 ```python
-from collections import defaultdict, deque
+from collections import defaultdict
+from typing import Dict, List, Tuple
+
+
+class ToolDependencyGraphBuilder:
+    """
+    Infers tool dependency edges from a collection of execution traces.
+    Three edge types:
+      - sequence: A always appears before B in the same turn
+      - co_occurrence: A and B appear together frequently
+      - argument_thread: output values of A appear in args of B
+    """
+
+    def __init__(
+        self,
+        sequence_threshold: float = 0.70,    # A precedes B in >= 70% of co-occurrences
+        cooccurrence_threshold: int = 5,     # must co-occur at least 5 times
+        thread_threshold: float = 0.50,      # argument threading in >= 50% of co-occurrences
+    ):
+        self._seq_threshold = sequence_threshold
+        self._coocc_threshold = cooccurrence_threshold
+        self._thread_threshold = thread_threshold
+
+    def build(self, traces: List[List[ToolExecutionNode]]) -> List[DependencyEdge]:
+        """
+        traces: list of turns, each turn is a list of ToolExecutionNodes in call order.
+        """
+        pair_counts: Dict[Tuple[str, str], int] = defaultdict(int)
+        sequence_counts: Dict[Tuple[str, str], int] = defaultdict(int)
+        thread_counts: Dict[Tuple[str, str], int] = defaultdict(int)
+
+        for turn in traces:
+            tool_names = [n.tool_name for n in turn]
+            for i, node_a in enumerate(turn):
+                for j, node_b in enumerate(turn):
+                    if i == j:
+                        continue
+                    pair = (node_a.tool_name, node_b.tool_name)
+                    pair_counts[pair] += 1
+
+                    # Sequence: A appears before B
+                    if i < j:
+                        sequence_counts[pair] += 1
+
+                    # Argument threading: result values of A in args of B
+                    overlap = node_a.result_values() & node_b.arg_values()
+                    if overlap:
+                        thread_counts[pair] += 1
+
+        edges = []
+        for pair, count in pair_counts.items():
+            if count < self._coocc_threshold:
+                continue
+            source, target = pair
+
+            # Sequence edge
+            seq_rate = sequence_counts.get(pair, 0) / count
+            if seq_rate >= self._seq_threshold:
+                edges.append(DependencyEdge(
+                    source_tool=source,
+                    target_tool=target,
+                    edge_type="sequence",
+                    observation_count=count,
+                    confidence=round(seq_rate, 4),
+                ))
+            elif count >= self._coocc_threshold:
+                edges.append(DependencyEdge(
+                    source_tool=source,
+                    target_tool=target,
+                    edge_type="co_occurrence",
+                    observation_count=count,
+                    confidence=round(count / max(count, 1), 4),
+                ))
+
+            # Argument threading edge
+            thread_rate = thread_counts.get(pair, 0) / count
+            if thread_rate >= self._thread_threshold:
+                edges.append(DependencyEdge(
+                    source_tool=source,
+                    target_tool=target,
+                    edge_type="argument_thread",
+                    observation_count=thread_counts.get(pair, 0),
+                    confidence=round(thread_rate, 4),
+                ))
+
+        return edges
+```
+
+## Solution 4: Critical Path Analyzer
+
+```python
 from typing import Dict, List, Optional, Set
 
 
-class ToolDependencyGraph:
+class CriticalPathAnalyzer:
     """
-    Directed acyclic graph of tool call nodes and dependency edges.
-    Supports critical path computation and cycle detection.
+    Identifies the longest sequential dependency chain in the tool graph.
+    Tools on the critical path dominate end-to-end latency.
     """
 
-    def __init__(self):
-        self._nodes: Dict[str, ToolCallNode] = {}
-        self._edges: List[DependencyEdge] = []
-        self._out_edges: Dict[str, List[DependencyEdge]] = defaultdict(list)
-        self._in_edges: Dict[str, List[DependencyEdge]] = defaultdict(list)
+    def __init__(self, edges: List[DependencyEdge]):
+        self._sequence_edges = [e for e in edges if e.edge_type == "sequence"]
 
-    def add_node(self, node: ToolCallNode) -> None:
-        self._nodes[node.call_id] = node
+    def _build_adjacency(self) -> Dict[str, List[str]]:
+        adj: Dict[str, List[str]] = defaultdict(list)
+        for e in self._sequence_edges:
+            adj[e.source_tool].append(e.target_tool)
+        return adj
 
-    def add_edge(self, edge: DependencyEdge) -> None:
-        self._edges.append(edge)
-        self._out_edges[edge.source_call_id].append(edge)
-        self._in_edges[edge.target_call_id].append(edge)
+    def critical_path(self) -> List[str]:
+        adj = self._build_adjacency()
+        all_nodes = {e.source_tool for e in self._sequence_edges} | \
+                    {e.target_tool for e in self._sequence_edges}
 
-    def roots(self) -> List[ToolCallNode]:
-        """Nodes with no incoming edges — the starting tool calls."""
-        return [n for cid, n in self._nodes.items() if not self._in_edges[cid]]
+        memo: Dict[str, List[str]] = {}
 
-    def dependents(self, call_id: str) -> List[ToolCallNode]:
-        return [self._nodes[e.target_call_id] for e in self._out_edges[call_id]
-                if e.target_call_id in self._nodes]
+        def dfs(node: str) -> List[str]:
+            if node in memo:
+                return memo[node]
+            if node not in adj or not adj[node]:
+                memo[node] = [node]
+                return [node]
+            best = [node]
+            for neighbor in adj[node]:
+                path = [node] + dfs(neighbor)
+                if len(path) > len(best):
+                    best = path
+            memo[node] = best
+            return best
 
-    def dependencies(self, call_id: str) -> List[ToolCallNode]:
-        return [self._nodes[e.source_call_id] for e in self._in_edges[call_id]
-                if e.source_call_id in self._nodes]
+        longest = []
+        for node in all_nodes:
+            path = dfs(node)
+            if len(path) > len(longest):
+                longest = path
 
-    def topological_order(self) -> List[ToolCallNode]:
-        in_degree = {cid: len(edges) for cid, edges in self._in_edges.items()}
-        for cid in self._nodes:
-            if cid not in in_degree:
-                in_degree[cid] = 0
-        queue = deque(cid for cid, d in in_degree.items() if d == 0)
-        order = []
-        while queue:
-            cid = queue.popleft()
-            if cid in self._nodes:
-                order.append(self._nodes[cid])
-            for edge in self._out_edges.get(cid, []):
-                in_degree[edge.target_call_id] -= 1
-                if in_degree[edge.target_call_id] == 0:
-                    queue.append(edge.target_call_id)
-        return order
+        return longest
 
-    def critical_path(self) -> List[ToolCallNode]:
-        """Returns the longest-latency path through the graph."""
-        topo = self.topological_order()
-        dist: Dict[str, float] = {n.call_id: (n.latency_ms or 0) for n in topo}
-        prev: Dict[str, Optional[str]] = {n.call_id: None for n in topo}
+    def parallelizable_groups(self) -> List[Set[str]]:
+        """
+        Returns sets of tools that have no sequential dependency between them
+        and could be called in parallel.
+        """
+        adj = self._build_adjacency()
+        all_nodes = {e.source_tool for e in self._sequence_edges} | \
+                    {e.target_tool for e in self._sequence_edges}
+        sequential_pairs = {(e.source_tool, e.target_tool) for e in self._sequence_edges}
 
-        for node in topo:
-            for edge in self._out_edges.get(node.call_id, []):
-                target = edge.target_call_id
-                if target not in dist:
-                    continue
-                candidate = dist[node.call_id] + (self._nodes[target].latency_ms or 0)
-                if candidate > dist[target]:
-                    dist[target] = candidate
-                    prev[target] = node.call_id
+        independent: Set[str] = set()
+        for node in all_nodes:
+            if not any(node in pair for pair in sequential_pairs):
+                independent.add(node)
 
-        if not dist:
-            return []
-        end = max(dist, key=lambda k: dist[k])
-        path = []
-        cursor: Optional[str] = end
-        while cursor:
-            path.append(self._nodes[cursor])
-            cursor = prev.get(cursor)
-        return list(reversed(path))
-
-    def node_count(self) -> int:
-        return len(self._nodes)
-
-    def edge_count(self) -> int:
-        return len(self._edges)
+        return [independent] if independent else []
 ```
 
-## Solution 4: Dependency Graph Recorder
+## Solution 5: Graph Export for Visualization
 
 ```python
-import uuid
-import time
-from typing import Any, Callable, Dict, List, Optional
-
-
-class DependencyGraphRecorder:
-    """
-    Records tool calls and their dependencies into a ToolDependencyGraph.
-    Callers declare which prior call IDs a new call depends on.
-    """
-
-    def __init__(self, graph: ToolDependencyGraph):
-        self._graph = graph
-
-    async def record_call(
-        self,
-        tool_name: str,
-        tool_fn: Callable,
-        args: Dict[str, Any],
-        depends_on: List[str] = None,
-        dependency_type: DependencyType = DependencyType.DATA_FLOW,
-        field_path: str = "",
-        session_id: str = "",
-    ) -> tuple[Any, str]:
-        call_id = str(uuid.uuid4())[:12]
-        args_summary = str(args)[:150]
-        node = ToolCallNode(
-            call_id=call_id,
-            tool_name=tool_name,
-            args_summary=args_summary,
-            session_id=session_id,
-        )
-        self._graph.add_node(node)
-
-        for source_id in (depends_on or []):
-            self._graph.add_edge(DependencyEdge(
-                source_call_id=source_id,
-                target_call_id=call_id,
-                dependency_type=dependency_type,
-                field_path=field_path,
-            ))
-
-        try:
-            result = await tool_fn(**args)
-            node.result_summary = str(result)[:150]
-            node.success = True
-            return result, call_id
-        except Exception as exc:
-            node.error = type(exc).__name__
-            node.success = False
-            raise
-        finally:
-            node.ended_at = time.time()
-```
-
-## Solution 5: ASCII Graph Renderer
-
-```python
+import json
 from typing import List
 
 
-class ASCIIToolDependencyRenderer:
+class DependencyGraphExporter:
     """
-    Renders the dependency graph as indented ASCII text for
-    quick inspection in log output or CLI tools.
+    Exports the dependency graph in formats suitable for visualization tools
+    (Mermaid, DOT/Graphviz, and a JSON adjacency list).
     """
 
-    def __init__(self, graph: ToolDependencyGraph):
-        self._graph = graph
-
-    def render(self) -> str:
-        lines = ["Tool Dependency Graph", "=" * 40]
-        visited: set = set()
-
-        def render_node(node: ToolCallNode, depth: int) -> None:
-            if node.call_id in visited:
-                lines.append("  " * depth + f"↺ {node.tool_name} [{node.call_id}] (already shown)")
-                return
-            visited.add(node.call_id)
-            status = "✓" if node.success else "✗"
-            latency = f"{node.latency_ms}ms" if node.latency_ms else "?"
-            lines.append("  " * depth + f"{status} {node.tool_name} [{node.call_id}] ({latency})")
-            for child in self._graph.dependents(node.call_id):
-                edges = self._graph._in_edges.get(child.call_id, [])
-                edge = next((e for e in edges if e.source_call_id == node.call_id), None)
-                label = f"[{edge.field_path}]" if edge and edge.field_path else ""
-                lines.append("  " * (depth + 1) + f"→ {label}")
-                render_node(child, depth + 1)
-
-        for root in self._graph.roots():
-            render_node(root, 0)
-
-        cp = self._graph.critical_path()
-        if cp:
-            lines.append("")
-            lines.append("Critical Path:")
-            lines.append(" → ".join(n.tool_name for n in cp))
-            total_ms = sum(n.latency_ms or 0 for n in cp)
-            lines.append(f"Critical path latency: {round(total_ms, 2)}ms")
-
+    def to_mermaid(self, edges: List[DependencyEdge]) -> str:
+        lines = ["graph LR"]
+        edge_style = {
+            "sequence": "-->",
+            "argument_thread": "-.->",
+            "co_occurrence": "~~~",
+        }
+        for e in edges:
+            arrow = edge_style.get(e.edge_type, "-->")
+            label = f"|{e.edge_type} {e.confidence:.0%}|"
+            lines.append(f"    {e.source_tool}{arrow}{label}{e.target_tool}")
         return "\n".join(lines)
+
+    def to_dot(self, edges: List[DependencyEdge]) -> str:
+        lines = ["digraph tool_dependencies {", '    rankdir=LR;']
+        for e in edges:
+            style = "solid" if e.edge_type == "sequence" else "dashed"
+            color = "black" if e.edge_type == "argument_thread" else "gray"
+            lines.append(
+                f'    "{e.source_tool}" -> "{e.target_tool}" '
+                f'[label="{e.edge_type}\\n{e.confidence:.0%}", '
+                f'style={style}, color={color}];'
+            )
+        lines.append("}")
+        return "\n".join(lines)
+
+    def to_json(self, edges: List[DependencyEdge]) -> str:
+        return json.dumps(
+            [
+                {
+                    "source": e.source_tool,
+                    "target": e.target_tool,
+                    "type": e.edge_type,
+                    "observations": e.observation_count,
+                    "confidence": e.confidence,
+                }
+                for e in edges
+            ],
+            indent=2,
+        )
 ```
 
 ## Solution 6: Dependency Graph Dashboard
@@ -272,45 +301,46 @@ from typing import List
 
 class ToolDependencyGraphDashboard:
     """
-    Combines graph statistics, critical path analysis, and
-    parallelization opportunities into an operational report.
+    Combines graph construction, critical path analysis, and export
+    into a single snapshot for engineering and architecture review.
     """
 
-    def __init__(self, graph: ToolDependencyGraph):
-        self._graph = graph
+    def __init__(
+        self,
+        builder: ToolDependencyGraphBuilder,
+        exporter: DependencyGraphExporter,
+    ):
+        self._builder = builder
+        self._exporter = exporter
 
-    def _parallelizable_nodes(self) -> List[ToolCallNode]:
-        """Nodes that have no dependencies on each other but ran sequentially."""
-        roots = self._graph.roots()
-        return [n for n in roots if (n.latency_ms or 0) > 100]
+    def render(self, traces: List[List[ToolExecutionNode]]) -> dict:
+        edges = self._builder.build(traces)
+        analyzer = CriticalPathAnalyzer(edges)
+        critical = analyzer.critical_path()
+        parallel_groups = analyzer.parallelizable_groups()
 
-    def render(self) -> dict:
-        cp = self._graph.critical_path()
         return {
             "generated_at": time.time(),
-            "graph_stats": {
-                "node_count": self._graph.node_count(),
-                "edge_count": self._graph.edge_count(),
-                "root_count": len(self._graph.roots()),
+            "total_edges": len(edges),
+            "edge_types": {
+                t: sum(1 for e in edges if e.edge_type == t)
+                for t in ("sequence", "co_occurrence", "argument_thread")
             },
-            "critical_path": {
-                "tools": [n.tool_name for n in cp],
-                "total_ms": round(sum(n.latency_ms or 0 for n in cp), 2),
-                "step_count": len(cp),
-            },
-            "parallelization_candidates": [
-                n.tool_name for n in self._parallelizable_nodes()
-            ],
+            "critical_path": critical,
+            "critical_path_length": len(critical),
+            "parallelizable_tool_groups": [list(g) for g in parallel_groups],
+            "mermaid": self._exporter.to_mermaid(edges),
+            "dot": self._exporter.to_dot(edges),
         }
 ```
 
 ## Comparison
 
-| Approach | Node/Edge Recording | Topological Order | Critical Path | ASCII Render | Parallelization Hints |
+| Approach | Sequence Detection | Argument Threading | Critical Path | Parallel Groups | Export Formats |
 |---|---|---|---|---|---|
-| ToolDependencyGraph | Yes | Yes | Yes | No | No |
-| DependencyGraphRecorder | Via graph | No | No | No | No |
-| ASCIIToolDependencyRenderer | No | No | Via graph | Yes | No |
-| ToolDependencyGraphDashboard | No | No | Via graph | No | Yes |
+| ToolDependencyGraphBuilder | Yes (rate-based) | Yes (value overlap) | No | No | No |
+| CriticalPathAnalyzer | No | No | Yes (DFS) | Yes | No |
+| DependencyGraphExporter | No | No | No | No | Mermaid, DOT, JSON |
+| ToolDependencyGraphDashboard | Via builder | Via builder | Via analyzer | Via analyzer | Via exporter |
 
-**Best for production**: Record `depends_on` call IDs at the point where the LLM's tool request is dispatched — the framework knows which prior call results were referenced because they are in the conversation context. Use `field_path` to annotate which specific field from the source result was consumed (e.g., `result.user_id`) so the dependency edge carries semantic meaning beyond just ordering. Emit the `render()` output as a structured log event at session end: on-call engineers investigating wrong answers can replay the exact data-flow path that produced the output. Use `parallelization_candidates` in the dashboard to identify roots that could be dispatched concurrently in future sessions.
+**Best for production**: Run `ToolDependencyGraphBuilder.build()` weekly over the prior week's execution traces and compare against the previous week's graph — new edges signal that the agent has started using tools in new combinations, which may indicate prompt drift or new user query patterns. Use the Mermaid output to embed a live dependency diagram in your engineering wiki. Tools that appear in `parallelizable_tool_groups` but are being called sequentially are immediate latency optimization targets — wrapping them in `asyncio.gather` should reduce turn latency by their individual round-trip times.

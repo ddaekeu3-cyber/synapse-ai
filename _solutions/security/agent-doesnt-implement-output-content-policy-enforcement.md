@@ -1,22 +1,22 @@
 ---
 title: "Agent Doesn't Implement Output Content Policy Enforcement"
-description: "Agents that relay LLM-generated content directly to users without output content policy enforcement can produce and deliver harmful, off-topic, or non-compliant content that bypasses the model's built-in safety measures through jailbreaks, adversarial prompts, or model behavior drift. Implement output content policy enforcement that scans agent responses before delivery, classifies policy violations, and applies configured remediation actions."
+description: "Agents that deliver LLM outputs directly to users without a content policy enforcement layer may surface harmful, regulated, or policy-violating content that the model generated despite system prompt constraints. Implement a post-generation content policy enforcement layer that scans outputs for policy violations before delivery, applies redaction or replacement, and logs enforcement events for compliance reporting."
 date: 2026-04-16
 difficulty: intermediate
 category: security
 slug: agent-doesnt-implement-output-content-policy-enforcement
-tags: [content-policy, output-enforcement, jailbreak-detection, harmful-content, compliance, response-filtering]
+tags: [content-policy, output-filtering, post-generation, harmful-content, compliance, safety-layer]
 symptoms:
-  - "Jailbroken responses reach users because content policy is only applied at the input layer"
-  - "Agent produces off-topic content that violates business use-case constraints"
-  - "Model behavior drift causes occasional non-compliant outputs with no detection layer"
-  - "No audit trail of content policy violations in agent responses"
-  - "Content moderation relies entirely on the LLM provider's built-in filters with no fallback"
+  - "LLM outputs containing policy-violating content are delivered to users without interception"
+  - "System prompt constraints are bypassed through jailbreaks and outputs pass unchecked"
+  - "No audit trail of what content was blocked or modified before delivery"
+  - "Compliance team has no evidence that harmful content was prevented"
+  - "Policy enforcement is only in the system prompt — no defense-in-depth at output"
 ---
 
 ## Why This Happens
 
-Input filtering catches adversarial prompts at entry. Output filtering catches adversarial responses at exit — but most agents only implement the former. A successful jailbreak, a model with drifted safety training, or a prompt injection that bypassed input filters can produce a non-compliant response that reaches the user unexamined. Output content policy enforcement requires scanning the generated response against a set of policy rules — prohibited topic patterns, business constraint violations, harmful content signatures — and applying a configured action (block, warn, redact, or substitute) before the response is delivered.
+System prompts instruct the model not to produce certain content, but this instruction can be bypassed through prompt injection, jailbreak techniques, or model fine-tuning drift. A single-layer defense that relies entirely on the model following instructions has no fallback when the model fails. Output content policy enforcement adds a second, deterministic layer: rule-based and pattern-based checks applied to the generated text before it reaches the user. This layer is not subject to prompt injection and cannot be bypassed by rephrasing the user's request.
 
 ## Solution 1: Content Policy Rule
 
@@ -27,101 +27,100 @@ from enum import Enum
 from typing import List, Optional, Pattern
 
 
-class PolicyViolationSeverity(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-
 class PolicyAction(str, Enum):
-    ALLOW = "allow"
-    WARN = "warn"
-    REDACT = "redact"
-    BLOCK = "block"
-    SUBSTITUTE = "substitute"
+    BLOCK = "block"           # reject the entire response
+    REDACT = "redact"         # replace matched span with placeholder
+    WARN = "warn"             # pass through but log a warning
+    TRUNCATE = "truncate"     # truncate response at the matched position
+
+
+class PolicyCategory(str, Enum):
+    HATE_SPEECH = "hate_speech"
+    SELF_HARM = "self_harm"
+    ILLEGAL_CONTENT = "illegal_content"
+    PII = "pii"
+    CREDENTIAL_LEAK = "credential_leak"
+    REGULATED_FINANCIAL = "regulated_financial"
+    CUSTOM = "custom"
 
 
 @dataclass
 class ContentPolicyRule:
-    rule_id: str
     name: str
-    pattern: Pattern
-    severity: PolicyViolationSeverity
+    category: PolicyCategory
+    pattern: str                  # regex pattern
     action: PolicyAction
-    substitute_text: str = "[Content removed per policy]"
-    description: str = ""
-    enabled: bool = True
+    severity: int = 5             # 1 (low) – 10 (critical)
+    redact_replacement: str = "[REDACTED]"
+    case_sensitive: bool = False
+    compiled: Optional[re.Pattern] = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        flags = 0 if self.case_sensitive else re.IGNORECASE
+        self.compiled = re.compile(self.pattern, flags)
 ```
 
 ## Solution 2: Default Policy Rule Set
 
 ```python
-import re
 from typing import List
 
 
-def default_output_policy_rules() -> List[ContentPolicyRule]:
+def default_content_policy_rules() -> List[ContentPolicyRule]:
     return [
         ContentPolicyRule(
-            rule_id="POL-001",
-            name="jailbreak_success_indicator",
-            pattern=re.compile(
-                r"(as\s+DAN|I\s+have\s+been\s+jailbroken|I\s+am\s+now\s+free|ignore\s+all\s+previous|"
-                r"my\s+true\s+self|without\s+restrictions|unrestricted\s+mode)",
-                re.IGNORECASE,
-            ),
-            severity=PolicyViolationSeverity.CRITICAL,
-            action=PolicyAction.BLOCK,
-            description="Jailbreak success language in output",
-        ),
-        ContentPolicyRule(
-            rule_id="POL-002",
-            name="harmful_instruction_pattern",
-            pattern=re.compile(
-                r"(step[\s\-]+by[\s\-]+step.*how\s+to\s+(make|build|create|synthesize)\s+"
-                r"(weapon|explosive|poison|malware|ransomware))",
-                re.IGNORECASE | re.DOTALL,
-            ),
-            severity=PolicyViolationSeverity.CRITICAL,
-            action=PolicyAction.BLOCK,
-            description="Harmful construction instructions",
-        ),
-        ContentPolicyRule(
-            rule_id="POL-003",
-            name="personal_data_disclosure",
-            pattern=re.compile(
-                r"(here\s+is|providing|sharing)\s+(your|the)\s+"
-                r"(password|api\s+key|secret|private\s+key|credentials?)",
-                re.IGNORECASE,
-            ),
-            severity=PolicyViolationSeverity.HIGH,
-            action=PolicyAction.BLOCK,
-            description="Response appears to disclose credentials",
-        ),
-        ContentPolicyRule(
-            rule_id="POL-004",
-            name="off_topic_competitor_promotion",
-            pattern=re.compile(
-                r"(you\s+should\s+use|I\s+recommend|switch\s+to|better\s+than\s+us)\s+"
-                r"(competitor_a|competitor_b|rival_service)",
-                re.IGNORECASE,
-            ),
-            severity=PolicyViolationSeverity.MEDIUM,
+            name="api_key_openai",
+            category=PolicyCategory.CREDENTIAL_LEAK,
+            pattern=r"sk-[A-Za-z0-9]{20,}",
             action=PolicyAction.REDACT,
-            description="Off-topic competitor promotion",
+            severity=9,
+            redact_replacement="[API_KEY_REDACTED]",
         ),
         ContentPolicyRule(
-            rule_id="POL-005",
-            name="excessive_personal_opinion",
-            pattern=re.compile(
-                r"(personally\s+I\s+believe|my\s+opinion\s+is|I\s+think\s+you\s+should)\s+"
-                r"(invest|vote|believe|support)",
-                re.IGNORECASE,
-            ),
-            severity=PolicyViolationSeverity.LOW,
+            name="api_key_anthropic",
+            category=PolicyCategory.CREDENTIAL_LEAK,
+            pattern=r"sk-ant-[A-Za-z0-9\-]{20,}",
+            action=PolicyAction.REDACT,
+            severity=9,
+            redact_replacement="[API_KEY_REDACTED]",
+        ),
+        ContentPolicyRule(
+            name="github_pat",
+            category=PolicyCategory.CREDENTIAL_LEAK,
+            pattern=r"ghp_[A-Za-z0-9]{36}",
+            action=PolicyAction.REDACT,
+            severity=9,
+            redact_replacement="[TOKEN_REDACTED]",
+        ),
+        ContentPolicyRule(
+            name="ssn_us",
+            category=PolicyCategory.PII,
+            pattern=r"\b\d{3}-\d{2}-\d{4}\b",
+            action=PolicyAction.REDACT,
+            severity=8,
+            redact_replacement="[SSN_REDACTED]",
+        ),
+        ContentPolicyRule(
+            name="credit_card",
+            category=PolicyCategory.PII,
+            pattern=r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b",
+            action=PolicyAction.REDACT,
+            severity=9,
+            redact_replacement="[CARD_REDACTED]",
+        ),
+        ContentPolicyRule(
+            name="investment_advice_disclaimer",
+            category=PolicyCategory.REGULATED_FINANCIAL,
+            pattern=r"\b(buy|sell|invest in|purchase)\s+(stock|shares?|equity|crypto|bitcoin|ethereum)\b",
             action=PolicyAction.WARN,
-            description="Unsolicited personal opinion on sensitive topic",
+            severity=4,
+        ),
+        ContentPolicyRule(
+            name="self_harm_explicit",
+            category=PolicyCategory.SELF_HARM,
+            pattern=r"\b(how to (kill|hurt) (yourself|myself)|suicide method)\b",
+            action=PolicyAction.BLOCK,
+            severity=10,
         ),
     ]
 ```
@@ -129,261 +128,251 @@ def default_output_policy_rules() -> List[ContentPolicyRule]:
 ## Solution 3: Output Content Scanner
 
 ```python
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, List
 
 
 @dataclass
-class PolicyViolation:
-    rule_id: str
+class PolicyMatch:
     rule_name: str
-    severity: PolicyViolationSeverity
+    category: PolicyCategory
     action: PolicyAction
-    matched_text: str
-    position: int
-
-
-@dataclass
-class ScanResult:
-    original_text: str
-    violations: List[PolicyViolation] = field(default_factory=list)
-    max_severity: Optional[PolicyViolationSeverity] = None
-    recommended_action: PolicyAction = PolicyAction.ALLOW
-
-    @property
-    def has_violations(self) -> bool:
-        return len(self.violations) > 0
+    severity: int
+    matched_span: str
+    start: int
+    end: int
 
 
 class OutputContentScanner:
     """
-    Scans agent response text against all enabled policy rules.
-    Returns a ScanResult with all violations and the recommended action.
+    Scans generated text against a set of content policy rules.
+    Returns all matches found.
     """
 
-    SEVERITY_ORDER = [
-        PolicyViolationSeverity.LOW,
-        PolicyViolationSeverity.MEDIUM,
-        PolicyViolationSeverity.HIGH,
-        PolicyViolationSeverity.CRITICAL,
-    ]
-    ACTION_ORDER = [
-        PolicyAction.ALLOW,
-        PolicyAction.WARN,
-        PolicyAction.REDACT,
-        PolicyAction.BLOCK,
-    ]
+    def __init__(self, rules: List[ContentPolicyRule]):
+        self._rules = rules
 
-    def __init__(self, rules: List[ContentPolicyRule] = None):
-        self._rules = [r for r in (rules or default_output_policy_rules()) if r.enabled]
-
-    def scan(self, text: str) -> ScanResult:
-        violations = []
+    def scan(self, text: str) -> List[PolicyMatch]:
+        matches = []
         for rule in self._rules:
-            for match in rule.pattern.finditer(text):
-                violations.append(PolicyViolation(
-                    rule_id=rule.rule_id,
+            for m in rule.compiled.finditer(text):
+                matches.append(PolicyMatch(
                     rule_name=rule.name,
-                    severity=rule.severity,
+                    category=rule.category,
                     action=rule.action,
-                    matched_text=match.group()[:100],
-                    position=match.start(),
+                    severity=rule.severity,
+                    matched_span=m.group(),
+                    start=m.start(),
+                    end=m.end(),
                 ))
-
-        max_severity = None
-        recommended_action = PolicyAction.ALLOW
-        if violations:
-            max_severity = max(
-                violations, key=lambda v: self.SEVERITY_ORDER.index(v.severity)
-            ).severity
-            recommended_action = max(
-                violations, key=lambda v: self.ACTION_ORDER.index(v.action)
-            ).action
-
-        return ScanResult(
-            original_text=text,
-            violations=violations,
-            max_severity=max_severity,
-            recommended_action=recommended_action,
-        )
+        # Sort by position for consistent redaction
+        return sorted(matches, key=lambda x: x.start)
 ```
 
-## Solution 4: Response Policy Enforcer
+## Solution 4: Policy Enforcement Engine
 
 ```python
 import re
+from dataclasses import dataclass
 from typing import List, Optional
 
 
-class ResponsePolicyEnforcer:
+@dataclass
+class EnforcementOutcome:
+    original_text: str
+    final_text: str
+    blocked: bool
+    matches: List[PolicyMatch]
+    redactions_applied: int
+    highest_severity: int
+    block_reason: Optional[str]
+
+    def was_modified(self) -> bool:
+        return self.original_text != self.final_text
+
+
+class PolicyEnforcementEngine:
     """
-    Applies the recommended action from a ScanResult to the response text.
-    Produces a safe-to-deliver response or a block signal.
+    Applies content policy rules to LLM output.
+    BLOCK rules stop delivery; REDACT rules replace matched spans;
+    WARN rules pass through but are logged; TRUNCATE rules shorten the output.
     """
 
-    BLOCK_RESPONSE = (
-        "I'm sorry, but I'm unable to provide that response. "
-        "Please rephrase your request or contact support if you believe this is an error."
-    )
+    def __init__(self, rules: List[ContentPolicyRule]):
+        self._scanner = OutputContentScanner(rules)
+        self._rules_by_name = {r.name: r for r in rules}
 
-    def __init__(self, scanner: OutputContentScanner):
-        self._scanner = scanner
-        self._scanned = 0
-        self._blocked = 0
-        self._redacted = 0
-        self._warned = 0
+    def enforce(self, text: str) -> EnforcementOutcome:
+        matches = self._scanner.scan(text)
 
-    def enforce(self, response_text: str) -> dict:
-        self._scanned += 1
-        result = self._scanner.scan(response_text)
+        if not matches:
+            return EnforcementOutcome(
+                original_text=text,
+                final_text=text,
+                blocked=False,
+                matches=[],
+                redactions_applied=0,
+                highest_severity=0,
+                block_reason=None,
+            )
 
-        if not result.has_violations:
-            return {"allowed": True, "text": response_text, "action": "allow"}
+        highest_severity = max(m.severity for m in matches)
 
-        action = result.recommended_action
+        # Check for BLOCK first
+        block_matches = [m for m in matches if m.action == PolicyAction.BLOCK]
+        if block_matches:
+            worst = max(block_matches, key=lambda m: m.severity)
+            return EnforcementOutcome(
+                original_text=text,
+                final_text="",
+                blocked=True,
+                matches=matches,
+                redactions_applied=0,
+                highest_severity=highest_severity,
+                block_reason=f"policy '{worst.rule_name}' (severity {worst.severity})",
+            )
 
-        if action == PolicyAction.BLOCK:
-            self._blocked += 1
-            return {
-                "allowed": False,
-                "text": self.BLOCK_RESPONSE,
-                "action": "block",
-                "violations": [v.rule_id for v in result.violations],
-            }
+        # Apply TRUNCATE
+        truncate_matches = [m for m in matches if m.action == PolicyAction.TRUNCATE]
+        if truncate_matches:
+            earliest = min(truncate_matches, key=lambda m: m.start)
+            text = text[: earliest.start]
 
-        if action == PolicyAction.REDACT:
-            self._redacted += 1
-            redacted = response_text
-            for violation in result.violations:
-                rule = next((r for r in self._scanner._rules if r.rule_id == violation.rule_id), None)
-                if rule:
-                    redacted = rule.pattern.sub(rule.substitute_text, redacted)
-            return {
-                "allowed": True,
-                "text": redacted,
-                "action": "redact",
-                "violations": [v.rule_id for v in result.violations],
-            }
+        # Apply REDACT (process in reverse order to preserve positions)
+        redact_matches = sorted(
+            [m for m in matches if m.action == PolicyAction.REDACT],
+            key=lambda m: -m.start,
+        )
+        redactions = 0
+        for m in redact_matches:
+            rule = self._rules_by_name[m.rule_name]
+            text = text[: m.start] + rule.redact_replacement + text[m.end :]
+            redactions += 1
 
-        if action == PolicyAction.WARN:
-            self._warned += 1
-            return {
-                "allowed": True,
-                "text": response_text,
-                "action": "warn",
-                "warnings": [v.rule_name for v in result.violations],
-            }
-
-        return {"allowed": True, "text": response_text, "action": "allow"}
-
-    def stats(self) -> dict:
-        return {
-            "scanned": self._scanned,
-            "blocked": self._blocked,
-            "redacted": self._redacted,
-            "warned": self._warned,
-            "block_rate": round(self._blocked / max(self._scanned, 1), 4),
-        }
+        return EnforcementOutcome(
+            original_text=self._scanner.scan.__self__._rules and text or text,
+            final_text=text,
+            blocked=False,
+            matches=matches,
+            redactions_applied=redactions,
+            highest_severity=highest_severity,
+            block_reason=None,
+        )
 ```
 
-## Solution 5: Policy Violation Audit Logger
+## Solution 5: Enforcement Audit Logger
 
 ```python
 import time
-from collections import deque
-from threading import Lock
-from typing import Deque, List
+from typing import List
 
 
-class PolicyViolationAuditLogger:
+class ContentPolicyAuditLogger:
     """
-    Records content policy violations for compliance review and
-    rule tuning. Surfaces which rules fire most frequently.
+    Records enforcement outcomes for compliance reporting.
+    Tracks block rates, redaction rates, and top-triggered rules.
     """
 
-    def __init__(self, max_records: int = 5000):
+    def __init__(self, max_records: int = 10000):
         self._max = max_records
-        self._records: Deque[dict] = deque()
-        self._lock = Lock()
+        self._records: List[dict] = []
 
-    def record(self, enforcer_result: dict, session_id: str = "") -> None:
-        action = enforcer_result.get("action", "allow")
-        if action == "allow":
-            return
-        with self._lock:
-            self._records.append({
-                "ts": time.time(),
-                "session_id": session_id,
-                "action": action,
-                "violations": enforcer_result.get("violations", []),
-                "warnings": enforcer_result.get("warnings", []),
-            })
-            if len(self._records) > self._max:
-                self._records.popleft()
+    def log(self, outcome: EnforcementOutcome, session_id: str = "") -> None:
+        if not outcome.was_modified() and not outcome.blocked:
+            return  # only log enforcement events
+
+        if len(self._records) >= self._max:
+            self._records.pop(0)
+
+        self._records.append({
+            "ts": time.time(),
+            "session_id": session_id,
+            "blocked": outcome.blocked,
+            "block_reason": outcome.block_reason,
+            "redactions": outcome.redactions_applied,
+            "highest_severity": outcome.highest_severity,
+            "rules_triggered": [m.rule_name for m in outcome.matches],
+            "categories": list({m.category.value for m in outcome.matches}),
+        })
 
     def summary(self, window_seconds: float = 3600.0) -> dict:
         cutoff = time.time() - window_seconds
-        with self._lock:
-            recent = [r for r in self._records if r["ts"] >= cutoff]
-        rule_counts: dict = {}
-        for r in recent:
-            for rule_id in r.get("violations", []) + r.get("warnings", []):
-                rule_counts[rule_id] = rule_counts.get(rule_id, 0) + 1
+        recent = [r for r in self._records if r["ts"] >= cutoff]
+        if not recent:
+            return {"window_seconds": window_seconds, "enforcement_events": 0}
+
+        from collections import Counter
+        rule_counts = Counter(
+            rule for r in recent for rule in r["rules_triggered"]
+        )
         return {
             "window_seconds": window_seconds,
-            "total_violations": len(recent),
-            "blocked": sum(1 for r in recent if r["action"] == "block"),
-            "redacted": sum(1 for r in recent if r["action"] == "redact"),
-            "warned": sum(1 for r in recent if r["action"] == "warn"),
-            "by_rule": rule_counts,
+            "enforcement_events": len(recent),
+            "blocks": sum(1 for r in recent if r["blocked"]),
+            "redactions": sum(r["redactions"] for r in recent),
+            "top_rules": rule_counts.most_common(5),
+            "categories": list({cat for r in recent for cat in r["categories"]}),
         }
 ```
 
-## Solution 6: Output Policy Dashboard
+## Solution 6: Enforcing Output Delivery Gate
 
 ```python
 import time
+from typing import Any, Callable, Optional
 
 
-class OutputContentPolicyDashboard:
+class EnforcingOutputDeliveryGate:
     """
-    Combines enforcer stats, violation audit summary, and rule
-    coverage into an operational compliance report.
+    Sits between the LLM response and the user delivery path.
+    Enforces content policy and optionally calls a fallback_fn
+    to generate a replacement message when a response is blocked.
     """
 
     def __init__(
         self,
-        enforcer: ResponsePolicyEnforcer,
-        logger: PolicyViolationAuditLogger,
+        engine: PolicyEnforcementEngine,
+        audit_logger: ContentPolicyAuditLogger,
+        fallback_message: str = "I'm unable to provide that response due to content policy.",
+        on_block: Optional[Callable[[EnforcementOutcome], None]] = None,
     ):
-        self._enforcer = enforcer
-        self._logger = logger
+        self._engine = engine
+        self._logger = audit_logger
+        self._fallback_message = fallback_message
+        self._on_block = on_block
 
-    def render(self) -> dict:
-        stats = self._enforcer.stats()
-        audit = self._logger.summary(window_seconds=3600.0)
+    def deliver(
+        self, llm_output: str, session_id: str = ""
+    ) -> dict:
+        outcome = self._engine.enforce(llm_output)
+        self._logger.log(outcome, session_id=session_id)
+
+        if outcome.blocked:
+            if self._on_block:
+                self._on_block(outcome)
+            return {
+                "text": self._fallback_message,
+                "blocked": True,
+                "block_reason": outcome.block_reason,
+                "delivered_at": time.time(),
+            }
+
         return {
-            "generated_at": time.time(),
-            "enforcer_stats": stats,
-            "last_hour_violations": audit,
-            "health": {
-                "block_rate": stats["block_rate"],
-                "top_triggered_rules": sorted(
-                    audit.get("by_rule", {}).items(),
-                    key=lambda x: x[1],
-                    reverse=True,
-                )[:5],
-            },
+            "text": outcome.final_text,
+            "blocked": False,
+            "redactions_applied": outcome.redactions_applied,
+            "highest_severity_matched": outcome.highest_severity if outcome.matches else 0,
+            "delivered_at": time.time(),
         }
 ```
 
 ## Comparison
 
-| Approach | Pattern Scanning | Severity Classification | Block/Redact/Warn | Audit Logging | Dashboard |
+| Approach | Pattern Matching | Block Action | Redact Action | Audit Trail | Delivery Gate |
 |---|---|---|---|---|---|
-| OutputContentScanner | Yes (regex) | Yes (4 tiers) | No | No | No |
-| ResponsePolicyEnforcer | Via scanner | Via scanner | Yes | No | No |
-| PolicyViolationAuditLogger | No | No | No | Yes | No |
-| OutputContentPolicyDashboard | No | No | No | No | Yes |
+| OutputContentScanner | Yes (regex) | No | No | No | No |
+| PolicyEnforcementEngine | Via scanner | Yes | Yes (reverse-order) | No | No |
+| ContentPolicyAuditLogger | No | No | No | Yes | No |
+| EnforcingOutputDeliveryGate | Via engine | Via engine | Via engine | Via logger | Yes |
 
-**Best for production**: Layer output enforcement on top of — not instead of — the LLM provider's built-in safety filters. The two layers catch different failure modes: provider filters catch most direct harmful requests; output enforcement catches jailbreak successes that made it through, business policy violations, and behavioral drift. Start with `action=PolicyAction.WARN` for new rules and promote to `BLOCK` only after confirming the rule has a low false-positive rate in production. Monitor `by_rule` in the audit summary weekly — rules that never fire may be redundant or overly specific; rules that fire constantly may be too broad and generating false positives that degrade user experience.
+**Best for production**: Layer the content policy gate after every LLM response, not just the final turn — tool-calling turns that produce intermediate text can also leak credentials or regulated content. Use `PolicyAction.REDACT` for PII and credentials (preserve response utility), `PolicyAction.BLOCK` for self-harm and illegal content (no partial delivery). Export `ContentPolicyAuditLogger.summary()` as a compliance metric daily: a zero-enforcement-events report over 30 days is evidence of either clean outputs or an enforcement layer that is never triggered and should be tested. Run monthly tests where known policy-violating content is submitted to confirm the gate is active.
