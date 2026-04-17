@@ -1,30 +1,29 @@
 ---
 title: "Agent Doesn't Implement Idempotency Keys for Tool Calls"
-description: "Agents that retry failed tool calls without idempotency keys risk executing side-effectful operations multiple times — a payment is charged twice, an email is sent twice, a database row is inserted twice. Implement idempotency keys that uniquely identify each intended tool operation, allow safe retries by detecting duplicate execution attempts, and enable audit trails that distinguish original calls from retries."
+description: "Agents that retry failed tool calls without idempotency keys risk executing side-effectful operations multiple times: a payment is charged twice, an email is sent three times, a database record is inserted in duplicate. Implement idempotency key generation and server-side deduplication so that retried tool calls are guaranteed to produce the same observable effect as the first successful call."
 date: 2026-04-16
 difficulty: intermediate
 category: reliability
 slug: agent-doesnt-implement-idempotency-keys-for-tool-calls
-tags: [idempotency, idempotency-keys, safe-retry, duplicate-prevention, side-effects, at-most-once]
+tags: [idempotency, tool-calls, retry-safety, deduplication, side-effects, at-most-once]
 symptoms:
-  - "Payment tool called twice on retry — customer charged twice for the same order"
-  - "Email notification tool retried after timeout — user receives duplicate emails"
-  - "No mechanism to distinguish 'retry of previous call' from 'new intended call'"
-  - "Database insert tool creates duplicate rows when retried after a network error"
-  - "Audit log shows two executions of the same operation with no indication one was a retry"
+  - "Payment tool retried after timeout — customer charged twice"
+  - "Email tool called three times due to network flakiness — user receives duplicate messages"
+  - "Database insert tool retried without idempotency — duplicate records created"
+  - "No way to determine whether a failed tool call was actually executed before the error"
+  - "Tool retry logic exists but idempotency is delegated to each tool individually with no enforcement"
 ---
 
 ## Why This Happens
 
-Retry logic is added to handle transient failures, but most retry implementations treat each attempt as a fresh, independent call. For idempotent operations (reads, queries), this is safe. For non-idempotent operations (writes, payments, notifications), retrying without coordination creates duplicate side effects. An idempotency key — a stable, unique identifier for a specific intended operation — lets the receiving system detect "I already processed this exact request" and return the original result instead of executing again.
+Tool call retries are necessary for reliability but dangerous for side-effectful operations. The problem is that a timeout or network error does not tell the caller whether the operation was executed — it only tells the caller that no response was received. Without an idempotency key, the only safe action is to not retry. With an idempotency key, the server can detect that a request has already been processed and return the original result instead of executing again. Idempotency requires three components: a stable key derived from the operation's semantic identity (not a random UUID), a result store that maps keys to outcomes, and a lookup step before execution that short-circuits on existing results.
 
 ## Solution 1: Idempotency Key Generator
 
 ```python
 import hashlib
-import time
-import uuid
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 
@@ -32,79 +31,55 @@ from typing import Any, Dict, Optional
 class IdempotencyKey:
     key: str
     tool_name: str
+    args_fingerprint: str
     session_id: str
-    generated_at: float = field(default_factory=time.time)
-    expires_at: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    sequence_number: int
 
-    def is_expired(self) -> bool:
-        if self.expires_at is None:
-            return False
-        return time.time() > self.expires_at
+    def __str__(self) -> str:
+        return self.key
 
 
 class IdempotencyKeyGenerator:
     """
-    Generates stable idempotency keys for tool calls.
-    Content-based keys: same session + tool + args = same key (deterministic retry detection).
-    Time-based keys: session + tool + timestamp = unique per invocation (intentional re-execution).
+    Generates stable idempotency keys from tool name, arguments,
+    session context, and an explicit sequence number.
+    The key is deterministic: the same inputs always produce the same key.
     """
 
-    @staticmethod
-    def content_based(
-        session_id: str,
+    def generate(
+        self,
         tool_name: str,
         args: Dict[str, Any],
-        turn_number: int,
-    ) -> IdempotencyKey:
-        """
-        Deterministic key: two calls with the same session, tool, args, and turn
-        get the same key. Safe for retry detection.
-        """
-        import json
-        payload = json.dumps({
-            "session": session_id,
-            "tool": tool_name,
-            "args": args,
-            "turn": turn_number,
-        }, sort_keys=True)
-        key = hashlib.sha256(payload.encode()).hexdigest()[:32]
-        return IdempotencyKey(
-            key=key,
-            tool_name=tool_name,
-            session_id=session_id,
-            expires_at=time.time() + 86400,  # 24h expiry
-        )
-
-    @staticmethod
-    def time_based(
         session_id: str,
-        tool_name: str,
+        sequence_number: int,
     ) -> IdempotencyKey:
-        """
-        UUID-based key: always unique, even for identical calls.
-        Use when the same operation should be permitted multiple times.
-        """
-        key = f"{session_id}:{tool_name}:{uuid.uuid4().hex}"
+        canonical_args = json.dumps(args, sort_keys=True, separators=(",", ":"))
+        args_fingerprint = hashlib.sha256(canonical_args.encode()).hexdigest()[:16]
+        raw = f"{tool_name}:{args_fingerprint}:{session_id}:{sequence_number}"
+        key = hashlib.sha256(raw.encode()).hexdigest()
         return IdempotencyKey(
             key=key,
             tool_name=tool_name,
+            args_fingerprint=args_fingerprint,
             session_id=session_id,
-            expires_at=time.time() + 3600,
+            sequence_number=sequence_number,
         )
 ```
 
-## Solution 2: Idempotency Record Store
+## Solution 2: Idempotency Result Store
 
 ```python
+import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from threading import Lock
 from typing import Any, Dict, Optional
 
 
-class IdempotencyRecordState(str, Enum):
-    IN_PROGRESS = "in_progress"
+class IdempotencyStatus(str, Enum):
+    IN_FLIGHT = "in_flight"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -113,299 +88,324 @@ class IdempotencyRecordState(str, Enum):
 class IdempotencyRecord:
     key: str
     tool_name: str
-    session_id: str
-    state: IdempotencyRecordState
-    result: Optional[Any] = None
+    status: IdempotencyStatus
+    created_at: float
+    completed_at: Optional[float] = None
+    result: Any = None
     error: Optional[str] = None
     attempt_count: int = 1
-    created_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
-    expires_at: Optional[float] = None
-
-    def is_terminal(self) -> bool:
-        return self.state in (
-            IdempotencyRecordState.COMPLETED,
-            IdempotencyRecordState.FAILED,
-        )
 
 
-class IdempotencyRecordStore:
+class IdempotencyResultStore:
     """
-    Persists idempotency records to detect duplicate tool call attempts.
-    In production, back this with Redis or a database for cross-process deduplication.
+    Persists idempotency records keyed on the idempotency key.
+    Supports atomic claim-or-fetch: either claims a key for a new
+    execution or returns the existing record.
     """
 
-    def __init__(self) -> None:
-        self._records: Dict[str, IdempotencyRecord] = {}
+    def __init__(
+        self,
+        path: str = "/tmp/idempotency_store.json",
+        ttl_seconds: float = 86400.0,
+    ):
+        self._path = Path(path)
+        self._ttl = ttl_seconds
+        self._lock = Lock()
 
-    def _evict_expired(self) -> None:
-        now = time.time()
-        expired = [
-            k for k, r in self._records.items()
-            if r.expires_at and now > r.expires_at
-        ]
-        for k in expired:
-            del self._records[k]
-
-    def get(self, key: str) -> Optional[IdempotencyRecord]:
-        self._evict_expired()
-        rec = self._records.get(key)
-        if rec and rec.expires_at and time.time() > rec.expires_at:
-            del self._records[key]
-            return None
-        return rec
-
-    def create_in_progress(self, idem_key: IdempotencyKey) -> IdempotencyRecord:
-        """Create a new in-progress record. Raises if key already exists."""
-        if key := self.get(idem_key.key):
-            raise ValueError(
-                f"Idempotency key '{idem_key.key}' already exists with state '{key.state}'"
+    def claim_or_fetch(self, key: str, tool_name: str) -> tuple:
+        """
+        Returns (is_new, record).
+        If is_new=True, the caller should execute and then call complete() or fail().
+        If is_new=False, the existing record is returned (may still be IN_FLIGHT).
+        """
+        with self._lock:
+            store = self._load()
+            self._evict_expired(store)
+            if key in store:
+                data = store[key]
+                record = self._deserialize(data)
+                return False, record
+            record = IdempotencyRecord(
+                key=key,
+                tool_name=tool_name,
+                status=IdempotencyStatus.IN_FLIGHT,
+                created_at=time.time(),
             )
-        rec = IdempotencyRecord(
-            key=idem_key.key,
-            tool_name=idem_key.tool_name,
-            session_id=idem_key.session_id,
-            state=IdempotencyRecordState.IN_PROGRESS,
-            expires_at=idem_key.expires_at,
-        )
-        self._records[idem_key.key] = rec
-        return rec
+            store[key] = self._serialize(record)
+            self._save(store)
+            return True, record
 
     def complete(self, key: str, result: Any) -> None:
-        rec = self._records.get(key)
-        if rec:
-            rec.state = IdempotencyRecordState.COMPLETED
-            rec.result = result
-            rec.completed_at = time.time()
+        with self._lock:
+            store = self._load()
+            if key not in store:
+                return
+            store[key]["status"] = IdempotencyStatus.COMPLETED.value
+            store[key]["completed_at"] = time.time()
+            store[key]["result"] = result
+            self._save(store)
 
     def fail(self, key: str, error: str) -> None:
-        rec = self._records.get(key)
-        if rec:
-            rec.state = IdempotencyRecordState.FAILED
-            rec.error = error
-            rec.completed_at = time.time()
+        with self._lock:
+            store = self._load()
+            if key not in store:
+                return
+            store[key]["status"] = IdempotencyStatus.FAILED.value
+            store[key]["completed_at"] = time.time()
+            store[key]["error"] = error
+            self._save(store)
 
-    def record_count(self) -> int:
-        return len(self._records)
+    def _evict_expired(self, store: dict) -> None:
+        cutoff = time.time() - self._ttl
+        expired = [k for k, v in store.items() if v.get("created_at", 0) < cutoff]
+        for k in expired:
+            del store[k]
+
+    def _load(self) -> dict:
+        if not self._path.exists():
+            return {}
+        try:
+            return json.loads(self._path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    def _save(self, store: dict) -> None:
+        self._path.write_text(json.dumps(store, indent=2))
+
+    @staticmethod
+    def _serialize(record: IdempotencyRecord) -> dict:
+        return {
+            "key": record.key,
+            "tool_name": record.tool_name,
+            "status": record.status.value,
+            "created_at": record.created_at,
+            "completed_at": record.completed_at,
+            "result": record.result,
+            "error": record.error,
+            "attempt_count": record.attempt_count,
+        }
+
+    @staticmethod
+    def _deserialize(data: dict) -> IdempotencyRecord:
+        return IdempotencyRecord(
+            key=data["key"],
+            tool_name=data["tool_name"],
+            status=IdempotencyStatus(data["status"]),
+            created_at=data["created_at"],
+            completed_at=data.get("completed_at"),
+            result=data.get("result"),
+            error=data.get("error"),
+            attempt_count=data.get("attempt_count", 1),
+        )
 ```
 
 ## Solution 3: Idempotent Tool Executor
 
 ```python
 import asyncio
+import time
 from typing import Any, Callable, Dict
-
-
-class DuplicateToolCallError(RuntimeError):
-    def __init__(self, key: str, existing_state: IdempotencyRecordState) -> None:
-        super().__init__(f"Duplicate tool call detected (key={key}, state={existing_state.value})")
-        self.idempotency_key = key
-        self.existing_state = existing_state
 
 
 class IdempotentToolExecutor:
     """
-    Wraps tool calls with idempotency enforcement.
-    - First call: executes tool and stores result.
-    - Retry of same call: returns stored result without re-executing.
-    - Concurrent duplicate: waits for first call to complete, returns its result.
+    Wraps tool execution with idempotency guarantees.
+    Before executing, claims the idempotency key. If already claimed,
+    waits for the in-flight execution to complete and returns its result.
     """
+
+    IN_FLIGHT_POLL_INTERVAL = 0.5
+    IN_FLIGHT_MAX_WAIT = 30.0
 
     def __init__(
         self,
-        store: IdempotencyRecordStore,
-        wait_for_in_progress_seconds: float = 30.0,
-    ) -> None:
+        key_generator: IdempotencyKeyGenerator,
+        store: IdempotencyResultStore,
+    ):
+        self._generator = key_generator
         self._store = store
-        self._wait = wait_for_in_progress_seconds
-        self._in_progress_events: Dict[str, asyncio.Event] = {}
 
     async def execute(
         self,
-        idem_key: IdempotencyKey,
-        tool_fn: Callable,
+        tool_name: str,
         args: Dict[str, Any],
+        tool_fn: Callable,
+        session_id: str,
+        sequence_number: int,
     ) -> Any:
-        existing = self._store.get(idem_key.key)
+        idem_key = self._generator.generate(
+            tool_name, args, session_id, sequence_number
+        )
+        is_new, record = self._store.claim_or_fetch(idem_key.key, tool_name)
 
-        if existing:
-            if existing.state == IdempotencyRecordState.COMPLETED:
-                return existing.result   # idempotent return
-            if existing.state == IdempotencyRecordState.FAILED:
-                raise RuntimeError(f"Previous attempt failed: {existing.error}")
-            if existing.state == IdempotencyRecordState.IN_PROGRESS:
-                # Wait for the concurrent in-progress call to finish
-                event = self._in_progress_events.get(idem_key.key)
-                if event:
-                    try:
-                        await asyncio.wait_for(event.wait(), timeout=self._wait)
-                    except asyncio.TimeoutError:
-                        raise RuntimeError(
-                            f"Timed out waiting for in-progress call '{idem_key.key}'"
-                        )
-                    return await self.execute(idem_key, tool_fn, args)
+        if not is_new:
+            return await self._await_or_return(idem_key.key, record)
 
-        # First attempt — register in-progress
-        event = asyncio.Event()
-        self._in_progress_events[idem_key.key] = event
-
-        try:
-            rec = self._store.create_in_progress(idem_key)
-        except ValueError:
-            # Another coroutine just created the record — retry
-            del self._in_progress_events[idem_key.key]
-            return await self.execute(idem_key, tool_fn, args)
-
+        # New claim — execute the tool
         try:
             result = await tool_fn(**args)
             self._store.complete(idem_key.key, result)
             return result
         except Exception as exc:
-            self._store.fail(idem_key.key, str(exc)[:300])
+            self._store.fail(idem_key.key, str(exc))
             raise
-        finally:
-            event.set()
-            self._in_progress_events.pop(idem_key.key, None)
+
+    async def _await_or_return(self, key: str, record: IdempotencyRecord) -> Any:
+        if record.status == IdempotencyStatus.COMPLETED:
+            return record.result
+        if record.status == IdempotencyStatus.FAILED:
+            raise RuntimeError(f"Idempotent call previously failed: {record.error}")
+
+        # IN_FLIGHT — poll until complete
+        deadline = time.time() + self.IN_FLIGHT_MAX_WAIT
+        while time.time() < deadline:
+            await asyncio.sleep(self.IN_FLIGHT_POLL_INTERVAL)
+            _, refreshed = self._store.claim_or_fetch(key, record.tool_name)
+            if refreshed.status == IdempotencyStatus.COMPLETED:
+                return refreshed.result
+            if refreshed.status == IdempotencyStatus.FAILED:
+                raise RuntimeError(f"Idempotent call failed: {refreshed.error}")
+        raise TimeoutError(f"In-flight idempotent call timed out: {key}")
 ```
 
-## Solution 4: Non-Idempotent Tool Registry
+## Solution 4: Sequence Number Tracker
 
 ```python
-from typing import FrozenSet, Set
+from threading import Lock
+from typing import Dict
 
 
-class NonIdempotentToolRegistry:
+class SessionSequenceTracker:
     """
-    Maintains the set of tools that require idempotency key enforcement.
-    Tools marked as non-idempotent must be called through IdempotentToolExecutor.
+    Maintains a per-session, per-tool sequence counter so that
+    idempotency keys are unique across distinct calls even when
+    arguments are identical (e.g. sending the same email twice intentionally).
     """
 
-    DEFAULT_NON_IDEMPOTENT: FrozenSet[str] = frozenset({
-        "send_email",
-        "send_sms",
-        "charge_payment",
-        "create_record",
-        "insert_row",
-        "post_message",
-        "webhook_trigger",
-        "delete_record",
-        "update_balance",
-    })
+    def __init__(self):
+        self._counters: Dict[str, int] = {}
+        self._lock = Lock()
 
-    def __init__(self) -> None:
-        self._non_idempotent: Set[str] = set(self.DEFAULT_NON_IDEMPOTENT)
+    def next_sequence(self, session_id: str, tool_name: str) -> int:
+        key = f"{session_id}:{tool_name}"
+        with self._lock:
+            self._counters[key] = self._counters.get(key, 0) + 1
+            return self._counters[key]
 
-    def register_non_idempotent(self, tool_name: str) -> None:
-        self._non_idempotent.add(tool_name)
-
-    def register_idempotent(self, tool_name: str) -> None:
-        self._non_idempotent.discard(tool_name)
-
-    def requires_idempotency_key(self, tool_name: str) -> bool:
-        return tool_name in self._non_idempotent
-
-    def all_non_idempotent(self) -> FrozenSet[str]:
-        return frozenset(self._non_idempotent)
+    def reset_session(self, session_id: str) -> None:
+        with self._lock:
+            to_delete = [k for k in self._counters if k.startswith(f"{session_id}:")]
+            for k in to_delete:
+                del self._counters[k]
 ```
 
-## Solution 5: Idempotency Audit Tracker
+## Solution 5: Idempotency-Aware Tool Dispatcher
 
 ```python
-import time
-from collections import defaultdict
-from typing import List
+from typing import Any, Callable, Dict
 
 
-class IdempotencyAuditTracker:
+class IdempotencyAwareToolDispatcher:
     """
-    Tracks idempotency outcomes — how many calls were deduplicated,
-    how many were first-time executions, and duplicate detection rate.
-    """
-
-    def __init__(self, store: IdempotencyRecordStore) -> None:
-        self._store = store
-        self._dedup_count = 0
-        self._first_exec_count = 0
-        self._events: List[dict] = []
-
-    def record_dedup(self, key: str, tool_name: str) -> None:
-        self._dedup_count += 1
-        self._events.append({
-            "type": "deduplicated",
-            "key": key,
-            "tool": tool_name,
-            "ts": time.time(),
-        })
-
-    def record_first_exec(self, key: str, tool_name: str) -> None:
-        self._first_exec_count += 1
-        self._events.append({
-            "type": "first_execution",
-            "key": key,
-            "tool": tool_name,
-            "ts": time.time(),
-        })
-
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        recent = [e for e in self._events if e["ts"] >= cutoff]
-        dedup = sum(1 for e in recent if e["type"] == "deduplicated")
-        first = sum(1 for e in recent if e["type"] == "first_execution")
-        by_tool: dict = defaultdict(int)
-        for e in recent:
-            if e["type"] == "deduplicated":
-                by_tool[e["tool"]] += 1
-
-        return {
-            "window_seconds": window_seconds,
-            "first_executions": first,
-            "deduplicated_calls": dedup,
-            "dedup_rate": round(dedup / max(first + dedup, 1), 4),
-            "most_deduped_tools": dict(sorted(by_tool.items(), key=lambda x: -x[1])[:5]),
-            "active_records": self._store.record_count(),
-        }
-```
-
-## Solution 6: Idempotency Dashboard
-
-```python
-import time
-
-
-class IdempotencyDashboard:
-    """
-    Combines store stats, audit tracker, and registry state
-    into a single reliability operational view.
+    Integrates idempotency key generation, sequence tracking, and
+    idempotent execution into a single dispatch interface.
+    Only applies idempotency to tools registered as side-effectful.
     """
 
     def __init__(
         self,
-        store: IdempotencyRecordStore,
-        tracker: IdempotencyAuditTracker,
-        registry: NonIdempotentToolRegistry,
-    ) -> None:
-        self._store = store
-        self._tracker = tracker
-        self._registry = registry
+        executor: IdempotentToolExecutor,
+        sequence_tracker: SessionSequenceTracker,
+        side_effectful_tools: set = None,
+    ):
+        self._executor = executor
+        self._tracker = sequence_tracker
+        self._side_effectful = side_effectful_tools or set()
 
-    def render(self) -> dict:
-        summary = self._tracker.summary()
+    def register_side_effectful(self, tool_name: str) -> None:
+        self._side_effectful.add(tool_name)
+
+    async def dispatch(
+        self,
+        tool_name: str,
+        args: Dict[str, Any],
+        tool_fn: Callable,
+        session_id: str,
+    ) -> Any:
+        if tool_name not in self._side_effectful:
+            # Idempotency-exempt: pure read tools, search, etc.
+            return await tool_fn(**args)
+
+        seq = self._tracker.next_sequence(session_id, tool_name)
+        return await self._executor.execute(
+            tool_name=tool_name,
+            args=args,
+            tool_fn=tool_fn,
+            session_id=session_id,
+            sequence_number=seq,
+        )
+```
+
+## Solution 6: Idempotency Coverage Report
+
+```python
+import time
+from typing import List
+
+
+class IdempotencyCoverageReport:
+    """
+    Audits which tool calls used idempotency keys and reports
+    coverage gaps — tools that are side-effectful but not registered.
+    """
+
+    def __init__(
+        self,
+        dispatcher: IdempotencyAwareToolDispatcher,
+        store: IdempotencyResultStore,
+    ):
+        self._dispatcher = dispatcher
+        self._store = store
+
+    def render(self, observed_tools: List[str]) -> dict:
+        covered = self._dispatcher._side_effectful
+        uncovered = [t for t in observed_tools if t not in covered]
+        store_data = self._store._load()
+        completed = sum(
+            1 for v in store_data.values()
+            if v.get("status") == IdempotencyStatus.COMPLETED.value
+        )
+        failed = sum(
+            1 for v in store_data.values()
+            if v.get("status") == IdempotencyStatus.FAILED.value
+        )
+        in_flight = sum(
+            1 for v in store_data.values()
+            if v.get("status") == IdempotencyStatus.IN_FLIGHT.value
+        )
         return {
             "generated_at": time.time(),
-            "idempotency_summary": summary,
-            "non_idempotent_tools": sorted(self._registry.all_non_idempotent()),
-            "active_records": self._store.record_count(),
+            "registered_side_effectful_tools": sorted(covered),
+            "observed_unregistered_tools": uncovered,
+            "coverage_gap": len(uncovered) > 0,
+            "store_summary": {
+                "total_records": len(store_data),
+                "completed": completed,
+                "failed": failed,
+                "in_flight": in_flight,
+            },
         }
 ```
 
 ## Comparison
 
-| Approach | Key Generation | Record Store | Duplicate Detection | Concurrent Safety | Audit Trail |
+| Approach | Key Generation | Result Persistence | Dedup on Retry | Sequence Tracking | Coverage Audit |
 |---|---|---|---|---|---|
-| IdempotencyKeyGenerator | Yes (content + time) | No | No | No | No |
-| IdempotencyRecordStore | No | Yes | Yes | No | No |
-| IdempotentToolExecutor | No | Via store | Yes | Yes (asyncio.Event) | No |
-| NonIdempotentToolRegistry | No | No | No | No | No |
-| IdempotencyAuditTracker | No | No | No | No | Yes |
+| IdempotencyKeyGenerator | Yes (deterministic) | No | No | No | No |
+| IdempotencyResultStore | No | Yes (file/Redis) | Yes (claim-or-fetch) | No | No |
+| IdempotentToolExecutor | Via generator | Via store | Yes | No | No |
+| SessionSequenceTracker | No | No | No | Yes (per-session) | No |
+| IdempotencyAwareToolDispatcher | Via executor | Via executor | Via executor | Via tracker | No |
+| IdempotencyCoverageReport | No | No | No | No | Yes |
 
-**Best for production**: Use content-based keys for all retry scenarios — they guarantee that a retry of the same intended operation reuses the same key. Use time-based keys only when the same logical operation can legitimately occur twice in the same session (e.g., two separate "send email" instructions). Set key expiry to 24 hours — long enough to cover delayed retries but short enough that the store doesn't grow unbounded. For high-volume production deployments, replace the in-process `IdempotencyRecordStore` with Redis using `SET key value NX PX ttl_ms` — the `NX` flag provides atomic check-and-set that prevents race conditions across multiple agent workers.
+**Best for production**: Use Redis with `SET NX EX` as the idempotency store in multi-instance deployments — file-based stores are not safe under concurrent access from multiple agent replicas. Register all tools that send messages, create records, charge payments, or modify external state as side-effectful; leave read tools, search tools, and computation tools unregistered to avoid unnecessary overhead. Set `ttl_seconds=86400` so idempotency records expire after 24 hours — long enough to cover any plausible retry window, short enough to prevent unbounded storage growth. Never use random UUIDs as idempotency keys; always derive them deterministically from the operation's semantic inputs so that retries from different agent instances produce the same key.
