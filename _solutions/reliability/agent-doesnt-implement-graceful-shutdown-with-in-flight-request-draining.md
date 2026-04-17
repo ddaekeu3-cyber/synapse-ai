@@ -1,28 +1,26 @@
 ---
 title: "Agent Doesn't Implement Graceful Shutdown with In-Flight Request Draining"
-description: "Agents that terminate immediately on SIGTERM drop all in-flight requests mid-execution — a user's multi-step tool chain is aborted halfway, producing partial results or corrupted state. Implement graceful shutdown that catches termination signals, stops accepting new requests, waits for in-flight requests to complete within a drain timeout, and then exits cleanly — ensuring no request is abandoned without either completing or returning a proper error."
+description: "Agents that terminate immediately on SIGTERM abandon in-flight requests mid-execution: tool calls are interrupted, LLM API connections are dropped, and partial results are lost. Users receive abrupt disconnections during deployments and scaling events. Implement graceful shutdown that stops accepting new requests on SIGTERM, waits for in-flight requests to complete within a configurable drain window, and only exits after all active work is done or the timeout expires."
 date: 2026-04-16
 difficulty: intermediate
 category: reliability
 slug: agent-doesnt-implement-graceful-shutdown-with-in-flight-request-draining
-tags: [graceful-shutdown, sigterm, request-draining, in-flight-requests, zero-downtime, deployment]
+tags: [graceful-shutdown, request-draining, sigterm, deployment, in-flight-requests, zero-downtime]
 symptoms:
-  - "Deployments cause visible request failures — users see errors during rolling restarts"
-  - "SIGTERM kills the process immediately regardless of how many requests are mid-execution"
-  - "Long-running tool chains are interrupted mid-step during deployment windows"
-  - "No mechanism to prevent the load balancer from sending new traffic while draining"
-  - "Container orchestrator kills the pod before in-flight LLM streaming responses complete"
+  - "Users receive connection resets during rolling deployments"
+  - "In-flight LLM API calls are abandoned mid-stream on container restart"
+  - "Tool call results are lost when agent process is killed during execution"
+  - "No drain period between SIGTERM and process exit"
+  - "Partial responses delivered to users when agent is terminated"
 ---
 
 ## Why This Happens
 
-Container orchestrators (Kubernetes, ECS) send SIGTERM to the process when they want it to stop, then follow with SIGKILL after a grace period. A process that exits on SIGTERM immediately drops all active connections. A properly implemented graceful shutdown intercepts SIGTERM, marks the server as shutting down (so health checks begin failing, causing the load balancer to stop routing new traffic), then waits for all in-flight requests to complete before exiting. The wait is bounded by a drain timeout — requests that do not complete within the timeout are abandoned with an error, and the process exits before the orchestrator issues SIGKILL.
+Default process termination on SIGTERM is immediate: the OS sends the signal, the process exits, all open connections are closed, and any in-flight work is abandoned. Agents that serve long-running requests — multi-step reasoning, streaming responses, batch processing — need a drain window between receiving the shutdown signal and actually exiting. The agent must stop accepting new connections, allow existing requests to run to completion, and only exit when all work is done or a maximum wait time expires.
 
-## Solution 1: Shutdown State Manager
+## Solution 1: Shutdown State Machine
 
 ```python
-import asyncio
-import signal
 import time
 from enum import Enum
 from threading import Lock
@@ -31,32 +29,38 @@ from typing import Optional
 
 class ShutdownPhase(str, Enum):
     RUNNING = "running"
-    DRAINING = "draining"    # accepting no new requests, draining in-flight
+    DRAINING = "draining"     # accepting no new requests; waiting for in-flight
+    TERMINATING = "terminating"  # drain window expired; hard stop
     STOPPED = "stopped"
 
 
-class ShutdownStateManager:
+class AgentShutdownState:
     """
-    Tracks the current shutdown phase and provides thread-safe
-    state transitions. Exposes a readiness flag for health checks.
+    Thread-safe shutdown state machine.
+    Transitions: RUNNING → DRAINING → TERMINATING → STOPPED
     """
 
     def __init__(self):
-        self._phase = ShutdownPhase.RUNNING
-        self._shutdown_initiated_at: Optional[float] = None
         self._lock = Lock()
+        self._phase = ShutdownPhase.RUNNING
+        self._shutdown_requested_at: Optional[float] = None
 
-    def initiate_shutdown(self) -> None:
+    def request_shutdown(self) -> None:
         with self._lock:
             if self._phase == ShutdownPhase.RUNNING:
                 self._phase = ShutdownPhase.DRAINING
-                self._shutdown_initiated_at = time.time()
+                self._shutdown_requested_at = time.time()
 
-    def mark_stopped(self) -> None:
+    def enter_terminating(self) -> None:
+        with self._lock:
+            if self._phase == ShutdownPhase.DRAINING:
+                self._phase = ShutdownPhase.TERMINATING
+
+    def enter_stopped(self) -> None:
         with self._lock:
             self._phase = ShutdownPhase.STOPPED
 
-    def is_accepting_requests(self) -> bool:
+    def is_accepting(self) -> bool:
         with self._lock:
             return self._phase == ShutdownPhase.RUNNING
 
@@ -68,11 +72,11 @@ class ShutdownStateManager:
         with self._lock:
             return self._phase
 
-    def drain_duration_seconds(self) -> Optional[float]:
+    def time_in_drain_seconds(self) -> Optional[float]:
         with self._lock:
-            if self._shutdown_initiated_at is None:
+            if self._shutdown_requested_at is None:
                 return None
-            return time.time() - self._shutdown_initiated_at
+            return time.time() - self._shutdown_requested_at
 ```
 
 ## Solution 2: In-Flight Request Tracker
@@ -80,57 +84,66 @@ class ShutdownStateManager:
 ```python
 import asyncio
 import time
+import uuid
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from threading import Lock
-from typing import AsyncIterator, Dict, Set
+from typing import Dict, Optional, Set
+
+
+@dataclass
+class InFlightRequest:
+    request_id: str
+    started_at: float
+    description: str
 
 
 class InFlightRequestTracker:
     """
-    Tracks the set of currently executing requests.
-    Provides a barrier that resolves when all in-flight requests complete.
+    Tracks all active requests. Used during shutdown to know when
+    all work has completed and the process can safely exit.
     """
 
     def __init__(self):
-        self._requests: Dict[str, float] = {}  # request_id -> started_at
         self._lock = Lock()
-        self._drain_event = asyncio.Event()
+        self._requests: Dict[str, InFlightRequest] = {}
 
-    @asynccontextmanager
-    async def track(self, request_id: str) -> AsyncIterator[None]:
+    def register(self, description: str = "") -> str:
+        request_id = uuid.uuid4().hex[:12]
         with self._lock:
-            self._requests[request_id] = time.time()
-        try:
-            yield
-        finally:
-            with self._lock:
-                self._requests.pop(request_id, None)
-                if not self._requests:
-                    self._drain_event.set()
+            self._requests[request_id] = InFlightRequest(
+                request_id=request_id,
+                started_at=time.time(),
+                description=description,
+            )
+        return request_id
 
-    def in_flight_count(self) -> int:
+    def complete(self, request_id: str) -> None:
+        with self._lock:
+            self._requests.pop(request_id, None)
+
+    def count(self) -> int:
         with self._lock:
             return len(self._requests)
 
-    def in_flight_ids(self) -> list:
+    def all_requests(self) -> list:
         with self._lock:
-            return list(self._requests.keys())
+            return [
+                {
+                    "request_id": r.request_id,
+                    "age_seconds": round(time.time() - r.started_at, 1),
+                    "description": r.description,
+                }
+                for r in self._requests.values()
+            ]
 
-    async def wait_for_drain(self, timeout_seconds: float = 30.0) -> bool:
-        """
-        Wait until all in-flight requests complete or timeout expires.
-        Returns True if all drained, False if timeout exceeded.
-        """
-        with self._lock:
-            if not self._requests:
-                return True
-            self._drain_event.clear()
-
+    @asynccontextmanager
+    async def track(self, description: str = ""):
+        request_id = self.register(description)
         try:
-            await asyncio.wait_for(self._drain_event.wait(), timeout=timeout_seconds)
-            return True
-        except asyncio.TimeoutError:
-            return False
+            yield request_id
+        finally:
+            self.complete(request_id)
 ```
 
 ## Solution 3: Signal Handler
@@ -138,41 +151,34 @@ class InFlightRequestTracker:
 ```python
 import asyncio
 import signal
-import sys
-from typing import Callable, Optional
+from typing import Optional
 
 
 class GracefulShutdownSignalHandler:
     """
-    Registers SIGTERM and SIGINT handlers that initiate graceful shutdown
-    instead of immediately terminating the process.
+    Installs SIGTERM and SIGINT handlers that initiate graceful shutdown
+    rather than immediate process termination.
     """
 
     def __init__(
         self,
-        shutdown_state: ShutdownStateManager,
-        on_shutdown: Optional[Callable] = None,
+        state: AgentShutdownState,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
     ):
-        self._state = shutdown_state
-        self._on_shutdown = on_shutdown
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-
-    def register(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._state = state
         self._loop = loop
-        loop.add_signal_handler(signal.SIGTERM, self._handle_signal)
-        loop.add_signal_handler(signal.SIGINT, self._handle_signal)
 
-    def _handle_signal(self) -> None:
-        if not self._state.is_accepting_requests():
-            return  # already shutting down
-        self._state.initiate_shutdown()
-        if self._on_shutdown and self._loop:
-            self._loop.call_soon_threadsafe(
-                lambda: asyncio.ensure_future(self._on_shutdown())
-            )
+    def install(self) -> None:
+        loop = self._loop or asyncio.get_event_loop()
+
+        def handle_signal(signum, frame):
+            self._state.request_shutdown()
+
+        signal.signal(signal.SIGTERM, handle_signal)
+        signal.signal(signal.SIGINT, handle_signal)
 ```
 
-## Solution 4: Graceful Shutdown Orchestrator
+## Solution 4: Drain Coordinator
 
 ```python
 import asyncio
@@ -180,128 +186,160 @@ import time
 from typing import Optional
 
 
-class GracefulShutdownOrchestrator:
+class ShutdownDrainCoordinator:
     """
-    Coordinates the full shutdown sequence:
-    1. Initiate shutdown (mark as draining, fail health checks)
-    2. Wait for load balancer to stop routing new traffic
-    3. Wait for in-flight requests to complete
-    4. Exit cleanly
+    Waits for all in-flight requests to complete within the drain window.
+    After the window expires, forces termination.
     """
 
     def __init__(
         self,
-        state: ShutdownStateManager,
+        state: AgentShutdownState,
         tracker: InFlightRequestTracker,
         drain_timeout_seconds: float = 30.0,
-        lb_propagation_delay_seconds: float = 5.0,
+        poll_interval_seconds: float = 0.5,
     ):
         self._state = state
         self._tracker = tracker
         self._drain_timeout = drain_timeout_seconds
-        self._lb_delay = lb_propagation_delay_seconds
+        self._poll_interval = poll_interval_seconds
 
-    async def shutdown(self) -> dict:
-        start = time.time()
-        self._state.initiate_shutdown()
+    async def wait_for_drain(self) -> dict:
+        """
+        Blocks until all requests complete or drain_timeout expires.
+        Returns a drain report.
+        """
+        drain_start = time.time()
+        while self._state.is_draining():
+            in_flight = self._tracker.count()
+            elapsed = time.time() - drain_start
 
-        # Give load balancer time to see failing health checks and stop routing
-        if self._lb_delay > 0:
-            await asyncio.sleep(self._lb_delay)
+            if in_flight == 0:
+                self._state.enter_stopped()
+                return {
+                    "outcome": "clean_drain",
+                    "elapsed_seconds": round(elapsed, 2),
+                    "requests_abandoned": 0,
+                }
 
-        in_flight_at_start = self._tracker.in_flight_count()
-        remaining_drain_timeout = max(self._drain_timeout - self._lb_delay, 1.0)
+            if elapsed >= self._drain_timeout:
+                self._state.enter_terminating()
+                abandoned = self._tracker.count()
+                self._state.enter_stopped()
+                return {
+                    "outcome": "timeout",
+                    "elapsed_seconds": round(elapsed, 2),
+                    "requests_abandoned": abandoned,
+                    "abandoned_requests": self._tracker.all_requests(),
+                }
 
-        drained = await self._tracker.wait_for_drain(remaining_drain_timeout)
-
-        self._state.mark_stopped()
-        elapsed = time.time() - start
+            await asyncio.sleep(self._poll_interval)
 
         return {
-            "shutdown_completed": True,
-            "drained_cleanly": drained,
-            "in_flight_at_shutdown": in_flight_at_start,
-            "remaining_in_flight": self._tracker.in_flight_count(),
-            "total_shutdown_seconds": round(elapsed, 2),
+            "outcome": "stopped",
+            "elapsed_seconds": round(time.time() - drain_start, 2),
+            "requests_abandoned": 0,
         }
 ```
 
-## Solution 5: Request Gate
+## Solution 5: Graceful Request Gate
 
 ```python
-from typing import Any, Callable
+from contextlib import asynccontextmanager
+from typing import Any
 
 
-class RequestGate:
+class RequestGateClosed(Exception):
+    """Raised when a new request arrives during shutdown draining."""
+    pass
+
+
+class GracefulRequestGate:
     """
-    Guards request handlers: passes requests through when running,
-    returns a 503 Service Unavailable response when draining or stopped.
-    """
-
-    SERVICE_UNAVAILABLE_BODY = {
-        "error": "service_shutting_down",
-        "message": "The agent is shutting down. Please retry shortly.",
-        "retry_after_seconds": 5,
-    }
-
-    def __init__(self, state: ShutdownStateManager):
-        self._state = state
-
-    def is_open(self) -> bool:
-        return self._state.is_accepting_requests()
-
-    async def gate(
-        self,
-        request_fn: Callable,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Any:
-        if not self._state.is_accepting_requests():
-            return self.SERVICE_UNAVAILABLE_BODY
-        return await request_fn(*args, **kwargs)
-```
-
-## Solution 6: Graceful Shutdown Dashboard
-
-```python
-import time
-
-
-class GracefulShutdownDashboard:
-    """
-    Provides a real-time view of shutdown progress for operators.
+    Guards request entry points. Rejects new requests once shutdown
+    begins. Existing in-flight requests continue to completion.
     """
 
     def __init__(
         self,
-        state: ShutdownStateManager,
+        state: AgentShutdownState,
         tracker: InFlightRequestTracker,
     ):
         self._state = state
         self._tracker = tracker
 
-    def render(self) -> dict:
-        phase = self._state.phase()
-        drain_duration = self._state.drain_duration_seconds()
+    @asynccontextmanager
+    async def admit(self, description: str = ""):
+        if not self._state.is_accepting():
+            raise RequestGateClosed(
+                "Agent is shutting down — no new requests accepted. "
+                "Please retry on another instance."
+            )
+        async with self._tracker.track(description):
+            yield
+```
+
+## Solution 6: Shutdown Orchestrator
+
+```python
+import asyncio
+import time
+from typing import Optional
+
+
+class AgentShutdownOrchestrator:
+    """
+    Coordinates the full graceful shutdown sequence:
+    1. Install signal handlers
+    2. On SIGTERM: stop accepting new requests
+    3. Wait for in-flight drain
+    4. Log outcome and exit
+    """
+
+    def __init__(
+        self,
+        state: AgentShutdownState,
+        signal_handler: GracefulShutdownSignalHandler,
+        drain_coordinator: ShutdownDrainCoordinator,
+        tracker: InFlightRequestTracker,
+    ):
+        self._state = state
+        self._signal_handler = signal_handler
+        self._drain = drain_coordinator
+        self._tracker = tracker
+
+    def setup(self) -> None:
+        self._signal_handler.install()
+
+    async def run_drain_on_shutdown(self) -> Optional[dict]:
+        """
+        Poll for shutdown signal and run drain when detected.
+        Call this as a background task alongside the main server loop.
+        """
+        while not self._state.is_draining():
+            await asyncio.sleep(0.5)
+
+        report = await self._drain.wait_for_drain()
+        return report
+
+    def status(self) -> dict:
         return {
-            "generated_at": time.time(),
-            "shutdown_phase": phase.value,
-            "accepting_requests": self._state.is_accepting_requests(),
-            "in_flight_count": self._tracker.in_flight_count(),
-            "in_flight_ids": self._tracker.in_flight_ids()[:10],
-            "drain_duration_seconds": round(drain_duration, 1) if drain_duration else None,
+            "phase": self._state.phase().value,
+            "in_flight_requests": self._tracker.count(),
+            "time_in_drain_seconds": self._state.time_in_drain_seconds(),
+            "active_requests": self._tracker.all_requests(),
         }
 ```
 
 ## Comparison
 
-| Approach | Signal Handling | Request Gating | Drain Wait | LB Propagation | Status Dashboard |
+| Approach | SIGTERM Handling | New Request Rejection | Drain Wait | Timeout Enforcement | Status Reporting |
 |---|---|---|---|---|---|
-| ShutdownStateManager | No | Via phase check | No | No | No |
-| InFlightRequestTracker | No | No | Yes (asyncio.Event) | No | No |
-| GracefulShutdownSignalHandler | Yes (SIGTERM/SIGINT) | No | No | No | No |
-| GracefulShutdownOrchestrator | Via handler | No | Via tracker | Yes (sleep) | No |
-| RequestGate | No | Yes (503 when draining) | No | No | No |
-| GracefulShutdownDashboard | No | No | No | No | Yes |
+| AgentShutdownState | No | Via phase check | No | No | Yes (phase) |
+| InFlightRequestTracker | No | No | No | No | Yes (count) |
+| GracefulShutdownSignalHandler | Yes (SIGTERM+SIGINT) | No | No | No | No |
+| ShutdownDrainCoordinator | No | No | Yes (poll) | Yes | Yes (report) |
+| GracefulRequestGate | No | Yes (gate) | No | No | No |
+| AgentShutdownOrchestrator | Via handler | Via gate | Via coordinator | Via coordinator | Yes |
 
-**Best for production**: Set `drain_timeout_seconds=30` and `lb_propagation_delay_seconds=5` — Kubernetes default terminationGracePeriodSeconds is 30 seconds, giving 5 seconds for load balancer convergence and 25 seconds for actual request draining. Ensure the Kubernetes liveness probe continues to pass during draining (the process is still alive) while the readiness probe fails (so no new requests are routed). Return HTTP 503 from the readiness endpoint the moment `initiate_shutdown()` is called — this is the signal that causes Kubernetes ingress controllers and service meshes to stop routing. Log the `GracefulShutdownDashboard.render()` output every 5 seconds during draining so operators can monitor drain progress in deployment logs.
+**Best for production**: Set `drain_timeout_seconds=30` for most agents — long enough for P99 request completion but short enough to meet Kubernetes' default termination grace period of 30 seconds. Configure Kubernetes `terminationGracePeriodSeconds` to `drain_timeout + 5` to give the drain coordinator time to run before the kubelet sends SIGKILL. Use `RequestGateClosed` to return HTTP 503 with a `Retry-After: 1` header so load balancers redirect the client to a healthy instance rather than surfacing an error.
