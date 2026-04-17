@@ -1,363 +1,366 @@
 ---
 title: "Agent Doesn't Implement Token Budget Utilization Tracking"
-description: "Agents that do not track how their token budget is spent across system prompts, conversation history, tool results, and model responses have no visibility into why context windows fill up or which component is consuming the most space. Implement token budget utilization tracking that measures per-component token consumption in every request, computes utilization rates, and alerts when any component exceeds its intended share of the budget."
+description: "Agents that make LLM calls without tracking token consumption cannot detect runaway context growth, optimize prompt efficiency, or enforce per-user token budgets. Implement token budget utilization tracking that measures input and output tokens per call, accumulates usage per session and user, surfaces budget burn rate, and alerts when utilization approaches limits."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-token-budget-utilization-tracking
-tags: [token-budget, context-utilization, token-tracking, context-window, budget-breakdown, token-efficiency]
+tags: [token-budget, token-tracking, cost-observability, context-window, llm-usage, budget-alerts]
 symptoms:
-  - "Context window fills unexpectedly — no visibility into which component consumed the space"
-  - "System prompt size creep goes undetected until requests start failing with context overflow"
-  - "Tool results sometimes consume 90% of the budget with no alert until the model truncates"
-  - "No per-component breakdown of token usage — only total token count is logged"
-  - "Cannot determine whether to optimize the system prompt, tool results, or conversation history"
+  - "No record of how many tokens each LLM call consumed"
+  - "Cannot determine which conversations are consuming disproportionate token budget"
+  - "Token limit errors arrive with no prior warning — no burn rate tracking"
+  - "Per-user token costs are unknown — cannot implement fair usage policies"
+  - "Prompt engineering improvements cannot be measured without token usage baselines"
 ---
 
 ## Why This Happens
 
-LLM APIs report total token counts but not where those tokens came from. When a request approaches the context limit, the agent cannot tell whether the system prompt grew, tool results are too large, conversation history is too long, or the model's own response is unusually verbose. Without per-component measurement, optimization is guesswork. Token budget tracking requires instrumenting each component that contributes to the context — system prompt, history, tool results, response — measuring the token count of each before the call, and recording the breakdown so that trends are visible over time.
+LLM APIs return token usage in every response, but agents that treat responses as opaque text blobs discard this data immediately. Without accumulating usage statistics, there is no way to compute burn rate, project when a session will exhaust its budget, or compare token efficiency across prompt versions. Token budget tracking requires capturing usage from every API response, associating it with a session and user, and exposing aggregated views that operators can act on.
 
-## Solution 1: Token Budget Allocation
-
-```python
-from dataclasses import dataclass, field
-from typing import Dict, Optional
-
-
-@dataclass
-class TokenBudgetAllocation:
-    total_budget: int
-    system_prompt_limit: Optional[int] = None
-    history_limit: Optional[int] = None
-    tool_results_limit: Optional[int] = None
-    response_limit: Optional[int] = None
-
-    def __post_init__(self) -> None:
-        # Apply sensible defaults if not specified
-        if self.system_prompt_limit is None:
-            self.system_prompt_limit = int(self.total_budget * 0.15)
-        if self.history_limit is None:
-            self.history_limit = int(self.total_budget * 0.35)
-        if self.tool_results_limit is None:
-            self.tool_results_limit = int(self.total_budget * 0.30)
-        if self.response_limit is None:
-            self.response_limit = int(self.total_budget * 0.20)
-
-    def utilization_fractions(self, usage: "TokenUsageBreakdown") -> Dict[str, float]:
-        return {
-            "system_prompt": usage.system_prompt / max(self.system_prompt_limit, 1),
-            "history": usage.history / max(self.history_limit, 1),
-            "tool_results": usage.tool_results / max(self.tool_results_limit, 1),
-            "response": usage.response / max(self.response_limit, 1),
-            "total": usage.total() / max(self.total_budget, 1),
-        }
-```
-
-## Solution 2: Token Usage Breakdown
+## Solution 1: Token Usage Record
 
 ```python
 import time
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Optional
 
 
 @dataclass
-class TokenUsageBreakdown:
-    request_id: str
+class TokenUsageRecord:
     session_id: str
-    system_prompt: int = 0
-    history: int = 0
-    tool_results: int = 0
-    user_message: int = 0
-    response: int = 0
-    overhead: int = 0          # formatting, separators, special tokens
-    recorded_at: float = field(default_factory=time.time)
-    metadata: Dict[str, int] = field(default_factory=dict)  # per-tool breakdown
+    user_id: str
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    timestamp: float = field(default_factory=time.time)
+    call_purpose: str = ""          # "tool_call", "synthesis", "summarization"
+    latency_ms: float = 0.0
+    cached_tokens: int = 0          # tokens served from prompt cache
 
-    def total(self) -> int:
-        return self.system_prompt + self.history + self.tool_results + self.user_message + self.response + self.overhead
-
-    def input_total(self) -> int:
-        return self.system_prompt + self.history + self.tool_results + self.user_message + self.overhead
-
-    def utilization_pct(self, budget: int) -> float:
-        return round(self.total() / max(budget, 1) * 100, 1)
-
-    def largest_component(self) -> str:
-        components = {
-            "system_prompt": self.system_prompt,
-            "history": self.history,
-            "tool_results": self.tool_results,
-            "user_message": self.user_message,
-            "response": self.response,
-        }
-        return max(components, key=components.get)
-```
-
-## Solution 3: Token Counter
-
-```python
-from typing import Any, Dict, List, Optional
-
-
-class TokenCounter:
-    """
-    Estimates token counts for text components.
-    Uses a character-based heuristic by default; replace with
-    a real tokenizer (tiktoken, transformers) for production accuracy.
-    """
-
-    def __init__(self, chars_per_token: float = 4.0):
-        self._ratio = chars_per_token
-
-    def count(self, text: str) -> int:
-        if not text:
-            return 0
-        return max(1, int(len(text) / self._ratio))
-
-    def count_messages(self, messages: List[Dict[str, Any]]) -> int:
-        total = 0
-        for msg in messages:
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                total += self.count(content)
-            elif isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict):
-                        total += self.count(str(block.get("text", "")))
-            total += 4  # message overhead (role, formatting)
-        return total
-
-    def count_tool_results(self, results: List[Dict[str, Any]]) -> Dict[str, int]:
-        per_tool = {}
-        for result in results:
-            tool_name = result.get("tool_name", "unknown")
-            content = str(result.get("content", ""))
-            per_tool[tool_name] = self.count(content)
-        return per_tool
-```
-
-## Solution 4: Token Budget Tracker
-
-```python
-import threading
-import time
-from collections import deque
-from typing import Deque, Dict, List, Optional, Tuple
-
-
-class TokenBudgetTracker:
-    """
-    Records token usage breakdowns across requests and computes
-    per-component utilization trends and budget violation counts.
-    """
-
-    def __init__(
-        self,
-        allocation: TokenBudgetAllocation,
-        max_records: int = 10000,
-    ):
-        self._allocation = allocation
-        self._max = max_records
-        self._records: Deque[Tuple[float, TokenUsageBreakdown]] = deque()
-        self._lock = threading.Lock()
-        self._violations: Dict[str, int] = {
-            "system_prompt": 0,
-            "history": 0,
-            "tool_results": 0,
-            "total": 0,
-        }
-
-    def record(self, breakdown: TokenUsageBreakdown) -> List[str]:
-        """Record usage and return list of budget violation component names."""
-        fractions = self._allocation.utilization_fractions(breakdown)
-        violations = [comp for comp, frac in fractions.items() if frac > 1.0]
-
-        with self._lock:
-            self._records.append((time.time(), breakdown))
-            if len(self._records) > self._max:
-                self._records.popleft()
-            for v in violations:
-                self._violations[v] = self._violations.get(v, 0) + 1
-
-        return violations
-
-    def recent_avg(self, component: str, window_seconds: float = 3600.0) -> Optional[float]:
-        cutoff = time.time() - window_seconds
-        with self._lock:
-            values = [
-                getattr(b, component, 0)
-                for ts, b in self._records
-                if ts >= cutoff and hasattr(b, component)
-            ]
-        return round(sum(values) / len(values), 1) if values else None
-
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        with self._lock:
-            recent = [b for ts, b in self._records if ts >= cutoff]
-
-        if not recent:
-            return {"window_seconds": window_seconds, "requests": 0}
-
-        components = ["system_prompt", "history", "tool_results", "user_message", "response"]
-        avg_by_component = {
-            comp: round(sum(getattr(b, comp, 0) for b in recent) / len(recent), 1)
-            for comp in components
-        }
-
-        totals = [b.total() for b in recent]
-        utilizations = [b.utilization_pct(self._allocation.total_budget) for b in recent]
-        largest = [b.largest_component() for b in recent]
-        from collections import Counter
-        largest_counts = Counter(largest)
-
-        return {
-            "window_seconds": window_seconds,
-            "requests": len(recent),
-            "avg_tokens_by_component": avg_by_component,
-            "avg_total_tokens": round(sum(totals) / len(recent), 1),
-            "avg_utilization_pct": round(sum(utilizations) / len(recent), 1),
-            "p95_total_tokens": sorted(totals)[min(int(len(totals) * 0.95), len(totals) - 1)],
-            "most_common_largest_component": largest_counts.most_common(1)[0] if largest_counts else None,
-            "budget_violations": dict(self._violations),
-        }
-```
-
-## Solution 5: Budget Utilization Alerter
-
-```python
-from dataclasses import dataclass
-from typing import List
+    @property
+    def cost_units(self) -> float:
+        """Normalized cost unit: 1 unit = 1K tokens."""
+        return self.total_tokens / 1000.0
 
 
 @dataclass
-class BudgetAlertThresholds:
-    warn_utilization_pct: float = 80.0
-    critical_utilization_pct: float = 95.0
-    system_prompt_warn_tokens: int = 2000
-    tool_results_warn_pct: float = 60.0   # percent of total budget
+class TokenBudget:
+    session_budget: int             # max tokens per conversation
+    user_daily_budget: int          # max tokens per user per day
+    alert_threshold_fraction: float = 0.80  # alert when this fraction is consumed
+```
+
+## Solution 2: Session Token Accumulator
+
+```python
+import time
+from dataclasses import dataclass, field
+from threading import Lock
+from typing import List, Optional
 
 
-class BudgetUtilizationAlerter:
+@dataclass
+class SessionTokenState:
+    session_id: str
+    user_id: str
+    started_at: float = field(default_factory=time.time)
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    total_tokens: int = 0
+    call_count: int = 0
+    peak_single_call_tokens: int = 0
+    records: List[TokenUsageRecord] = field(default_factory=list)
+
+    def burn_rate_tokens_per_minute(self) -> float:
+        elapsed = (time.time() - self.started_at) / 60.0
+        if elapsed < 0.1:
+            return 0.0
+        return round(self.total_tokens / elapsed, 1)
+
+    def projected_total(self, expected_duration_minutes: float) -> int:
+        return int(self.burn_rate_tokens_per_minute() * expected_duration_minutes)
+
+
+class SessionTokenAccumulator:
     """
-    Evaluates a token usage breakdown against alert thresholds
-    and returns structured alerts for any exceeded threshold.
+    Tracks token usage per session. Thread-safe accumulation of
+    token records with burn rate and projection support.
+    """
+
+    def __init__(self):
+        self._sessions: dict = {}
+        self._lock = Lock()
+
+    def record(self, usage: TokenUsageRecord) -> SessionTokenState:
+        with self._lock:
+            if usage.session_id not in self._sessions:
+                self._sessions[usage.session_id] = SessionTokenState(
+                    session_id=usage.session_id,
+                    user_id=usage.user_id,
+                )
+            state = self._sessions[usage.session_id]
+            state.total_prompt_tokens += usage.prompt_tokens
+            state.total_completion_tokens += usage.completion_tokens
+            state.total_tokens += usage.total_tokens
+            state.call_count += 1
+            state.peak_single_call_tokens = max(
+                state.peak_single_call_tokens, usage.total_tokens
+            )
+            state.records.append(usage)
+            return state
+
+    def get(self, session_id: str) -> Optional[SessionTokenState]:
+        with self._lock:
+            return self._sessions.get(session_id)
+
+    def all_sessions(self) -> List[SessionTokenState]:
+        with self._lock:
+            return list(self._sessions.values())
+```
+
+## Solution 3: User Daily Token Ledger
+
+```python
+import time
+from collections import defaultdict
+from threading import Lock
+from typing import Dict, List
+
+
+class UserDailyTokenLedger:
+    """
+    Tracks cumulative token usage per user within a rolling 24-hour window.
+    Supports budget checks and per-user utilization reporting.
+    """
+
+    def __init__(self, default_daily_budget: int = 500_000):
+        self._default_budget = default_daily_budget
+        self._budgets: Dict[str, int] = {}
+        self._records: Dict[str, List[TokenUsageRecord]] = defaultdict(list)
+        self._lock = Lock()
+
+    def set_budget(self, user_id: str, budget: int) -> None:
+        with self._lock:
+            self._budgets[user_id] = budget
+
+    def record(self, usage: TokenUsageRecord) -> None:
+        with self._lock:
+            self._records[usage.user_id].append(usage)
+
+    def _window_total(self, user_id: str, window_seconds: float = 86400.0) -> int:
+        cutoff = time.time() - window_seconds
+        return sum(
+            r.total_tokens
+            for r in self._records.get(user_id, [])
+            if r.timestamp >= cutoff
+        )
+
+    def check_budget(self, user_id: str, requested_tokens: int = 0) -> dict:
+        budget = self._budgets.get(user_id, self._default_budget)
+        used = self._window_total(user_id)
+        remaining = max(0, budget - used)
+        utilization = used / budget if budget > 0 else 1.0
+        return {
+            "user_id": user_id,
+            "budget": budget,
+            "used_24h": used,
+            "remaining": remaining,
+            "utilization": round(utilization, 4),
+            "within_budget": used + requested_tokens <= budget,
+        }
+
+    def top_consumers(self, top_n: int = 10, window_seconds: float = 86400.0) -> List[dict]:
+        with self._lock:
+            user_ids = list(self._records.keys())
+        return sorted(
+            [
+                {"user_id": uid, "tokens_24h": self._window_total(uid, window_seconds)}
+                for uid in user_ids
+            ],
+            key=lambda x: -x["tokens_24h"],
+        )[:top_n]
+```
+
+## Solution 4: Token Budget Alert Manager
+
+```python
+import time
+from typing import Callable, List, Optional
+
+
+class TokenBudgetAlert:
+    def __init__(self, session_id: str, user_id: str, utilization: float, message: str):
+        self.session_id = session_id
+        self.user_id = user_id
+        self.utilization = utilization
+        self.message = message
+        self.timestamp = time.time()
+
+
+class TokenBudgetAlertManager:
+    """
+    Evaluates session and user token states against configured budgets
+    and fires alerts when thresholds are crossed.
     """
 
     def __init__(
         self,
-        allocation: TokenBudgetAllocation,
-        thresholds: BudgetAlertThresholds = None,
+        session_budget: int = 200_000,
+        alert_threshold: float = 0.80,
+        alert_fn: Optional[Callable[[TokenBudgetAlert], None]] = None,
     ):
-        self._allocation = allocation
-        self._thresholds = thresholds or BudgetAlertThresholds()
+        self._session_budget = session_budget
+        self._threshold = alert_threshold
+        self._alert_fn = alert_fn or (lambda a: None)
+        self._fired: List[TokenBudgetAlert] = []
+        self._alerted_sessions: set = set()
 
-    def check(self, breakdown: TokenUsageBreakdown) -> List[dict]:
-        alerts = []
-        total = breakdown.total()
-        budget = self._allocation.total_budget
-        utilization = total / max(budget, 1) * 100
+    def evaluate_session(self, state: SessionTokenState) -> Optional[TokenBudgetAlert]:
+        utilization = state.total_tokens / self._session_budget
+        if utilization >= self._threshold and state.session_id not in self._alerted_sessions:
+            alert = TokenBudgetAlert(
+                session_id=state.session_id,
+                user_id=state.user_id,
+                utilization=round(utilization, 4),
+                message=(
+                    f"Session '{state.session_id}' has consumed "
+                    f"{state.total_tokens:,} / {self._session_budget:,} tokens "
+                    f"({utilization:.0%}) — burn rate {state.burn_rate_tokens_per_minute():.0f} tok/min"
+                ),
+            )
+            self._alerted_sessions.add(state.session_id)
+            self._fired.append(alert)
+            self._alert_fn(alert)
+            return alert
+        return None
 
-        if utilization >= self._thresholds.critical_utilization_pct:
-            alerts.append({
-                "severity": "critical",
-                "component": "total",
-                "message": f"total token utilization {utilization:.1f}% exceeds critical threshold",
-                "value": total,
-                "limit": budget,
-            })
-        elif utilization >= self._thresholds.warn_utilization_pct:
-            alerts.append({
-                "severity": "warning",
-                "component": "total",
-                "message": f"total token utilization {utilization:.1f}% exceeds warn threshold",
-                "value": total,
-                "limit": budget,
-            })
-
-        if breakdown.system_prompt > self._thresholds.system_prompt_warn_tokens:
-            alerts.append({
-                "severity": "warning",
-                "component": "system_prompt",
-                "message": f"system prompt {breakdown.system_prompt} tokens exceeds {self._thresholds.system_prompt_warn_tokens}",
-                "value": breakdown.system_prompt,
-                "limit": self._thresholds.system_prompt_warn_tokens,
-            })
-
-        tool_pct = breakdown.tool_results / max(budget, 1) * 100
-        if tool_pct >= self._thresholds.tool_results_warn_pct:
-            alerts.append({
-                "severity": "warning",
-                "component": "tool_results",
-                "message": f"tool results consuming {tool_pct:.1f}% of total budget",
-                "value": breakdown.tool_results,
-                "limit": int(budget * self._thresholds.tool_results_warn_pct / 100),
-            })
-
-        return alerts
+    def recent_alerts(self, window_seconds: float = 3600.0) -> List[TokenBudgetAlert]:
+        cutoff = time.time() - window_seconds
+        return [a for a in self._fired if a.timestamp >= cutoff]
 ```
 
-## Solution 6: Token Budget Dashboard
+## Solution 5: LLM Call Token Interceptor
+
+```python
+import time
+from typing import Any, Callable, Dict, Optional
+
+
+class LLMCallTokenInterceptor:
+    """
+    Wraps LLM API calls to extract token usage from responses
+    and route records to the accumulator and ledger automatically.
+    """
+
+    def __init__(
+        self,
+        accumulator: SessionTokenAccumulator,
+        ledger: UserDailyTokenLedger,
+        alert_manager: TokenBudgetAlertManager,
+    ):
+        self._accumulator = accumulator
+        self._ledger = ledger
+        self._alerts = alert_manager
+
+    async def call(
+        self,
+        llm_fn: Callable,
+        session_id: str,
+        user_id: str,
+        model: str,
+        call_purpose: str = "",
+        **kwargs: Any,
+    ) -> Any:
+        start = time.time()
+        response = await llm_fn(**kwargs)
+        latency_ms = (time.time() - start) * 1000
+
+        # Extract usage — supports Anthropic and OpenAI response shapes
+        usage = getattr(response, "usage", None) or {}
+        if hasattr(usage, "__dict__"):
+            usage = usage.__dict__
+
+        prompt_tokens = usage.get("input_tokens") or usage.get("prompt_tokens", 0)
+        completion_tokens = usage.get("output_tokens") or usage.get("completion_tokens", 0)
+        cached_tokens = usage.get("cache_read_input_tokens", 0)
+
+        record = TokenUsageRecord(
+            session_id=session_id,
+            user_id=user_id,
+            model=model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            latency_ms=round(latency_ms, 2),
+            call_purpose=call_purpose,
+            cached_tokens=cached_tokens,
+        )
+
+        state = self._accumulator.record(record)
+        self._ledger.record(record)
+        self._alerts.evaluate_session(state)
+
+        return response
+```
+
+## Solution 6: Token Budget Utilization Dashboard
 
 ```python
 import time
 
 
-class TokenBudgetDashboard:
+class TokenBudgetUtilizationDashboard:
     """
-    Combines budget allocation, historical usage trends, and
-    live alert evaluation into a single operational view.
+    Combines session-level burn rates, user-level daily consumption,
+    and recent alerts into a single operational view.
     """
 
     def __init__(
         self,
-        allocation: TokenBudgetAllocation,
-        tracker: TokenBudgetTracker,
-        alerter: BudgetUtilizationAlerter,
+        accumulator: SessionTokenAccumulator,
+        ledger: UserDailyTokenLedger,
+        alert_manager: TokenBudgetAlertManager,
     ):
-        self._allocation = allocation
-        self._tracker = tracker
-        self._alerter = alerter
+        self._accumulator = accumulator
+        self._ledger = ledger
+        self._alerts = alert_manager
 
-    def render(self, latest_breakdown: Optional[TokenUsageBreakdown] = None) -> dict:
-        report = {
+    def render(self) -> dict:
+        sessions = self._accumulator.all_sessions()
+        active = [s for s in sessions if s.call_count > 0]
+
+        return {
             "generated_at": time.time(),
-            "budget": {
-                "total": self._allocation.total_budget,
-                "system_prompt_limit": self._allocation.system_prompt_limit,
-                "history_limit": self._allocation.history_limit,
-                "tool_results_limit": self._allocation.tool_results_limit,
-                "response_limit": self._allocation.response_limit,
-            },
-            "historical": self._tracker.summary(window_seconds=3600.0),
+            "active_sessions": len(active),
+            "total_tokens_all_sessions": sum(s.total_tokens for s in active),
+            "avg_tokens_per_session": (
+                round(sum(s.total_tokens for s in active) / len(active))
+                if active else 0
+            ),
+            "top_burning_sessions": sorted(
+                [{"session_id": s.session_id, "burn_rate": s.burn_rate_tokens_per_minute()}
+                 for s in active],
+                key=lambda x: -x["burn_rate"],
+            )[:5],
+            "top_users_24h": self._ledger.top_consumers(top_n=5),
+            "recent_alerts": [
+                {"session_id": a.session_id, "utilization": a.utilization, "msg": a.message}
+                for a in self._alerts.recent_alerts(3600.0)
+            ],
         }
-
-        if latest_breakdown:
-            report["latest_breakdown"] = {
-                "system_prompt": latest_breakdown.system_prompt,
-                "history": latest_breakdown.history,
-                "tool_results": latest_breakdown.tool_results,
-                "user_message": latest_breakdown.user_message,
-                "response": latest_breakdown.response,
-                "total": latest_breakdown.total(),
-                "utilization_pct": latest_breakdown.utilization_pct(self._allocation.total_budget),
-                "largest_component": latest_breakdown.largest_component(),
-            }
-            report["alerts"] = self._alerter.check(latest_breakdown)
-
-        return report
 ```
 
 ## Comparison
 
-| Approach | Per-Component Breakdown | Budget Allocation | Trend Tracking | Alert Generation | Dashboard |
+| Approach | Per-Call Tracking | Session Accumulation | User Daily Ledger | Budget Alerts | Dashboard |
 |---|---|---|---|---|---|
-| TokenUsageBreakdown | Yes (dataclass) | No | No | No | No |
-| TokenCounter | No | No | No | No | No |
-| TokenBudgetTracker | Via breakdown | Via allocation | Yes (sliding) | No | No |
-| BudgetUtilizationAlerter | Via breakdown | Via allocation | No | Yes | No |
-| TokenBudgetDashboard | No | Via allocation | Via tracker | Via alerter | Yes |
+| TokenUsageRecord | Yes (dataclass) | No | No | No | No |
+| SessionTokenAccumulator | Via records | Yes | No | No | No |
+| UserDailyTokenLedger | Via records | No | Yes (rolling 24h) | No | No |
+| TokenBudgetAlertManager | No | Via accumulator | No | Yes | No |
+| LLMCallTokenInterceptor | Yes (intercepts) | Via accumulator | Via ledger | Via alerts | No |
+| TokenBudgetUtilizationDashboard | No | No | No | No | Yes |
 
-**Best for production**: Replace the character-based `TokenCounter` heuristic with `tiktoken` for OpenAI models or the model provider's native tokenizer — character ratios vary significantly by language and content type. Track `system_prompt` tokens separately with a high-visibility alert: system prompt growth is typically caused by feature additions that are never reviewed for token impact, and 2,000+ token system prompts are a common cause of unexpected context overflow. Alert when `tool_results` exceeds 60% of the total budget — this is the most common cause of context pressure and should trigger result truncation or pagination.
+**Best for production**: Intercept at the LLM call level rather than instrumenting each call site — a single `LLMCallTokenInterceptor` wrapper ensures no call escapes measurement. Track `cached_tokens` separately from billed tokens: prompt cache hits cost ~10% of full input tokens on Anthropic and $0 on some providers, so conflating them inflates cost estimates. Alert at 80% session budget utilization with burn rate context — "consuming 12,000 tokens/minute, projected to exhaust in 8 minutes" is actionable; "80% used" alone is not. Set user daily budgets per tier and enforce them before dispatching the LLM call, not after — post-call enforcement still incurs cost.
