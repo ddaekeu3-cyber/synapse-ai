@@ -1,334 +1,315 @@
 ---
 title: "Agent Doesn't Implement Lazy Tool Schema Loading"
-description: "Agents that include the full schema of every registered tool in every prompt consume hundreds to thousands of tokens on tools that will never be called in the current conversation context. Implement lazy tool schema loading that includes only the schemas of tools likely to be needed, using intent classification or explicit tool groups, and injects the full schema of additional tools on demand when the agent requests them."
+description: "Agents that load and include the full schema for every registered tool on every request inject thousands of tokens of tool descriptions that are irrelevant to most queries. A tool registry with 30 tools means 30 schemas in the context even when only 2 will be called. Implement lazy tool schema loading that injects only schemas for tools predicted to be relevant to the current request, reducing context token usage without limiting tool availability."
 date: 2026-04-16
 difficulty: intermediate
 category: performance
 slug: agent-doesnt-implement-lazy-tool-schema-loading
-tags: [lazy-loading, tool-schema, token-efficiency, intent-classification, context-optimization, tool-selection]
+tags: [lazy-loading, tool-schema, context-efficiency, token-reduction, relevance-filtering, tool-registry]
 symptoms:
-  - "Tool definitions consume 2000+ tokens in every prompt regardless of the user's intent"
-  - "Agent registered with 30 tools includes all 30 schemas even for simple greetings"
-  - "Adding new tools increases token cost for every request, not just requests that use them"
-  - "No grouping of tools by domain — all tools treated equally in every context"
-  - "Tool schema tokens measured as fixed overhead — no analysis of which tools are actually invoked"
+  - "Full tool schema list injected into every request regardless of which tools are needed"
+  - "30-tool registry adds 6000+ tokens of schema descriptions to every context"
+  - "Context window fills with tool docs before user content even begins"
+  - "No mechanism to select tool subsets based on request topic or user role"
+  - "Adding more tools linearly increases base token cost of every request"
 ---
 
 ## Why This Happens
 
-Tool schemas are verbose: each tool definition includes a name, description, parameter list with types and descriptions, and required/optional flags. A registry of 20 tools at 150 tokens each adds 3000 tokens to every prompt. Most conversations use a subset of 2–5 tools. Loading all schemas unconditionally pays the token cost for tools that are never invoked. Lazy loading requires classifying the incoming request to determine which tool groups are relevant, including only those schemas initially, and providing a mechanism to fetch additional schemas if the agent discovers it needs a tool not in the current context.
+Tool schemas are registered at agent startup and serialized into every LLM request as a fixed block. This is the simplest implementation — always include everything — but it ignores that most requests need only a small subset of available tools. A coding assistant with 30 tools rarely needs the billing tool; a customer support agent rarely needs the code execution tool. Lazy loading requires classifying the request, scoring tool relevance against the query, and injecting only the top-k schemas while keeping all tools callable via a fallback full-schema injection if the LLM requests an unlisted tool.
 
-## Solution 1: Tool Group Definition
+## Solution 1: Tool Schema Definition
 
 ```python
 from dataclasses import dataclass, field
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class ToolSchema:
-    tool_name: str
+    name: str
     description: str
-    parameters: dict         # JSON schema for parameters
-    group_ids: List[str] = field(default_factory=list)
-    token_estimate: int = 0  # estimated tokens for this schema
+    parameters: Dict[str, Any]
+    tags: List[str] = field(default_factory=list)       # topic tags for relevance scoring
+    keywords: List[str] = field(default_factory=list)   # keyword hints for matching
+    estimated_tokens: int = 0                            # pre-computed schema token cost
+    always_include: bool = False                         # force-include regardless of relevance
 
     def __post_init__(self) -> None:
-        if not self.token_estimate:
+        if self.estimated_tokens == 0:
             import json
-            raw = json.dumps({"name": self.tool_name, "description": self.description, "parameters": self.parameters})
-            self.token_estimate = max(1, len(raw) // 4)
-
-
-@dataclass
-class ToolGroup:
-    group_id: str
-    display_name: str
-    intent_keywords: List[str]     # trigger words for this group
-    tool_names: List[str]          # tools in this group
-    always_include: bool = False   # if True, always loaded regardless of intent
-    priority: int = 0              # lower = loaded first when budget is tight
+            schema_text = json.dumps({
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            })
+            self.estimated_tokens = max(1, int(len(schema_text) * 0.25))
 ```
 
-## Solution 2: Intent-Based Tool Group Selector
+## Solution 2: Tool Relevance Scorer
 
 ```python
 import re
-from typing import List, Set
+from typing import Dict, List
 
 
-class IntentBasedToolGroupSelector:
+class ToolRelevanceScorer:
     """
-    Selects tool groups relevant to the current user query based on
-    keyword matching against group intent_keywords.
-    Returns a ranked list of group IDs to include.
+    Scores each registered tool schema against the user's request
+    using keyword overlap, tag matching, and description similarity.
+    Returns scores in [0.0, 1.0] for ranking.
     """
 
-    def __init__(self, groups: List[ToolGroup]):
-        self._groups = groups
-        self._compiled = [
-            (group, [re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE) for kw in group.intent_keywords])
-            for group in groups
-        ]
+    def score_all(
+        self,
+        request_text: str,
+        schemas: List[ToolSchema],
+    ) -> Dict[str, float]:
+        request_tokens = set(re.findall(r"\w+", request_text.lower()))
+        scores: Dict[str, float] = {}
 
-    def select(self, query: str, max_groups: int = 5) -> List[str]:
-        """Returns group_ids in priority order for this query."""
-        selected: List[tuple] = []  # (priority, group_id)
-
-        for group, patterns in self._compiled:
-            if group.always_include:
-                selected.append((group.priority, group.group_id))
+        for schema in schemas:
+            if schema.always_include:
+                scores[schema.name] = 1.0
                 continue
-            for pattern in patterns:
-                if pattern.search(query):
-                    selected.append((group.priority, group.group_id))
+
+            score = 0.0
+
+            # Keyword overlap with request
+            schema_words = set(
+                re.findall(r"\w+", (schema.description + " " + " ".join(schema.keywords)).lower())
+            )
+            if schema_words:
+                overlap = len(request_tokens & schema_words) / len(schema_words)
+                score += overlap * 0.6
+
+            # Tag match bonus
+            request_text_lower = request_text.lower()
+            for tag in schema.tags:
+                if tag.lower() in request_text_lower:
+                    score += 0.2
                     break
 
-        # Sort by priority, deduplicate
-        seen: Set[str] = set()
-        result: List[str] = []
-        for _, gid in sorted(selected):
-            if gid not in seen:
-                seen.add(gid)
-                result.append(gid)
-            if len(result) >= max_groups:
-                break
+            # Name match bonus
+            if schema.name.lower().replace("_", " ") in request_text_lower:
+                score += 0.3
 
-        return result
+            scores[schema.name] = min(round(score, 4), 1.0)
 
-    def always_included_groups(self) -> List[str]:
-        return [g.group_id for g in self._groups if g.always_include]
+        return scores
 ```
 
-## Solution 3: Lazy Tool Schema Registry
+## Solution 3: Lazy Schema Loader
 
 ```python
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Tuple
 
 
-class LazyToolSchemaRegistry:
+class LazyToolSchemaLoader:
     """
-    Stores all tool schemas but only returns them when explicitly requested
-    by group or by name. Tracks which schemas have been loaded per request.
+    Selects a subset of tool schemas to inject based on relevance scores
+    and a token budget. Always-include tools are added first; remaining
+    budget is filled by top-scored schemas.
+    """
+
+    def __init__(
+        self,
+        scorer: ToolRelevanceScorer,
+        max_schema_tokens: int = 3000,
+        top_k: int = 8,
+        min_score: float = 0.10,
+    ):
+        self._scorer = scorer
+        self._max_tokens = max_schema_tokens
+        self._top_k = top_k
+        self._min_score = min_score
+
+    def select(
+        self,
+        request_text: str,
+        all_schemas: List[ToolSchema],
+    ) -> Tuple[List[ToolSchema], dict]:
+        """
+        Returns (selected_schemas, selection_report).
+        """
+        scores = self._scorer.score_all(request_text, all_schemas)
+
+        # Always-include first
+        always = [s for s in all_schemas if s.always_include]
+        candidates = [s for s in all_schemas if not s.always_include]
+
+        # Sort by score descending
+        ranked = sorted(
+            candidates,
+            key=lambda s: scores.get(s.name, 0.0),
+            reverse=True,
+        )
+
+        selected = list(always)
+        tokens_used = sum(s.estimated_tokens for s in selected)
+
+        for schema in ranked:
+            score = scores.get(schema.name, 0.0)
+            if score < self._min_score:
+                break
+            if len(selected) - len(always) >= self._top_k:
+                break
+            if tokens_used + schema.estimated_tokens > self._max_tokens:
+                continue
+            selected.append(schema)
+            tokens_used += schema.estimated_tokens
+
+        total_tokens_all = sum(s.estimated_tokens for s in all_schemas)
+        report = {
+            "total_tools": len(all_schemas),
+            "selected_tools": len(selected),
+            "tokens_used": tokens_used,
+            "tokens_saved": total_tokens_all - tokens_used,
+            "always_included": [s.name for s in always],
+            "relevance_selected": [s.name for s in selected if not s.always_include],
+            "scores": {s.name: scores.get(s.name, 0.0) for s in selected},
+        }
+        return selected, report
+```
+
+## Solution 4: Schema Registry with Lazy Loading
+
+```python
+import json
+from typing import Any, Dict, List, Optional
+
+
+class LazyLoadingToolRegistry:
+    """
+    Stores all tool schemas and provides both lazy (relevance-filtered)
+    and eager (all schemas) access. Falls back to full schema list when
+    the LLM requests a tool that was not in the lazy selection.
+    """
+
+    def __init__(self, loader: LazyToolSchemaLoader):
+        self._loader = loader
+        self._schemas: Dict[str, ToolSchema] = {}
+
+    def register(self, schema: ToolSchema) -> None:
+        self._schemas[schema.name] = schema
+
+    def lazy_select(
+        self, request_text: str
+    ) -> tuple:
+        return self._loader.select(request_text, list(self._schemas.values()))
+
+    def get_schema(self, tool_name: str) -> Optional[ToolSchema]:
+        return self._schemas.get(tool_name)
+
+    def all_schemas(self) -> List[ToolSchema]:
+        return list(self._schemas.values())
+
+    def serialize_schemas(self, schemas: List[ToolSchema]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "name": s.name,
+                "description": s.description,
+                "parameters": s.parameters,
+            }
+            for s in schemas
+        ]
+```
+
+## Solution 5: Schema Loading Stats Recorder
+
+```python
+import time
+from threading import Lock
+from typing import List
+
+
+class SchemaLoadingStatsRecorder:
+    """
+    Tracks token savings from lazy schema loading over time.
     """
 
     def __init__(self):
-        self._schemas: Dict[str, ToolSchema] = {}       # tool_name -> schema
-        self._groups: Dict[str, ToolGroup] = {}          # group_id -> group
-        self._group_tools: Dict[str, List[str]] = {}     # group_id -> [tool_names]
+        self._lock = Lock()
+        self._records: List[dict] = []
 
-    def register_tool(self, schema: ToolSchema) -> None:
-        self._schemas[schema.tool_name] = schema
+    def record(self, selection_report: dict) -> None:
+        with self._lock:
+            self._records.append({
+                "ts": time.time(),
+                "total_tools": selection_report["total_tools"],
+                "selected_tools": selection_report["selected_tools"],
+                "tokens_used": selection_report["tokens_used"],
+                "tokens_saved": selection_report["tokens_saved"],
+            })
 
-    def register_group(self, group: ToolGroup) -> None:
-        self._groups[group.group_id] = group
-        self._group_tools[group.group_id] = group.tool_names
+    def summary(self, window_seconds: float = 3600.0) -> dict:
+        cutoff = time.time() - window_seconds
+        with self._lock:
+            recent = [r for r in self._records if r["ts"] >= cutoff]
+        if not recent:
+            return {"window_seconds": window_seconds, "requests": 0}
 
-    def schemas_for_groups(self, group_ids: List[str]) -> List[ToolSchema]:
-        result: List[ToolSchema] = []
-        seen: Set[str] = set()
-        for gid in group_ids:
-            for tool_name in self._group_tools.get(gid, []):
-                if tool_name not in seen and tool_name in self._schemas:
-                    seen.add(tool_name)
-                    result.append(self._schemas[tool_name])
-        return result
+        total_saved = sum(r["tokens_saved"] for r in recent)
+        avg_selected = sum(r["selected_tools"] for r in recent) / len(recent)
+        avg_total = sum(r["total_tools"] for r in recent) / len(recent)
 
-    def schema_for_tool(self, tool_name: str) -> Optional[ToolSchema]:
-        return self._schemas.get(tool_name)
-
-    def all_tool_names(self) -> List[str]:
-        return list(self._schemas.keys())
-
-    def token_cost(self, group_ids: List[str]) -> int:
-        return sum(s.token_estimate for s in self.schemas_for_groups(group_ids))
-
-    def total_token_cost(self) -> int:
-        return sum(s.token_estimate for s in self._schemas.values())
-```
-
-## Solution 4: Token-Budget-Aware Schema Loader
-
-```python
-from typing import List, Tuple
-
-
-class TokenBudgetAwareSchemaLoader:
-    """
-    Selects tool schemas to include within a token budget.
-    Prioritizes groups in priority order and stops when budget is reached.
-    Falls back to summary descriptions for tools that exceed the budget.
-    """
-
-    def __init__(
-        self,
-        registry: LazyToolSchemaRegistry,
-        token_budget: int = 2000,
-    ):
-        self._registry = registry
-        self._budget = token_budget
-
-    def load(
-        self,
-        group_ids: List[str],
-        extra_tool_names: List[str] = None,
-    ) -> Tuple[List[ToolSchema], dict]:
-        """
-        Returns (schemas_to_include, stats).
-        """
-        extra_tool_names = extra_tool_names or []
-        included: List[ToolSchema] = []
-        used_tokens = 0
-        skipped_groups = []
-
-        for gid in group_ids:
-            group_schemas = self._registry.schemas_for_groups([gid])
-            group_tokens = sum(s.token_estimate for s in group_schemas)
-            if used_tokens + group_tokens <= self._budget:
-                for s in group_schemas:
-                    if s.tool_name not in {i.tool_name for i in included}:
-                        included.append(s)
-                        used_tokens += s.token_estimate
-            else:
-                skipped_groups.append(gid)
-
-        # Add specifically requested extra tools
-        for tool_name in extra_tool_names:
-            schema = self._registry.schema_for_tool(tool_name)
-            if schema and schema.tool_name not in {i.tool_name for i in included}:
-                if used_tokens + schema.token_estimate <= self._budget:
-                    included.append(schema)
-                    used_tokens += schema.token_estimate
-
-        stats = {
-            "included_tools": len(included),
-            "used_tokens": used_tokens,
-            "token_budget": self._budget,
-            "skipped_groups": skipped_groups,
-            "total_registry_tokens": self._registry.total_token_cost(),
-            "token_savings": self._registry.total_token_cost() - used_tokens,
+        return {
+            "window_seconds": window_seconds,
+            "requests": len(recent),
+            "total_tokens_saved": total_saved,
+            "avg_tokens_saved_per_request": round(total_saved / len(recent), 1),
+            "avg_tools_selected": round(avg_selected, 1),
+            "avg_tools_total": round(avg_total, 1),
+            "avg_selection_ratio": round(avg_selected / max(avg_total, 1), 4),
         }
-        return included, stats
 ```
 
-## Solution 5: On-Demand Schema Injector
-
-```python
-from typing import List, Optional
-
-
-class OnDemandSchemaInjector:
-    """
-    Handles the case where the agent, during generation, requests a tool
-    that was not included in the initial schema load. Injects the missing
-    schema into the next prompt turn without restarting the conversation.
-    """
-
-    def __init__(
-        self,
-        registry: LazyToolSchemaRegistry,
-        loader: TokenBudgetAwareSchemaLoader,
-    ):
-        self._registry = registry
-        self._loader = loader
-        self._injection_count = 0
-
-    def inject_missing_tools(
-        self,
-        requested_tool_names: List[str],
-        already_loaded: List[str],
-    ) -> Optional[str]:
-        """
-        Returns a prompt snippet to prepend to the next turn,
-        or None if all requested tools are already loaded.
-        """
-        missing = [t for t in requested_tool_names if t not in already_loaded]
-        if not missing:
-            return None
-
-        schemas = []
-        for name in missing:
-            schema = self._registry.schema_for_tool(name)
-            if schema:
-                schemas.append(schema)
-
-        if not schemas:
-            return None
-
-        self._injection_count += 1
-        import json
-        schema_text = "\n\n".join(
-            f"Tool: {s.tool_name}\nDescription: {s.description}\nParameters: {json.dumps(s.parameters, indent=2)}"
-            for s in schemas
-        )
-        return f"[Additional tool schemas loaded on demand:]\n{schema_text}"
-
-    def stats(self) -> dict:
-        return {"on_demand_injections": self._injection_count}
-```
-
-## Solution 6: Lazy Loading Savings Dashboard
+## Solution 6: Lazy Schema Loading Dashboard
 
 ```python
 import time
 
 
-class LazyToolLoadingSavingsDashboard:
+class LazySchemaLoadingDashboard:
     """
-    Reports token savings from lazy loading versus always-include-all strategy.
+    Combines registry state, loader configuration, and savings statistics
+    into a single operational snapshot.
     """
 
     def __init__(
         self,
-        registry: LazyToolSchemaRegistry,
-        loader: TokenBudgetAwareSchemaLoader,
-        injector: OnDemandSchemaInjector,
+        registry: LazyLoadingToolRegistry,
+        loader: LazyToolSchemaLoader,
+        stats: SchemaLoadingStatsRecorder,
     ):
         self._registry = registry
         self._loader = loader
-        self._injector = injector
-        self._load_stats_history = []
-
-    def record_load(self, stats: dict) -> None:
-        stats["ts"] = time.time()
-        self._load_stats_history.append(stats)
-        if len(self._load_stats_history) > 10000:
-            self._load_stats_history = self._load_stats_history[-5000:]
+        self._stats = stats
 
     def render(self) -> dict:
-        total_registry = self._registry.total_token_cost()
-        recent = [s for s in self._load_stats_history if time.time() - s["ts"] < 3600]
-        if recent:
-            avg_used = sum(s["used_tokens"] for s in recent) / len(recent)
-            avg_saved = total_registry - avg_used
-        else:
-            avg_used = avg_saved = 0
+        all_schemas = self._registry.all_schemas()
+        total_tokens = sum(s.estimated_tokens for s in all_schemas)
+        always_tools = [s.name for s in all_schemas if s.always_include]
 
         return {
             "generated_at": time.time(),
-            "registry": {
-                "total_tools": len(self._registry._schemas),
-                "total_token_cost": total_registry,
-                "token_budget": self._loader._budget,
-            },
-            "last_hour": {
-                "load_calls": len(recent),
-                "avg_tokens_used": round(avg_used, 1),
-                "avg_tokens_saved": round(avg_saved, 1),
-                "avg_savings_pct": round(avg_saved / max(total_registry, 1) * 100, 1),
-            },
-            "on_demand_injections": self._injector.stats()["on_demand_injections"],
+            "total_registered_tools": len(all_schemas),
+            "always_included_tools": always_tools,
+            "max_schema_tokens_budget": self._loader._max_tokens,
+            "top_k_limit": self._loader._top_k,
+            "full_schema_token_cost": total_tokens,
+            "savings_last_hour": self._stats.summary(window_seconds=3600.0),
         }
 ```
 
 ## Comparison
 
-| Approach | Intent Selection | Token Budget | On-Demand Injection | Group Prioritization | Savings Reporting |
+| Approach | Relevance Scoring | Token Budget | Always-Include | Fallback Access | Savings Tracking |
 |---|---|---|---|---|---|
-| IntentBasedToolGroupSelector | Yes (keyword match) | No | No | Yes | No |
-| LazyToolSchemaRegistry | No | No | No | Via groups | No |
-| TokenBudgetAwareSchemaLoader | Via selector | Yes | No | Yes | Yes |
-| OnDemandSchemaInjector | No | No | Yes | No | No |
-| LazyToolLoadingSavingsDashboard | No | No | No | No | Yes |
+| ToolRelevanceScorer | Yes (keyword+tag+name) | No | No | No | No |
+| LazyToolSchemaLoader | Via scorer | Yes | Yes | No | No |
+| LazyLoadingToolRegistry | Via loader | Via loader | Via loader | Yes (get_schema) | No |
+| SchemaLoadingStatsRecorder | No | No | No | No | Yes |
+| LazySchemaLoadingDashboard | No | No | No | No | Yes (aggregate) |
 
-**Best for production**: Measure actual tool invocation rates per conversation type before grouping — the data often shows that 80% of conversations use only 20% of tools. Set `always_include=True` only for 2–3 core tools (like a memory lookup or safety check) and load everything else lazily. Use `TokenBudgetAwareSchemaLoader` with a budget of 1500 tokens for tool schemas — leaving room for the system prompt, few-shot examples, and conversation history. Monitor `on_demand_injections` from `OnDemandSchemaInjector`: more than 5% of requests requiring on-demand injection means the intent classifier is misconfigured and needs retuning.
+**Best for production**: Mark 2–3 universal tools (e.g., `answer`, `clarify`, `end_session`) as `always_include=True` so they are always available regardless of relevance scoring. Set `max_schema_tokens=3000` and `top_k=8` as starting defaults — this covers the most common request patterns while saving 60–80% of schema tokens for a 30-tool registry. When the LLM calls a tool not in the lazy selection, log the tool name and re-run with full schemas for that request: if this happens frequently for a specific tool, lower its `min_score` threshold or add relevant keywords to its schema definition.
