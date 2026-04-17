@@ -1,313 +1,320 @@
 ---
 title: "Agent Doesn't Implement Cross-Session Data Isolation"
-description: "Agents that share mutable state between concurrent sessions risk data leakage: one user's retrieved documents, cached tool results, or in-progress context can bleed into another user's session through shared caches, global variables, or improperly scoped memory stores. Implement strict cross-session data isolation with per-session namespacing, scope enforcement, and leak detection."
+description: "Agents that share in-memory state, caches, or tool results across user sessions allow one session's data to bleed into another — a user may receive retrieved documents from a previous user's query, see cached tool results containing other users' PII, or have their conversation history accessible to subsequent sessions reusing the same agent instance. Implement strict cross-session data isolation with session-scoped namespaces, cache key segregation, and session cleanup on termination."
 date: 2026-04-16
 difficulty: advanced
 category: security
 slug: agent-doesnt-implement-cross-session-data-isolation
-tags: [data-isolation, session-isolation, multi-tenancy, data-leakage, namespace-enforcement, cache-isolation]
+tags: [session-isolation, data-leakage, cross-session-contamination, cache-segregation, pii-isolation, multi-tenant-security]
 symptoms:
-  - "Cached tool results from one user appear in another user's conversation"
-  - "Shared in-memory tool registry accumulates state across sessions"
-  - "Global variables modified during one session affect concurrent sessions"
-  - "No namespace separation between sessions in shared caches or stores"
-  - "Audit logs cannot attribute data access to specific sessions"
+  - "Cached tool results from user A returned to user B with a matching query"
+  - "Shared in-memory retrieval cache not keyed by user — first user's documents returned to all"
+  - "Session-level context (user preferences, history) persists after session ends and affects next user"
+  - "No session namespace in cache keys — cache hit possible across users"
+  - "Memory or context grows indefinitely without cleanup on session termination"
 ---
 
 ## Why This Happens
 
-Agents running in async servers handle multiple sessions concurrently in the same process. Shared mutable state — module-level caches, singleton tool instances, class variables, asyncio-shared queues — is invisible to session boundaries. A tool that caches its last result in a class attribute will return a previous user's data to the next caller. Isolation requires that every piece of session-specific state is keyed by session ID, that reads and writes validate the requesting session, and that session termination purges all associated state.
+Agent frameworks often optimize for performance by caching results globally — retrieval caches, tool output caches, and embedding caches keyed only by query content. When two users issue the same query, the second user gets the cached result from the first user's session. This is correct behavior for public data but catastrophic for personalized or sensitive data. Isolation requires that every cache and shared store be keyed by a session identifier that is cryptographically unguessable and scoped to a single authenticated user. Session cleanup must be triggered on logout, timeout, and error to prevent accumulation of abandoned session state.
 
-## Solution 1: Session Namespace Registry
+## Solution 1: Session Identity
 
 ```python
-import threading
+import hashlib
+import os
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Set
+from typing import Optional
 
 
 @dataclass
-class SessionNamespace:
-    session_id: str
-    user_id: str
+class SessionIdentity:
+    session_id: str              # cryptographically random, server-generated
+    user_id: str                 # authenticated user identifier
+    tenant_id: str = ""          # for multi-tenant deployments
     created_at: float = field(default_factory=time.time)
-    last_accessed: float = field(default_factory=time.time)
-    _store: Dict[str, Any] = field(default_factory=dict)
+    expires_at: Optional[float] = None
+    ip_address: str = ""
 
-    def get(self, key: str) -> Optional[Any]:
-        self.last_accessed = time.time()
-        return self._store.get(key)
+    def namespace(self) -> str:
+        """Stable, opaque namespace for all cache keys in this session."""
+        raw = f"{self.session_id}:{self.user_id}:{self.tenant_id}"
+        return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
-    def set(self, key: str, value: Any) -> None:
-        self.last_accessed = time.time()
-        self._store[key] = value
+    def is_expired(self) -> bool:
+        if self.expires_at is None:
+            return False
+        return time.time() > self.expires_at
 
-    def delete(self, key: str) -> None:
-        self._store.pop(key, None)
-
-    def clear(self) -> None:
-        self._store.clear()
-
-    def keys(self) -> Set[str]:
-        return set(self._store.keys())
-
-
-class SessionNamespaceRegistry:
-    """
-    Central registry of active session namespaces.
-    All session-scoped state must be stored here, never in global scope.
-    """
-
-    def __init__(self, session_ttl_seconds: float = 3600.0):
-        self._namespaces: Dict[str, SessionNamespace] = {}
-        self._ttl = session_ttl_seconds
-        self._lock = threading.Lock()
-
-    def create(self, session_id: str, user_id: str) -> SessionNamespace:
-        with self._lock:
-            ns = SessionNamespace(session_id=session_id, user_id=user_id)
-            self._namespaces[session_id] = ns
-            return ns
-
-    def get(self, session_id: str) -> Optional[SessionNamespace]:
-        with self._lock:
-            return self._namespaces.get(session_id)
-
-    def destroy(self, session_id: str) -> None:
-        with self._lock:
-            ns = self._namespaces.pop(session_id, None)
-            if ns:
-                ns.clear()
-
-    def evict_expired(self) -> int:
-        cutoff = time.time() - self._ttl
-        with self._lock:
-            expired = [
-                sid for sid, ns in self._namespaces.items()
-                if ns.last_accessed < cutoff
-            ]
-            for sid in expired:
-                self._namespaces[sid].clear()
-                del self._namespaces[sid]
-        return len(expired)
-
-    def active_sessions(self) -> int:
-        with self._lock:
-            return len(self._namespaces)
+    @staticmethod
+    def generate(
+        user_id: str,
+        tenant_id: str = "",
+        ttl_seconds: float = 3600.0,
+        ip_address: str = "",
+    ) -> "SessionIdentity":
+        session_id = os.urandom(32).hex()
+        return SessionIdentity(
+            session_id=session_id,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            expires_at=time.time() + ttl_seconds,
+            ip_address=ip_address,
+        )
 ```
 
-## Solution 2: Isolated Tool Result Cache
+## Solution 2: Session-Scoped Cache
+
+```python
+from collections import OrderedDict
+from threading import Lock
+from typing import Any, Dict, Optional
+import time
+
+
+class SessionScopedCache:
+    """
+    Cache where every key is prefixed by the session namespace.
+    Guarantees that two sessions with identical query keys cannot share entries.
+    Supports bulk eviction of all keys belonging to a terminated session.
+    """
+
+    def __init__(self, max_total_entries: int = 100000):
+        self._store: OrderedDict = OrderedDict()
+        self._session_keys: Dict[str, set] = {}   # namespace -> set of full keys
+        self._lock = Lock()
+        self._max = max_total_entries
+
+    def _scoped_key(self, namespace: str, key: str) -> str:
+        return f"{namespace}::{key}"
+
+    def get(self, identity: SessionIdentity, key: str) -> Optional[Any]:
+        if identity.is_expired():
+            return None
+        ns = identity.namespace()
+        full_key = self._scoped_key(ns, key)
+        with self._lock:
+            value = self._store.get(full_key)
+            if value is not None:
+                self._store.move_to_end(full_key)
+            return value
+
+    def put(self, identity: SessionIdentity, key: str, value: Any) -> None:
+        if identity.is_expired():
+            return
+        ns = identity.namespace()
+        full_key = self._scoped_key(ns, key)
+        with self._lock:
+            if len(self._store) >= self._max:
+                self._store.popitem(last=False)
+            self._store[full_key] = value
+            if ns not in self._session_keys:
+                self._session_keys[ns] = set()
+            self._session_keys[ns].add(full_key)
+
+    def evict_session(self, identity: SessionIdentity) -> int:
+        """Remove all cache entries for this session. Returns count evicted."""
+        ns = identity.namespace()
+        with self._lock:
+            keys = self._session_keys.pop(ns, set())
+            for k in keys:
+                self._store.pop(k, None)
+        return len(keys)
+
+    def stats(self) -> dict:
+        with self._lock:
+            return {
+                "total_entries": len(self._store),
+                "active_sessions": len(self._session_keys),
+            }
+```
+
+## Solution 3: Session State Store
 
 ```python
 import time
+from dataclasses import dataclass, field
 from threading import Lock
-from typing import Any, Dict, Optional, Tuple
-
-
-class IsolatedToolResultCache:
-    """
-    Per-session tool result cache. Results are namespaced by (session_id, tool_name, args_hash)
-    and can only be read back by the same session that wrote them.
-    """
-
-    def __init__(self, ttl_seconds: float = 300.0, max_entries_per_session: int = 100):
-        self._cache: Dict[str, Dict[str, Tuple[Any, float]]] = {}
-        self._ttl = ttl_seconds
-        self._max_per_session = max_entries_per_session
-        self._lock = Lock()
-
-    def _args_hash(self, args: dict) -> str:
-        import hashlib, json
-        return hashlib.md5(json.dumps(args, sort_keys=True).encode()).hexdigest()[:12]
-
-    def get(self, session_id: str, tool_name: str, args: dict) -> Optional[Any]:
-        key = f"{tool_name}:{self._args_hash(args)}"
-        now = time.time()
-        with self._lock:
-            session_cache = self._cache.get(session_id, {})
-            entry = session_cache.get(key)
-            if entry is None:
-                return None
-            value, stored_at = entry
-            if now - stored_at > self._ttl:
-                del session_cache[key]
-                return None
-            return value
-
-    def set(self, session_id: str, tool_name: str, args: dict, value: Any) -> None:
-        key = f"{tool_name}:{self._args_hash(args)}"
-        with self._lock:
-            if session_id not in self._cache:
-                self._cache[session_id] = {}
-            session_cache = self._cache[session_id]
-            if len(session_cache) >= self._max_per_session:
-                oldest_key = min(session_cache, key=lambda k: session_cache[k][1])
-                del session_cache[oldest_key]
-            session_cache[key] = (value, time.time())
-
-    def purge_session(self, session_id: str) -> int:
-        with self._lock:
-            session_cache = self._cache.pop(session_id, {})
-            return len(session_cache)
-```
-
-## Solution 3: Session Scope Enforcer
-
-```python
-from typing import Any, Callable
-
-
-class SessionScopeViolationError(Exception):
-    def __init__(self, requesting_session: str, owning_session: str, resource: str):
-        super().__init__(
-            f"Session scope violation: session '{requesting_session}' attempted to access "
-            f"resource '{resource}' owned by session '{owning_session}'"
-        )
-        self.requesting_session = requesting_session
-        self.owning_session = owning_session
-        self.resource = resource
-
-
-class SessionScopeEnforcer:
-    """
-    Validates that any data access is performed by the session that owns it.
-    Wrap all cross-session-capable storage reads with this enforcer.
-    """
-
-    def __init__(self, violation_fn: Callable[[dict], None] = None):
-        self._violation_fn = violation_fn
-        self._violation_count = 0
-
-    def check(
-        self,
-        requesting_session_id: str,
-        resource_owner_session_id: str,
-        resource_name: str,
-    ) -> None:
-        if requesting_session_id != resource_owner_session_id:
-            self._violation_count += 1
-            event = {
-                "requesting": requesting_session_id,
-                "owner": resource_owner_session_id,
-                "resource": resource_name,
-            }
-            if self._violation_fn:
-                self._violation_fn(event)
-            raise SessionScopeViolationError(
-                requesting_session_id, resource_owner_session_id, resource_name
-            )
-
-    def violation_count(self) -> int:
-        return self._violation_count
-```
-
-## Solution 4: Scoped Context Store
-
-```python
 from typing import Any, Dict, List, Optional
 
 
-class ScopedContextStore:
+@dataclass
+class SessionState:
+    identity: SessionIdentity
+    conversation_history: List[dict] = field(default_factory=list)
+    user_preferences: Dict[str, Any] = field(default_factory=dict)
+    tool_results: Dict[str, Any] = field(default_factory=dict)
+    custom_data: Dict[str, Any] = field(default_factory=dict)
+    last_active_at: float = field(default_factory=time.time)
+
+    def touch(self) -> None:
+        self.last_active_at = time.time()
+
+    def is_idle(self, idle_threshold_s: float = 1800.0) -> bool:
+        return time.time() - self.last_active_at > idle_threshold_s
+
+
+class SessionStateStore:
     """
-    Stores conversation context (messages, tool history) with strict
-    session scoping. All reads require a matching session_id.
+    Manages per-session state with strict isolation.
+    Expires idle sessions automatically.
+    """
+
+    def __init__(self, idle_timeout_s: float = 1800.0):
+        self._sessions: Dict[str, SessionState] = {}
+        self._lock = Lock()
+        self._idle_timeout = idle_timeout_s
+        self._evicted_count = 0
+
+    def create(self, identity: SessionIdentity) -> SessionState:
+        state = SessionState(identity=identity)
+        with self._lock:
+            self._sessions[identity.session_id] = state
+        return state
+
+    def get(self, session_id: str) -> Optional[SessionState]:
+        with self._lock:
+            state = self._sessions.get(session_id)
+            if state is None:
+                return None
+            if state.identity.is_expired() or state.is_idle(self._idle_timeout):
+                del self._sessions[session_id]
+                self._evicted_count += 1
+                return None
+            state.touch()
+            return state
+
+    def terminate(self, session_id: str) -> bool:
+        with self._lock:
+            if session_id in self._sessions:
+                del self._sessions[session_id]
+                self._evicted_count += 1
+                return True
+            return False
+
+    def evict_expired(self) -> int:
+        now = time.time()
+        with self._lock:
+            expired = [
+                sid for sid, state in self._sessions.items()
+                if state.identity.is_expired() or state.is_idle(self._idle_timeout)
+            ]
+            for sid in expired:
+                del self._sessions[sid]
+            self._evicted_count += len(expired)
+        return len(expired)
+
+    def stats(self) -> dict:
+        with self._lock:
+            return {
+                "active_sessions": len(self._sessions),
+                "total_evicted": self._evicted_count,
+            }
+```
+
+## Solution 4: Cross-Session Contamination Detector
+
+```python
+import time
+from typing import Dict, List, Optional
+
+
+class CrossSessionContaminationDetector:
+    """
+    Validates that data returned from shared resources is not contaminated
+    with another session's identifying information.
+    Checks for user IDs, session IDs, and PII patterns in returned content.
+    """
+
+    import re
+    EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+    UUID_PATTERN = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
+
+    def __init__(self, active_user_ids: set = None):
+        self._known_ids = active_user_ids or set()
+        self._violations: List[dict] = []
+
+    def register_user(self, user_id: str) -> None:
+        self._known_ids.add(user_id)
+
+    def check(
+        self,
+        content: str,
+        current_session: SessionIdentity,
+    ) -> List[str]:
+        """Returns list of contamination warnings."""
+        warnings = []
+        # Check if another user's ID appears in the content
+        for uid in self._known_ids:
+            if uid != current_session.user_id and uid in content:
+                warnings.append(f"cross_session_user_id: foreign user_id '{uid[:8]}...' found in content")
+
+        # Check for suspicious patterns
+        emails = self.EMAIL_PATTERN.findall(content)
+        uuids = self.UUID_PATTERN.findall(content)
+        if emails:
+            warnings.append(f"email_in_content: {len(emails)} email(s) found")
+        if len(uuids) > 3:
+            warnings.append(f"many_uuids: {len(uuids)} UUIDs in content — possible cross-session bleed")
+
+        if warnings:
+            self._violations.append({
+                "ts": time.time(),
+                "session_id": current_session.session_id,
+                "warnings": warnings,
+            })
+        return warnings
+```
+
+## Solution 5: Session Lifecycle Manager
+
+```python
+import asyncio
+import time
+from typing import Callable, Optional
+
+
+class SessionLifecycleManager:
+    """
+    Manages session creation, validation, and cleanup.
+    Triggers cleanup callbacks (cache eviction, state deletion) on termination.
+    Runs a background reaper for idle and expired sessions.
     """
 
     def __init__(
         self,
-        registry: SessionNamespaceRegistry,
-        enforcer: SessionScopeEnforcer,
+        state_store: SessionStateStore,
+        cache: SessionScopedCache,
+        idle_timeout_s: float = 1800.0,
     ):
-        self._registry = registry
-        self._enforcer = enforcer
+        self._store = state_store
+        self._cache = cache
+        self._idle_timeout = idle_timeout_s
+        self._terminated_count = 0
 
-    def _ns(self, session_id: str) -> SessionNamespace:
-        ns = self._registry.get(session_id)
-        if ns is None:
-            raise ValueError(f"Unknown session '{session_id}'")
-        return ns
+    def start_session(self, user_id: str, tenant_id: str = "", ttl_s: float = 3600.0) -> SessionIdentity:
+        identity = SessionIdentity.generate(user_id, tenant_id, ttl_s)
+        self._store.create(identity)
+        return identity
 
-    def append_message(self, session_id: str, role: str, content: str) -> None:
-        ns = self._ns(session_id)
-        messages = ns.get("messages") or []
-        messages.append({"role": role, "content": content})
-        ns.set("messages", messages)
+    def validate(self, session_id: str) -> Optional[SessionState]:
+        return self._store.get(session_id)
 
-    def get_messages(self, session_id: str) -> List[dict]:
-        ns = self._ns(session_id)
-        return list(ns.get("messages") or [])
-
-    def set_value(self, session_id: str, key: str, value: Any) -> None:
-        ns = self._ns(session_id)
-        ns.set(key, value)
-
-    def get_value(self, session_id: str, requesting_session_id: str, key: str) -> Optional[Any]:
-        ns = self._ns(session_id)
-        # Enforce that only the owning session can read
-        self._enforcer.check(requesting_session_id, session_id, key)
-        return ns.get(key)
-
-    def clear_session(self, session_id: str) -> None:
-        self._registry.destroy(session_id)
-```
-
-## Solution 5: Session Isolation Auditor
-
-```python
-import json
-import time
-from pathlib import Path
-from threading import Lock
-from typing import List
-
-
-class SessionIsolationAuditor:
-    """
-    Records all session scope violations and data access events.
-    Used to detect isolation regressions after code changes.
-    """
-
-    def __init__(self, path: str = "/tmp/session_isolation_audit.jsonl"):
-        self._path = Path(path)
-        self._lock = Lock()
-        self._violation_count = 0
-
-    def record_violation(self, event: dict) -> None:
-        self._violation_count += 1
-        record = {"ts": time.time(), "type": "scope_violation", **event}
-        with self._lock:
-            with self._path.open("a") as f:
-                f.write(json.dumps(record) + "\n")
-
-    def record_purge(self, session_id: str, entries_purged: int) -> None:
-        record = {
-            "ts": time.time(),
-            "type": "session_purge",
-            "session_id": session_id,
-            "entries_purged": entries_purged,
+    def terminate_session(self, identity: SessionIdentity) -> dict:
+        cache_evicted = self._cache.evict_session(identity)
+        state_removed = self._store.terminate(identity.session_id)
+        self._terminated_count += 1
+        return {
+            "session_id": identity.session_id,
+            "cache_entries_evicted": cache_evicted,
+            "state_removed": state_removed,
         }
-        with self._lock:
-            with self._path.open("a") as f:
-                f.write(json.dumps(record) + "\n")
 
-    def recent_violations(self, window_seconds: float = 3600.0) -> List[dict]:
-        cutoff = time.time() - window_seconds
-        violations = []
-        if not self._path.exists():
-            return violations
-        with self._lock:
-            for line in self._path.read_text().splitlines():
-                try:
-                    e = json.loads(line)
-                    if e.get("type") == "scope_violation" and e["ts"] >= cutoff:
-                        violations.append(e)
-                except (json.JSONDecodeError, KeyError):
-                    continue
-        return violations
-
-    def violation_count(self) -> int:
-        return self._violation_count
+    async def run_reaper(self, poll_interval_s: float = 60.0) -> None:
+        while True:
+            await asyncio.sleep(poll_interval_s)
+            self._store.evict_expired()
 ```
 
 ## Solution 6: Session Isolation Dashboard
@@ -318,41 +325,43 @@ import time
 
 class SessionIsolationDashboard:
     """
-    Operational view of session isolation health: active sessions,
-    violation counts, and recent purge activity.
+    Combines session store stats, cache isolation stats, and contamination
+    detection history into a single security-focused view.
     """
 
     def __init__(
         self,
-        registry: SessionNamespaceRegistry,
-        enforcer: SessionScopeEnforcer,
-        auditor: SessionIsolationAuditor,
+        lifecycle: SessionLifecycleManager,
+        detector: CrossSessionContaminationDetector,
     ):
-        self._registry = registry
-        self._enforcer = enforcer
-        self._auditor = auditor
+        self._lifecycle = lifecycle
+        self._detector = detector
 
     def render(self) -> dict:
-        recent_violations = self._auditor.recent_violations(3600.0)
+        store_stats = self._lifecycle._store.stats()
+        cache_stats = self._lifecycle._cache.stats()
+        recent_violations = [
+            v for v in self._detector._violations
+            if time.time() - v["ts"] < 3600
+        ]
         return {
             "generated_at": time.time(),
-            "active_sessions": self._registry.active_sessions(),
-            "total_violations_ever": self._enforcer.violation_count(),
-            "violations_last_1h": len(recent_violations),
-            "recent_violations_sample": recent_violations[-5:],
-            "isolation_healthy": self._enforcer.violation_count() == 0,
+            "session_store": store_stats,
+            "session_cache": cache_stats,
+            "terminated_sessions": self._lifecycle._terminated_count,
+            "contamination_violations_last_hour": len(recent_violations),
+            "recent_violations": recent_violations[-5:],
         }
 ```
 
 ## Comparison
 
-| Approach | Namespace Scoping | Per-Session Cache | Scope Enforcement | Audit Logging | Dashboard |
+| Approach | Namespace Isolation | Cache Eviction | State Cleanup | Contamination Detection | Reaper |
 |---|---|---|---|---|---|
-| SessionNamespaceRegistry | Yes (TTL + eviction) | No | No | No | No |
-| IsolatedToolResultCache | Via session_id key | Yes | No | No | No |
-| SessionScopeEnforcer | No | No | Yes (raises) | Via callback | No |
-| ScopedContextStore | Via registry | No | Via enforcer | No | No |
-| SessionIsolationAuditor | No | No | No | Yes (JSONL) | No |
-| SessionIsolationDashboard | No | No | No | No | Yes |
+| SessionScopedCache | Yes (SHA-256 prefix) | Yes (bulk by session) | No | No | No |
+| SessionStateStore | Yes (session_id key) | No | Yes (expire + idle) | No | No |
+| CrossSessionContaminationDetector | No | No | No | Yes | No |
+| SessionLifecycleManager | Via store + cache | Via cache | Via store | No | Yes |
+| SessionIsolationDashboard | No | No | No | Via detector | No |
 
-**Best for production**: Zero tolerance for scope violations — any `SessionScopeViolationError` in production is a data leakage incident, not a warning. Use `SessionNamespaceRegistry.evict_expired()` on a background scheduler (every 5 minutes) to prevent memory growth from abandoned sessions. Audit every violation immediately via `SessionIsolationAuditor` and alert on-call if the count exceeds zero in production — isolation violations should be treated as P1 security incidents. Test isolation explicitly: in your integration test suite, create two concurrent sessions, write a value in session A, and assert that session B cannot read it.
+**Best for production**: Never use query text alone as a cache key — always prefix with the session namespace. Run `SessionLifecycleManager.run_reaper()` every 60 seconds to evict idle sessions; abandoned sessions accumulate indefinitely otherwise and may hold PII in memory. Set session TTL to the minimum needed for the use case (1 hour for interactive agents, 15 minutes for API-only agents). Run `CrossSessionContaminationDetector` on all retrieved content during security audits — a violation in staging means the retrieval pipeline is not properly scoped and will leak in production.
