@@ -1,28 +1,27 @@
 ---
 title: "Agent Doesn't Implement Dead Letter Queue for Failed Tool Calls"
-description: "Agents that discard tool call failures after exhausting retries lose the work permanently — there is no record of what failed, no way to replay it after the underlying issue is fixed, and no operator visibility into which tasks were silently dropped. Implement a dead letter queue that captures failed tool calls with their full context, supports manual or automatic replay after recovery, and surfaces failure patterns for root cause analysis."
+description: "Agents that discard failed tool calls after exhausting retries lose work silently: a document processing tool that fails due to a transient upstream error drops the document with no record and no retry path. Implement a dead letter queue that captures persistently-failed tool calls with full context, enabling manual inspection, automated reprocessing when conditions recover, and alerting on accumulation patterns."
 date: 2026-04-16
-difficulty: intermediate
+difficulty: advanced
 category: reliability
 slug: agent-doesnt-implement-dead-letter-queue-for-failed-tool-calls
-tags: [dead-letter-queue, failed-tool-calls, retry, replay, fault-tolerance, error-recovery]
+tags: [dead-letter-queue, failed-tool-calls, error-recovery, reprocessing, fault-tolerance, message-durability]
 symptoms:
-  - "Failed tool calls after max retries are silently discarded — no record of what was lost"
-  - "After fixing a downstream outage, there is no way to replay the work that failed during it"
-  - "No operator visibility into which tool calls are failing and why"
-  - "Tasks that fail during an incident cannot be recovered without full re-execution by the user"
-  - "Failure count metrics exist but the actual failed payloads are not preserved"
+  - "Failed tool calls disappear with no persistent record after retry exhaustion"
+  - "No way to replay failed operations after a downstream service recovers"
+  - "Silent data loss when tool calls fail during high-load periods"
+  - "On-call engineers cannot inspect what work was dropped during an incident"
+  - "Failure count metrics exist but the failed payloads themselves are unrecoverable"
 ---
 
 ## Why This Happens
 
-Retry logic handles transient failures but has a finite limit. When retries are exhausted, most agents raise an exception that propagates up and either aborts the task or is swallowed by a broad exception handler. The failed tool call and its arguments are lost. A dead letter queue (DLQ) intercepts at this boundary: instead of discarding the call, it serializes the full invocation context — tool name, arguments, error history, session metadata — and stores it durably for later inspection and replay. This converts silent data loss into a recoverable failure.
+Retry loops handle transient failures. What they do not handle is the case where retries are exhausted and the work must not be lost — it must be preserved for later reprocessing or human inspection. Without a dead letter queue (DLQ), the only options after retry exhaustion are: silently drop the work, raise an exception that surfaces to the user, or block indefinitely. A DLQ provides a fourth option: persist the failed call with its context and failure history, then move on. When the downstream service recovers, DLQ entries can be replayed automatically or manually.
 
 ## Solution 1: Dead Letter Entry
 
 ```python
 import time
-import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -32,7 +31,8 @@ class FailureRecord:
     attempt_number: int
     error_type: str
     error_message: str
-    failed_at: float = field(default_factory=time.time)
+    failed_at: float
+    latency_ms: float
 
 
 @dataclass
@@ -40,38 +40,26 @@ class DeadLetterEntry:
     entry_id: str
     tool_name: str
     args: Dict[str, Any]
-    session_id: str
-    task_id: str
-    failure_history: List[FailureRecord]
+    conversation_id: str
+    failure_records: List[FailureRecord]
     enqueued_at: float = field(default_factory=time.time)
-    replay_count: int = 0
-    last_replayed_at: Optional[float] = None
+    reprocess_attempts: int = 0
+    last_reprocess_at: Optional[float] = None
     resolved: bool = False
     resolution_note: str = ""
-
-    @classmethod
-    def create(
-        cls,
-        tool_name: str,
-        args: Dict[str, Any],
-        failure_history: List[FailureRecord],
-        session_id: str = "",
-        task_id: str = "",
-    ) -> "DeadLetterEntry":
-        return cls(
-            entry_id=uuid.uuid4().hex,
-            tool_name=tool_name,
-            args=args,
-            session_id=session_id,
-            task_id=task_id,
-            failure_history=failure_history,
-        )
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
-    def final_error(self) -> Optional[str]:
-        if self.failure_history:
-            return self.failure_history[-1].error_message
-        return None
+    def total_attempts(self) -> int:
+        return len(self.failure_records)
+
+    @property
+    def first_failure_at(self) -> float:
+        return self.failure_records[0].failed_at if self.failure_records else self.enqueued_at
+
+    @property
+    def age_seconds(self) -> float:
+        return time.time() - self.enqueued_at
 ```
 
 ## Solution 2: Dead Letter Queue Store
@@ -79,6 +67,7 @@ class DeadLetterEntry:
 ```python
 import json
 import time
+import uuid
 from pathlib import Path
 from threading import Lock
 from typing import Dict, List, Optional
@@ -86,291 +75,301 @@ from typing import Dict, List, Optional
 
 class DeadLetterQueueStore:
     """
-    Persists dead letter entries to a local JSON file.
-    Replace with Redis or a database for multi-instance deployments.
+    Persists dead letter entries to a JSON-lines file.
+    Supports listing, filtering, and resolving entries.
     """
 
-    def __init__(self, path: str = "/tmp/agent_dlq.json", max_entries: int = 5000):
+    def __init__(self, path: str = "/tmp/agent_dlq.jsonl"):
         self._path = Path(path)
-        self._max = max_entries
         self._lock = Lock()
+        self._entries: Dict[str, DeadLetterEntry] = {}
+        self._load()
 
-    def enqueue(self, entry: DeadLetterEntry) -> None:
-        with self._lock:
-            entries = self._load()
-            if len(entries) >= self._max:
-                # Drop oldest resolved entries first, then oldest unresolved
-                resolved = [e for e in entries.values() if e["resolved"]]
-                if resolved:
-                    oldest_resolved = min(resolved, key=lambda e: e["enqueued_at"])
-                    del entries[oldest_resolved["entry_id"]]
-                else:
-                    oldest = min(entries.values(), key=lambda e: e["enqueued_at"])
-                    del entries[oldest["entry_id"]]
-            entries[entry.entry_id] = self._serialize(entry)
-            self._save(entries)
-
-    def get(self, entry_id: str) -> Optional[DeadLetterEntry]:
-        with self._lock:
-            entries = self._load()
-            data = entries.get(entry_id)
-            return self._deserialize(data) if data else None
-
-    def list_unresolved(self, tool_name: Optional[str] = None) -> List[DeadLetterEntry]:
-        with self._lock:
-            entries = self._load()
-            result = [
-                self._deserialize(e) for e in entries.values()
-                if not e["resolved"] and (tool_name is None or e["tool_name"] == tool_name)
-            ]
-            return sorted(result, key=lambda e: e.enqueued_at)
-
-    def mark_resolved(self, entry_id: str, note: str = "") -> bool:
-        with self._lock:
-            entries = self._load()
-            if entry_id not in entries:
-                return False
-            entries[entry_id]["resolved"] = True
-            entries[entry_id]["resolution_note"] = note
-            self._save(entries)
-            return True
-
-    def record_replay(self, entry_id: str) -> bool:
-        with self._lock:
-            entries = self._load()
-            if entry_id not in entries:
-                return False
-            entries[entry_id]["replay_count"] += 1
-            entries[entry_id]["last_replayed_at"] = time.time()
-            self._save(entries)
-            return True
-
-    def _load(self) -> Dict[str, dict]:
+    def _load(self) -> None:
         if not self._path.exists():
-            return {}
+            return
         try:
-            return json.loads(self._path.read_text())
-        except (json.JSONDecodeError, OSError):
-            return {}
+            for line in self._path.read_text().splitlines():
+                if not line.strip():
+                    continue
+                data = json.loads(line)
+                entry = self._deserialize(data)
+                self._entries[entry.entry_id] = entry
+        except Exception:
+            pass
 
-    def _save(self, entries: dict) -> None:
-        self._path.write_text(json.dumps(entries, indent=2))
-
-    @staticmethod
-    def _serialize(entry: DeadLetterEntry) -> dict:
+    def _serialize(self, entry: DeadLetterEntry) -> dict:
         return {
             "entry_id": entry.entry_id,
             "tool_name": entry.tool_name,
             "args": entry.args,
-            "session_id": entry.session_id,
-            "task_id": entry.task_id,
-            "failure_history": [
-                {"attempt_number": f.attempt_number, "error_type": f.error_type,
-                 "error_message": f.error_message, "failed_at": f.failed_at}
-                for f in entry.failure_history
+            "conversation_id": entry.conversation_id,
+            "failure_records": [
+                {
+                    "attempt_number": f.attempt_number,
+                    "error_type": f.error_type,
+                    "error_message": f.error_message,
+                    "failed_at": f.failed_at,
+                    "latency_ms": f.latency_ms,
+                }
+                for f in entry.failure_records
             ],
             "enqueued_at": entry.enqueued_at,
-            "replay_count": entry.replay_count,
-            "last_replayed_at": entry.last_replayed_at,
+            "reprocess_attempts": entry.reprocess_attempts,
+            "last_reprocess_at": entry.last_reprocess_at,
             "resolved": entry.resolved,
             "resolution_note": entry.resolution_note,
+            "metadata": entry.metadata,
         }
 
-    @staticmethod
-    def _deserialize(data: dict) -> DeadLetterEntry:
+    def _deserialize(self, data: dict) -> DeadLetterEntry:
         return DeadLetterEntry(
             entry_id=data["entry_id"],
             tool_name=data["tool_name"],
             args=data["args"],
-            session_id=data.get("session_id", ""),
-            task_id=data.get("task_id", ""),
-            failure_history=[
-                FailureRecord(
-                    attempt_number=f["attempt_number"],
-                    error_type=f["error_type"],
-                    error_message=f["error_message"],
-                    failed_at=f["failed_at"],
-                )
-                for f in data.get("failure_history", [])
-            ],
-            enqueued_at=data["enqueued_at"],
-            replay_count=data.get("replay_count", 0),
-            last_replayed_at=data.get("last_replayed_at"),
+            conversation_id=data["conversation_id"],
+            failure_records=[FailureRecord(**f) for f in data.get("failure_records", [])],
+            enqueued_at=data.get("enqueued_at", time.time()),
+            reprocess_attempts=data.get("reprocess_attempts", 0),
+            last_reprocess_at=data.get("last_reprocess_at"),
             resolved=data.get("resolved", False),
             resolution_note=data.get("resolution_note", ""),
+            metadata=data.get("metadata", {}),
         )
+
+    def _flush(self) -> None:
+        lines = [json.dumps(self._serialize(e)) for e in self._entries.values()]
+        self._path.write_text("\n".join(lines) + "\n" if lines else "")
+
+    def enqueue(self, entry: DeadLetterEntry) -> None:
+        with self._lock:
+            self._entries[entry.entry_id] = entry
+            self._flush()
+
+    def get(self, entry_id: str) -> Optional[DeadLetterEntry]:
+        return self._entries.get(entry_id)
+
+    def pending(self, tool_name: Optional[str] = None) -> List[DeadLetterEntry]:
+        entries = [e for e in self._entries.values() if not e.resolved]
+        if tool_name:
+            entries = [e for e in entries if e.tool_name == tool_name]
+        return sorted(entries, key=lambda e: e.enqueued_at)
+
+    def resolve(self, entry_id: str, note: str = "") -> None:
+        with self._lock:
+            if entry_id in self._entries:
+                self._entries[entry_id].resolved = True
+                self._entries[entry_id].resolution_note = note
+                self._flush()
+
+    def size(self) -> dict:
+        total = len(self._entries)
+        pending = sum(1 for e in self._entries.values() if not e.resolved)
+        return {"total": total, "pending": pending, "resolved": total - pending}
 ```
 
 ## Solution 3: DLQ-Backed Tool Executor
 
 ```python
-import asyncio
 import time
+import uuid
 from typing import Any, Callable, List, Optional
 
 
 class DLQBackedToolExecutor:
     """
-    Executes tool calls with retry. On exhaustion, enqueues the failed
-    call to the dead letter queue rather than discarding it.
+    Wraps tool execution with retry logic. On retry exhaustion,
+    captures the failed call into the DLQ rather than discarding it.
     """
 
     def __init__(
         self,
         dlq_store: DeadLetterQueueStore,
-        max_attempts: int = 3,
-        base_delay_seconds: float = 1.0,
-        session_id: str = "",
-        task_id: str = "",
+        max_retries: int = 3,
+        retry_delay_seconds: float = 1.0,
     ):
         self._dlq = dlq_store
-        self._max = max_attempts
-        self._base_delay = base_delay_seconds
-        self._session_id = session_id
-        self._task_id = task_id
+        self._max_retries = max_retries
+        self._retry_delay = retry_delay_seconds
+        self._dlq_enqueue_count = 0
 
     async def execute(
         self,
-        tool_fn: Callable,
         tool_name: str,
         args: dict,
+        fn: Callable,
+        conversation_id: str = "",
+        metadata: dict = None,
     ) -> Any:
-        history: List[FailureRecord] = []
-        delay = self._base_delay
+        import asyncio
+        failure_records: List[FailureRecord] = []
 
-        for attempt in range(1, self._max + 1):
+        for attempt in range(self._max_retries + 1):
+            start = time.time()
             try:
-                return await tool_fn(**args)
+                return await fn(**args)
             except Exception as exc:
-                history.append(FailureRecord(
-                    attempt_number=attempt,
+                latency_ms = round((time.time() - start) * 1000, 2)
+                failure_records.append(FailureRecord(
+                    attempt_number=attempt + 1,
                     error_type=type(exc).__name__,
                     error_message=str(exc),
+                    failed_at=time.time(),
+                    latency_ms=latency_ms,
                 ))
-                if attempt < self._max:
-                    await asyncio.sleep(delay)
-                    delay = min(delay * 2, 60.0)
+                if attempt < self._max_retries:
+                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
 
         # All retries exhausted — enqueue to DLQ
-        entry = DeadLetterEntry.create(
+        entry = DeadLetterEntry(
+            entry_id=str(uuid.uuid4()),
             tool_name=tool_name,
             args=args,
-            failure_history=history,
-            session_id=self._session_id,
-            task_id=self._task_id,
+            conversation_id=conversation_id,
+            failure_records=failure_records,
+            metadata=metadata or {},
         )
         self._dlq.enqueue(entry)
-        raise DeadLetterQueuedError(tool_name=tool_name, entry_id=entry.entry_id)
+        self._dlq_enqueue_count += 1
+        raise DeadLetterEnqueuedError(tool_name, entry.entry_id)
+
+    def stats(self) -> dict:
+        return {
+            "dlq_enqueue_count": self._dlq_enqueue_count,
+            "dlq_pending": self._dlq.size()["pending"],
+        }
 
 
-class DeadLetterQueuedError(Exception):
+class DeadLetterEnqueuedError(Exception):
     def __init__(self, tool_name: str, entry_id: str):
-        super().__init__(
-            f"Tool '{tool_name}' failed after all retries. "
-            f"Dead letter entry: {entry_id}"
-        )
+        super().__init__(f"tool '{tool_name}' permanently failed, enqueued as DLQ entry {entry_id}")
         self.tool_name = tool_name
         self.entry_id = entry_id
 ```
 
-## Solution 4: DLQ Replay Engine
+## Solution 4: DLQ Reprocessor
 
 ```python
 import asyncio
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 
-class DLQReplayEngine:
+class DLQReprocessor:
     """
-    Replays dead letter entries by re-executing the original tool call.
-    Marks entries resolved on success or re-enqueues on failure.
+    Periodically retries pending DLQ entries using the current tool dispatch function.
+    Marks entries resolved on success; increments reprocess_attempts on failure.
     """
 
     def __init__(
         self,
         dlq_store: DeadLetterQueueStore,
-        tool_registry: Dict[str, Callable],
+        max_reprocess_attempts: int = 5,
+        reprocess_interval_seconds: float = 300.0,
     ):
         self._dlq = dlq_store
-        self._tools = tool_registry
+        self._max_attempts = max_reprocess_attempts
+        self._interval = reprocess_interval_seconds
+        self._running = False
+        self._reprocess_success = 0
+        self._reprocess_failure = 0
 
-    async def replay(self, entry_id: str) -> dict:
-        entry = self._dlq.get(entry_id)
-        if not entry:
-            return {"status": "not_found", "entry_id": entry_id}
+    async def reprocess_once(
+        self,
+        dispatch_fn: Callable[[str, dict], Any],
+        tool_filter: Optional[str] = None,
+    ) -> dict:
+        pending = self._dlq.pending(tool_name=tool_filter)
+        eligible = [e for e in pending if e.reprocess_attempts < self._max_attempts]
+        results = {"attempted": len(eligible), "succeeded": 0, "failed": 0}
 
-        if entry.resolved:
-            return {"status": "already_resolved", "entry_id": entry_id}
+        for entry in eligible:
+            entry.reprocess_attempts += 1
+            entry.last_reprocess_at = time.time()
+            try:
+                await dispatch_fn(entry.tool_name, entry.args)
+                self._dlq.resolve(entry.entry_id, note="reprocessed successfully")
+                self._reprocess_success += 1
+                results["succeeded"] += 1
+            except Exception:
+                self._reprocess_failure += 1
+                results["failed"] += 1
 
-        tool_fn = self._tools.get(entry.tool_name)
-        if not tool_fn:
-            return {"status": "tool_not_found", "tool_name": entry.tool_name}
-
-        self._dlq.record_replay(entry_id)
-        try:
-            result = await tool_fn(**entry.args)
-            self._dlq.mark_resolved(entry_id, note="replayed successfully")
-            return {"status": "success", "entry_id": entry_id, "result": result}
-        except Exception as exc:
-            return {"status": "failed", "entry_id": entry_id, "error": str(exc)}
-
-    async def replay_all(self, tool_name: Optional[str] = None) -> List[dict]:
-        entries = self._dlq.list_unresolved(tool_name=tool_name)
-        results = []
-        for entry in entries:
-            result = await self.replay(entry.entry_id)
-            results.append(result)
         return results
-```
 
-## Solution 5: DLQ Failure Pattern Analyzer
+    async def run_loop(self, dispatch_fn: Callable[[str, dict], Any]) -> None:
+        self._running = True
+        while self._running:
+            await self.reprocess_once(dispatch_fn)
+            await asyncio.sleep(self._interval)
 
-```python
-from typing import Dict, List, Optional
+    def stop(self) -> None:
+        self._running = False
 
-
-class DLQFailurePatternAnalyzer:
-    """
-    Analyzes dead letter queue contents to surface which tools
-    fail most often, which error types dominate, and whether
-    failures cluster in time (suggesting an outage vs. recurring bug).
-    """
-
-    def __init__(self, dlq_store: DeadLetterQueueStore):
-        self._dlq = dlq_store
-
-    def analyze(self) -> dict:
-        entries = self._dlq.list_unresolved()
-        if not entries:
-            return {"unresolved_entries": 0}
-
-        by_tool: Dict[str, int] = {}
-        by_error: Dict[str, int] = {}
-
-        for entry in entries:
-            by_tool[entry.tool_name] = by_tool.get(entry.tool_name, 0) + 1
-            if entry.final_error:
-                err_key = entry.failure_history[-1].error_type
-                by_error[err_key] = by_error.get(err_key, 0) + 1
-
-        enqueue_times = sorted(e.enqueued_at for e in entries)
-        time_cluster = None
-        if len(enqueue_times) >= 3:
-            span = enqueue_times[-1] - enqueue_times[0]
-            time_cluster = round(span / 60, 1)  # minutes
-
+    def stats(self) -> dict:
         return {
-            "unresolved_entries": len(entries),
-            "by_tool": dict(sorted(by_tool.items(), key=lambda x: x[1], reverse=True)),
-            "by_error_type": dict(sorted(by_error.items(), key=lambda x: x[1], reverse=True)),
-            "failure_time_span_minutes": time_cluster,
-            "oldest_entry_age_minutes": round(
-                (entries[0].enqueued_at and (__import__("time").time() - entries[0].enqueued_at) / 60), 1
-            ) if entries else None,
+            "reprocess_success": self._reprocess_success,
+            "reprocess_failure": self._reprocess_failure,
         }
 ```
 
-## Solution 6: Dead Letter Queue Dashboard
+## Solution 5: DLQ Accumulation Alerter
+
+```python
+import time
+from typing import List
+
+
+class DLQAccumulationAlerter:
+    """
+    Alerts when DLQ pending count exceeds thresholds or when
+    a single tool contributes disproportionately to failures.
+    """
+
+    def __init__(
+        self,
+        dlq_store: DeadLetterQueueStore,
+        absolute_threshold: int = 100,
+        per_tool_threshold: int = 20,
+        age_alert_seconds: float = 3600.0,
+    ):
+        self._dlq = dlq_store
+        self._abs_threshold = absolute_threshold
+        self._tool_threshold = per_tool_threshold
+        self._age_alert = age_alert_seconds
+
+    def check(self) -> dict:
+        pending = self._dlq.pending()
+        by_tool: dict = {}
+        old_entries = []
+
+        for entry in pending:
+            by_tool[entry.tool_name] = by_tool.get(entry.tool_name, 0) + 1
+            if entry.age_seconds > self._age_alert:
+                old_entries.append(entry.entry_id)
+
+        alerts = []
+        if len(pending) >= self._abs_threshold:
+            alerts.append(f"DLQ size {len(pending)} exceeds threshold {self._abs_threshold}")
+
+        for tool, count in by_tool.items():
+            if count >= self._tool_threshold:
+                alerts.append(f"tool '{tool}' has {count} DLQ entries (threshold {self._tool_threshold})")
+
+        if old_entries:
+            alerts.append(f"{len(old_entries)} DLQ entries older than {self._age_alert:.0f}s")
+
+        return {
+            "generated_at": time.time(),
+            "pending_total": len(pending),
+            "by_tool": by_tool,
+            "old_entry_count": len(old_entries),
+            "alerts": alerts,
+            "alert": len(alerts) > 0,
+        }
+```
+
+## Solution 6: DLQ Dashboard
 
 ```python
 import time
@@ -378,34 +377,40 @@ import time
 
 class DeadLetterQueueDashboard:
     """
-    Combines queue depth, failure pattern analysis, and replay
-    statistics into a single operational view for on-call engineers.
+    Combines DLQ store stats, accumulation alerts, and reprocessor
+    stats into a single operational view.
     """
 
     def __init__(
         self,
         dlq_store: DeadLetterQueueStore,
-        analyzer: DLQFailurePatternAnalyzer,
+        executor: DLQBackedToolExecutor,
+        reprocessor: DLQReprocessor,
+        alerter: DLQAccumulationAlerter,
     ):
         self._dlq = dlq_store
-        self._analyzer = analyzer
+        self._executor = executor
+        self._reprocessor = reprocessor
+        self._alerter = alerter
 
     def render(self) -> dict:
         return {
             "generated_at": time.time(),
-            "queue_depth": len(self._dlq.list_unresolved()),
-            "failure_patterns": self._analyzer.analyze(),
+            "dlq_size": self._dlq.size(),
+            "executor_stats": self._executor.stats(),
+            "reprocessor_stats": self._reprocessor.stats(),
+            "accumulation_check": self._alerter.check(),
         }
 ```
 
 ## Comparison
 
-| Approach | Failure Persistence | Retry Integration | Replay Support | Pattern Analysis | Dashboard |
+| Approach | Persistent Storage | Retry Logic | Reprocessing | Accumulation Alert | Dashboard |
 |---|---|---|---|---|---|
-| DeadLetterQueueStore | Yes (file/DB) | No | Via mark_resolved | No | No |
+| DeadLetterQueueStore | Yes (JSON-lines) | No | No | No | No |
 | DLQBackedToolExecutor | Via store | Yes | No | No | No |
-| DLQReplayEngine | No | No | Yes (single + bulk) | No | No |
-| DLQFailurePatternAnalyzer | No | No | No | Yes | No |
+| DLQReprocessor | Via store | No | Yes | No | No |
+| DLQAccumulationAlerter | Via store | No | No | Yes | No |
 | DeadLetterQueueDashboard | No | No | No | No | Yes |
 
-**Best for production**: Persist DLQ entries to Redis or a database rather than a local file — local files are lost on container restart, defeating the purpose of the DLQ. Emit a `dead_letter_enqueued` structured log event every time `DLQBackedToolExecutor` enqueues an entry: this feeds dashboards and on-call alerts without requiring engineers to poll the DLQ. Run `DLQReplayEngine.replay_all()` automatically 30 minutes after an incident is resolved — by that point the downstream service has recovered and queued work can be replayed without human intervention. Monitor `failure_time_span_minutes` in `DLQFailurePatternAnalyzer`: a tight cluster (all failures within 5 minutes) indicates an acute outage, while spread-out failures indicate a persistent bug that replay will not fix.
+**Best for production**: Use Redis or a database as the DLQ backend in multi-instance deployments — a file-based DLQ on one instance is invisible to other instances. Set `max_reprocess_attempts=5` with exponential backoff in `DLQReprocessor` so that permanently broken payloads do not accumulate reprocess attempts indefinitely. Alert on `old_entry_count > 0` after the `age_alert_seconds` threshold — entries that have not been reprocessed within an hour indicate that automatic reprocessing is failing and manual intervention is needed. Include the full `args` in each `DeadLetterEntry` so that manual reprocessing does not require reconstructing the call from logs.
