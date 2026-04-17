@@ -1,22 +1,22 @@
 ---
 title: "Agent Doesn't Implement Distributed Trace Propagation Across Tool Calls"
-description: "Agents that generate traces without propagating trace context across tool calls produce disconnected spans: the LLM call has one trace ID, each tool call has its own unrelated trace ID, and the webhook notification has a third. Reconstructing the full request flow requires manual correlation by timestamp. Implement W3C TraceContext propagation so every operation in a request shares a single trace ID and spans form a complete causal tree."
+description: "Agents that invoke tools as HTTP or RPC calls without propagating trace context produce disconnected spans: the agent's trace ends at the tool call boundary and the downstream service starts a new unrelated trace, making it impossible to reconstruct end-to-end latency or identify which agent request caused a downstream error. Implement W3C Trace Context propagation that carries trace ID and span ID through every tool call header, links child spans to the agent's root span, and produces a complete end-to-end trace."
 date: 2026-04-16
-difficulty: advanced
+difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-distributed-trace-propagation-across-tool-calls
-tags: [distributed-tracing, trace-propagation, opentelemetry, w3c-tracecontext, span-correlation, request-flow]
+tags: [distributed-tracing, trace-propagation, w3c-trace-context, span-linking, opentelemetry, tool-call-tracing]
 symptoms:
-  - "Tool call spans appear as disconnected root spans with no parent trace"
-  - "Cannot reconstruct full request flow from traces — LLM call and tool calls are isolated"
-  - "External service traces do not link back to the originating agent request"
-  - "Trace IDs are not forwarded in HTTP headers when tools make outbound calls"
-  - "Waterfall views in Jaeger or Zipkin show isolated spans instead of a unified tree"
+  - "Tool call spans appear as orphaned root spans in Jaeger/Zipkin — not linked to the agent trace"
+  - "Cannot determine end-to-end latency for an agent task because traces are fragmented"
+  - "A downstream service error cannot be traced back to the specific agent session that caused it"
+  - "Each tool call starts a fresh trace with no parent context"
+  - "No correlation between agent request IDs and downstream service logs"
 ---
 
 ## Why This Happens
 
-Distributed tracing requires two things: generating spans with parent-child relationships, and propagating trace context across process and service boundaries. Most agents generate spans for individual operations but do not propagate the trace context when those operations make outbound calls. A tool that fetches data from an external API must inject `traceparent` headers so the external service's trace links back to the agent's root span. Without propagation, every hop starts a new trace and the end-to-end request flow is invisible.
+Distributed tracing requires two things: creating spans for each unit of work, and propagating the current trace context to downstream services via HTTP headers (W3C `traceparent`/`tracestate` or B3). Most agent frameworks create a span for the agent invocation but pass no trace headers when calling tool HTTP endpoints, message queues, or RPC services. The downstream service has no parent span to attach to, so it starts a new root span. The two traces exist independently in the trace backend and cannot be joined. Fixing this requires injecting trace context into every outbound tool call and extracting it at the receiving end.
 
 ## Solution 1: Trace Context
 
@@ -28,51 +28,52 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+def _random_hex(n_bytes: int) -> str:
+    return os.urandom(n_bytes).hex()
+
+
 @dataclass
 class TraceContext:
-    """W3C TraceContext-compatible trace context."""
-    trace_id: str          # 16-byte hex (32 chars)
-    span_id: str           # 8-byte hex (16 chars)
-    trace_flags: str = "01"   # sampled
+    trace_id: str                           # 16-byte hex (128-bit)
+    span_id: str                            # 8-byte hex (64-bit)
     parent_span_id: Optional[str] = None
-    baggage: dict = field(default_factory=dict)
+    sampled: bool = True
+    trace_state: str = ""
+    started_at: float = field(default_factory=time.monotonic)
 
     @classmethod
-    def new_root(cls) -> "TraceContext":
+    def new_root(cls, sampled: bool = True) -> "TraceContext":
         return cls(
-            trace_id=os.urandom(16).hex(),
-            span_id=os.urandom(8).hex(),
+            trace_id=_random_hex(16),
+            span_id=_random_hex(8),
+            sampled=sampled,
         )
 
-    def child(self, new_span_id: Optional[str] = None) -> "TraceContext":
+    def child_span(self) -> "TraceContext":
         return TraceContext(
             trace_id=self.trace_id,
-            span_id=new_span_id or os.urandom(8).hex(),
-            trace_flags=self.trace_flags,
+            span_id=_random_hex(8),
             parent_span_id=self.span_id,
-            baggage=dict(self.baggage),
+            sampled=self.sampled,
+            trace_state=self.trace_state,
         )
 
-    @property
-    def traceparent(self) -> str:
-        return f"00-{self.trace_id}-{self.span_id}-{self.trace_flags}"
+    def traceparent_header(self) -> str:
+        flags = "01" if self.sampled else "00"
+        return f"00-{self.trace_id}-{self.span_id}-{flags}"
 
     @classmethod
-    def from_traceparent(cls, header: str) -> Optional["TraceContext"]:
-        parts = header.split("-")
-        if len(parts) != 4 or parts[0] != "00":
+    def from_traceparent(cls, header: str, trace_state: str = "") -> Optional["TraceContext"]:
+        parts = header.strip().split("-")
+        if len(parts) < 4 or parts[0] != "00":
             return None
         return cls(
             trace_id=parts[1],
-            span_id=parts[2],
-            trace_flags=parts[3],
+            span_id=_random_hex(8),   # new span for this service
+            parent_span_id=parts[2],
+            sampled=parts[3] == "01",
+            trace_state=trace_state,
         )
-
-    def to_headers(self) -> dict:
-        headers = {"traceparent": self.traceparent}
-        if self.baggage:
-            headers["baggage"] = ",".join(f"{k}={v}" for k, v in self.baggage.items())
-        return headers
 ```
 
 ## Solution 2: Span Recorder
@@ -81,7 +82,6 @@ class TraceContext:
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from threading import Lock
 from typing import Any, Dict, List, Optional
 
 
@@ -93,295 +93,261 @@ class SpanStatus(str, Enum):
 
 @dataclass
 class Span:
+    name: str
     trace_id: str
     span_id: str
     parent_span_id: Optional[str]
-    operation_name: str
-    start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
+    started_at: float
+    ended_at: Optional[float] = None
     status: SpanStatus = SpanStatus.UNSET
     attributes: Dict[str, Any] = field(default_factory=dict)
     events: List[dict] = field(default_factory=list)
-    error_message: str = ""
 
     @property
     def duration_ms(self) -> Optional[float]:
-        if self.end_time is None:
+        if self.ended_at is None:
             return None
-        return round((self.end_time - self.start_time) * 1000, 2)
+        return round((self.ended_at - self.started_at) * 1000, 2)
 
-    def finish(self, status: SpanStatus = SpanStatus.OK, error: str = "") -> None:
-        self.end_time = time.time()
+    def end(self, status: SpanStatus = SpanStatus.OK, error: str = "") -> None:
+        self.ended_at = time.monotonic()
         self.status = status
-        self.error_message = error
+        if error:
+            self.attributes["error.message"] = error
 
-    def add_event(self, name: str, attributes: dict = None) -> None:
-        self.events.append({
-            "name": name,
-            "ts": time.time(),
-            "attributes": attributes or {},
-        })
+    def add_event(self, name: str, attributes: Dict[str, Any] = None) -> None:
+        self.events.append({"name": name, "ts": time.monotonic(), "attributes": attributes or {}})
 
     def to_dict(self) -> dict:
         return {
+            "name": self.name,
             "trace_id": self.trace_id,
             "span_id": self.span_id,
             "parent_span_id": self.parent_span_id,
-            "operation": self.operation_name,
-            "start_time": self.start_time,
-            "end_time": self.end_time,
+            "started_at": self.started_at,
             "duration_ms": self.duration_ms,
             "status": self.status.value,
             "attributes": self.attributes,
             "events": self.events,
-            "error": self.error_message,
         }
 
 
 class SpanRecorder:
-    """In-memory span store for development and testing."""
+    """
+    In-process span collector. In production, replace with an OTLP exporter.
+    """
 
-    def __init__(self, max_spans: int = 50000):
-        self._spans: List[Span] = []
+    def __init__(self, max_spans: int = 10000):
         self._max = max_spans
-        self._lock = Lock()
+        self._spans: List[Span] = []
 
     def record(self, span: Span) -> None:
-        with self._lock:
-            self._spans.append(span)
-            if len(self._spans) > self._max:
-                self._spans.pop(0)
+        if len(self._spans) >= self._max:
+            self._spans.pop(0)
+        self._spans.append(span)
 
-    def by_trace(self, trace_id: str) -> List[Span]:
-        with self._lock:
-            return [s for s in self._spans if s.trace_id == trace_id]
+    def get_trace(self, trace_id: str) -> List[Span]:
+        return [s for s in self._spans if s.trace_id == trace_id]
 
-    def recent(self, n: int = 100) -> List[Span]:
-        with self._lock:
-            return list(self._spans[-n:])
+    def span_count(self) -> int:
+        return len(self._spans)
 ```
 
 ## Solution 3: Tracer
 
 ```python
-import contextlib
 import time
+from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 
 
 class AgentTracer:
     """
-    Creates and manages spans with W3C TraceContext propagation.
-    Integrates with SpanRecorder for export.
+    Creates and manages spans for agent operations. Maintains a current
+    context stack so child spans are automatically linked to their parent.
     """
 
-    def __init__(self, service_name: str, recorder: SpanRecorder):
-        self._service = service_name
+    def __init__(self, recorder: SpanRecorder, service_name: str = "agent"):
         self._recorder = recorder
+        self._service = service_name
+        self._current: Optional[TraceContext] = None
 
-    def start_span(
-        self,
-        operation_name: str,
-        context: Optional[TraceContext] = None,
-        attributes: Optional[Dict[str, Any]] = None,
-    ) -> tuple:
-        """Returns (span, child_context)."""
-        if context is None:
+    def start_trace(self, operation_name: str, attributes: Dict[str, Any] = None) -> Span:
+        ctx = TraceContext.new_root()
+        self._current = ctx
+        span = Span(
+            name=operation_name,
+            trace_id=ctx.trace_id,
+            span_id=ctx.span_id,
+            parent_span_id=None,
+            started_at=time.monotonic(),
+            attributes={"service.name": self._service, **(attributes or {})},
+        )
+        return span
+
+    def start_child_span(self, operation_name: str, attributes: Dict[str, Any] = None) -> tuple:
+        """Returns (Span, child TraceContext)."""
+        if self._current is None:
             ctx = TraceContext.new_root()
-            span = Span(
-                trace_id=ctx.trace_id,
-                span_id=ctx.span_id,
-                parent_span_id=None,
-                operation_name=operation_name,
-            )
-        else:
-            child_ctx = context.child()
-            span = Span(
-                trace_id=child_ctx.trace_id,
-                span_id=child_ctx.span_id,
-                parent_span_id=child_ctx.parent_span_id,
-                operation_name=operation_name,
-            )
-            ctx = child_ctx
+            self._current = ctx
+        child_ctx = self._current.child_span()
+        span = Span(
+            name=operation_name,
+            trace_id=child_ctx.trace_id,
+            span_id=child_ctx.span_id,
+            parent_span_id=child_ctx.parent_span_id,
+            started_at=time.monotonic(),
+            attributes={"service.name": self._service, **(attributes or {})},
+        )
+        return span, child_ctx
 
-        span.attributes["service.name"] = self._service
-        if attributes:
-            span.attributes.update(attributes)
+    def finish_span(self, span: Span, status: SpanStatus = SpanStatus.OK, error: str = "") -> None:
+        span.end(status, error)
+        self._recorder.record(span)
 
-        return span, ctx
+    def current_context(self) -> Optional[TraceContext]:
+        return self._current
 
-    @contextlib.asynccontextmanager
-    async def span(
-        self,
-        operation_name: str,
-        context: Optional[TraceContext] = None,
-        attributes: Optional[Dict[str, Any]] = None,
-    ):
-        span, child_ctx = self.start_span(operation_name, context, attributes)
-        try:
-            yield span, child_ctx
-            span.finish(SpanStatus.OK)
-        except Exception as exc:
-            span.finish(SpanStatus.ERROR, error=str(exc))
-            raise
-        finally:
-            self._recorder.record(span)
+    def inject_headers(self, child_ctx: TraceContext) -> dict:
+        headers = {"traceparent": child_ctx.traceparent_header()}
+        if child_ctx.trace_state:
+            headers["tracestate"] = child_ctx.trace_state
+        return headers
 ```
 
-## Solution 4: Trace-Propagating Tool Dispatcher
+## Solution 4: Trace-Propagating Tool Executor
 
 ```python
 import time
 from typing import Any, Callable, Dict, Optional
 
 
-class TracePropagatingToolDispatcher:
+class TracePropagatingToolExecutor:
     """
-    Wraps tool calls with trace context propagation.
-    Injects traceparent headers into HTTP-based tools and
-    creates child spans for every tool call.
+    Executes tool calls with W3C trace context injected into outbound headers.
+    Creates a child span for each tool call and records it in the tracer.
     """
 
     def __init__(self, tracer: AgentTracer):
         self._tracer = tracer
 
-    async def dispatch(
+    async def execute(
         self,
         tool_name: str,
-        args: Dict[str, Any],
-        fn: Callable,
-        parent_context: Optional[TraceContext] = None,
+        tool_fn: Callable,
+        *args: Any,
+        extra_headers: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> dict:
-        async with self._tracer.span(
-            f"tool.{tool_name}",
-            context=parent_context,
+        span, child_ctx = self._tracer.start_child_span(
+            f"tool/{tool_name}",
             attributes={"tool.name": tool_name},
-        ) as (span, child_ctx):
-            span.add_event("tool_call_start", {"args_keys": list(args.keys())})
+        )
+        trace_headers = self._tracer.inject_headers(child_ctx)
+        if extra_headers:
+            trace_headers.update(extra_headers)
 
-            # Inject trace headers into args if tool accepts them
-            if "headers" in args and isinstance(args["headers"], dict):
-                args["headers"].update(child_ctx.to_headers())
-            elif "_trace_context" in str(args):
-                args["_trace_context"] = child_ctx.traceparent
-
-            result = await fn(tool_name=tool_name, args=args, trace_context=child_ctx)
-            span.add_event("tool_call_complete")
-            span.attributes["tool.success"] = True
-
+        span.add_event("tool.start")
+        try:
+            # Pass headers to the tool function — tools that make HTTP calls
+            # should forward these headers to downstream services
+            result = await tool_fn(*args, headers=trace_headers, **kwargs)
+            span.attributes["tool.outcome"] = "success"
+            self._tracer.finish_span(span, SpanStatus.OK)
             return {
                 "result": result,
                 "trace_id": child_ctx.trace_id,
                 "span_id": child_ctx.span_id,
             }
+        except Exception as exc:
+            span.attributes["tool.outcome"] = "error"
+            self._tracer.finish_span(span, SpanStatus.ERROR, str(exc))
+            raise
 ```
 
-## Solution 5: Trace Context Extractor
+## Solution 5: Inbound Trace Extractor
 
 ```python
-from typing import Dict, Optional
+from typing import Optional
 
 
-class TraceContextExtractor:
+class InboundTraceExtractor:
     """
-    Extracts W3C TraceContext from inbound HTTP headers or message metadata.
-    Used to continue a trace started by an upstream caller.
+    Extracts W3C trace context from inbound webhook or callback headers.
+    Used by tool servers that receive calls from the agent and need to
+    continue the trace on the server side.
     """
 
-    @staticmethod
-    def from_headers(headers: Dict[str, str]) -> Optional[TraceContext]:
+    def extract(self, headers: dict) -> Optional[TraceContext]:
         traceparent = headers.get("traceparent") or headers.get("Traceparent")
+        tracestate = headers.get("tracestate", "") or headers.get("Tracestate", "")
         if not traceparent:
             return None
-        ctx = TraceContext.from_traceparent(traceparent)
-        if ctx is None:
-            return None
+        return TraceContext.from_traceparent(traceparent, tracestate)
 
-        baggage_header = headers.get("baggage", "")
-        if baggage_header:
-            for item in baggage_header.split(","):
-                if "=" in item:
-                    k, v = item.strip().split("=", 1)
-                    ctx.baggage[k.strip()] = v.strip()
-
-        return ctx
-
-    @staticmethod
-    def from_message(message: dict) -> Optional[TraceContext]:
-        """Extracts trace context from agent message metadata."""
-        meta = message.get("_trace", {})
-        traceparent = meta.get("traceparent", "")
-        if not traceparent:
-            return None
-        return TraceContext.from_traceparent(traceparent)
-
-    @staticmethod
-    def inject_into_message(message: dict, context: TraceContext) -> dict:
-        message["_trace"] = {"traceparent": context.traceparent}
-        return message
+    def extract_or_new(self, headers: dict) -> TraceContext:
+        ctx = self.extract(headers)
+        return ctx if ctx is not None else TraceContext.new_root()
 ```
 
-## Solution 6: Trace Dashboard
+## Solution 6: Trace Summary Reporter
 
 ```python
 import time
-from typing import List
+from typing import List, Optional
 
 
-class TraceDashboard:
+class TraceSummaryReporter:
     """
-    Provides a summary of recent traces and span health for operational visibility.
+    Summarizes a complete agent trace: total duration, span count,
+    slowest spans, and any error spans.
     """
 
     def __init__(self, recorder: SpanRecorder):
         self._recorder = recorder
 
-    def trace_summary(self, trace_id: str) -> dict:
-        spans = self._recorder.by_trace(trace_id)
+    def report(self, trace_id: str) -> dict:
+        spans = self._recorder.get_trace(trace_id)
         if not spans:
-            return {"trace_id": trace_id, "spans": 0}
+            return {"trace_id": trace_id, "found": False}
 
-        root = next((s for s in spans if s.parent_span_id is None), spans[0])
-        errors = [s for s in spans if s.status == SpanStatus.ERROR]
-        finished = [s for s in spans if s.end_time is not None]
+        completed = [s for s in spans if s.ended_at is not None]
+        error_spans = [s for s in completed if s.status == SpanStatus.ERROR]
+
+        total_duration_ms = None
+        root_spans = [s for s in completed if s.parent_span_id is None]
+        if root_spans:
+            root = root_spans[0]
+            total_duration_ms = root.duration_ms
+
+        slowest = sorted(completed, key=lambda s: s.duration_ms or 0, reverse=True)[:5]
 
         return {
             "trace_id": trace_id,
-            "root_operation": root.operation_name,
+            "found": True,
             "span_count": len(spans),
-            "error_count": len(errors),
-            "total_duration_ms": round(
-                (max(s.end_time or 0 for s in finished) - root.start_time) * 1000, 2
-            ) if finished else None,
-            "services": list({s.attributes.get("service.name", "unknown") for s in spans}),
-        }
-
-    def recent_errors(self, n: int = 20) -> List[dict]:
-        recent = self._recorder.recent(500)
-        error_spans = [s for s in recent if s.status == SpanStatus.ERROR]
-        return [s.to_dict() for s in error_spans[-n:]]
-
-    def render(self) -> dict:
-        recent = self._recorder.recent(1000)
-        total = len(recent)
-        errors = sum(1 for s in recent if s.status == SpanStatus.ERROR)
-        return {
-            "generated_at": time.time(),
-            "recent_span_count": total,
-            "error_span_count": errors,
-            "error_rate": round(errors / max(total, 1), 4),
-            "unique_traces": len({s.trace_id for s in recent}),
+            "error_span_count": len(error_spans),
+            "total_duration_ms": total_duration_ms,
+            "slowest_spans": [
+                {"name": s.name, "duration_ms": s.duration_ms, "span_id": s.span_id}
+                for s in slowest
+            ],
+            "error_spans": [
+                {"name": s.name, "error": s.attributes.get("error.message"), "span_id": s.span_id}
+                for s in error_spans
+            ],
         }
 ```
 
 ## Comparison
 
-| Approach | W3C TraceContext | Child Span Creation | Header Injection | Context Extraction | Dashboard |
+| Approach | Trace ID Generation | W3C Header Injection | Child Span Linking | Server-Side Extraction | Trace Summary |
 |---|---|---|---|---|---|
-| TraceContext | Yes (traceparent) | Yes (.child()) | Yes (.to_headers()) | Yes (from_traceparent) | No |
-| AgentTracer | Via context | Yes | No | No | No |
-| TracePropagatingToolDispatcher | Via tracer | Via tracer | Yes (headers arg) | No | No |
-| TraceContextExtractor | No | No | No | Yes (headers+message) | No |
-| TraceDashboard | No | No | No | No | Yes |
+| TraceContext | Yes (128-bit) | Yes (traceparent) | Yes (child_span()) | Via from_traceparent | No |
+| SpanRecorder | No | No | No | No | No |
+| AgentTracer | Via TraceContext | Yes (inject_headers) | Yes (start_child_span) | No | No |
+| TracePropagatingToolExecutor | No | Via tracer | Via tracer | No | No |
+| InboundTraceExtractor | No | No | No | Yes | No |
+| TraceSummaryReporter | No | No | No | No | Yes |
 
-**Best for production**: Use OpenTelemetry SDK instead of this custom implementation for production deployments — it handles export to Jaeger, Zipkin, and OTLP collectors automatically. This implementation is valuable for testing propagation logic without SDK dependency. Always propagate `traceparent` in both HTTP headers (for tool calls to external services) and message metadata (for agent-to-agent handoffs). Set `trace_flags="01"` (sampled) on all root spans but use head-based sampling at the entry point to control volume — once a trace is sampled, propagate that decision through all child spans via the flags byte.
+**Best for production**: Replace `SpanRecorder` with an OTLP exporter pointed at your trace backend (Jaeger, Tempo, Honeycomb) — the in-process recorder is for development only. Always propagate both `traceparent` and `tracestate` headers: `tracestate` carries vendor-specific sampling decisions and dropping it breaks Datadog and Honeycomb's sampling pipelines. Set span names as `tool/<tool_name>` rather than just the tool name so span hierarchies are readable at a glance in the trace UI. Attach `session_id` and `user_id` as span attributes on the root span: this is the critical link between a trace and a user complaint, and without it post-incident analysis requires correlating timestamps across multiple systems.
