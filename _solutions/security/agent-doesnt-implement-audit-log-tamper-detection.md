@@ -1,143 +1,157 @@
 ---
 title: "Agent Doesn't Implement Audit Log Tamper Detection"
-description: "Agents whose audit logs can be modified after the fact provide false security — an attacker who compromises the agent process can delete or alter log entries to hide malicious actions. Implement audit log tamper detection using cryptographic hash chaining where each log entry includes the hash of the previous entry, making any modification or deletion detectable during verification."
+description: "Agents that write audit logs without integrity protection are vulnerable to post-hoc modification: an attacker who gains write access to the log store can delete, alter, or inject entries without leaving evidence. Implement tamper detection using hash chaining and periodic checkpoint signatures so any modification to the log sequence is detectable on the next verification pass."
 date: 2026-04-16
 difficulty: advanced
 category: security
 slug: agent-doesnt-implement-audit-log-tamper-detection
-tags: [audit-log, tamper-detection, hash-chain, log-integrity, cryptographic-verification, append-only-log]
+tags: [audit-log, tamper-detection, hash-chain, integrity, log-security, forensics]
 symptoms:
-  - "Audit logs are stored as plain JSON files that can be edited without detection"
-  - "No way to verify that log entries have not been deleted or reordered"
-  - "Compliance audit cannot confirm log integrity after a security incident"
-  - "Log entries have timestamps but no cryptographic linkage between entries"
-  - "An attacker who gains write access to the log directory can erase their tracks"
+  - "Audit logs can be modified or deleted without any detection mechanism"
+  - "No way to prove which log entries existed at a specific point in time"
+  - "Compliance audits require tamper-evident logging but none is implemented"
+  - "Log entries have no cryptographic relationship to preceding entries"
+  - "An insider with log write access could cover their tracks undetected"
 ---
 
 ## Why This Happens
 
-Audit logs stored as flat files or database rows have no built-in integrity guarantee. Any process with write access to the log file can append, modify, or delete entries. Most logging implementations optimize for write throughput and readability, not tamper evidence. Tamper detection requires chaining: each log entry includes a hash of its own content plus the hash of the previous entry. A verifier can reconstruct the chain and detect any gap or modification. This pattern does not require an external trust anchor — the chain itself is the evidence.
+Most logging frameworks append entries independently — each record is a standalone JSON object with no reference to previous records. An attacker who gains write access to the log store (or who controls the logging process itself) can delete entries, alter timestamps, or inject false records with no trace. Tamper detection requires that each log entry commit to the content of all previous entries via a hash chain: entry N includes a hash of entry N-1's content, so deleting or modifying any entry invalidates all subsequent entries. Periodic checkpoints signed with an HMAC key held outside the log store provide an additional verification anchor that survives log truncation.
 
-## Solution 1: Chained Audit Log Entry
+## Solution 1: Audit Log Entry
 
 ```python
 import hashlib
-import json
 import time
-import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 
 @dataclass
-class ChainedAuditLogEntry:
-    entry_id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    sequence_number: int = 0
-    timestamp: float = field(default_factory=time.time)
-    event_type: str = ""
-    actor: str = ""
-    action: str = ""
-    resource: str = ""
-    outcome: str = ""
+class AuditLogEntry:
+    sequence: int                    # monotonically increasing sequence number
+    timestamp: float
+    event_type: str
+    actor: str                       # user, agent, or system identifier
+    resource: str
+    action: str
+    outcome: str                     # "success" | "failure" | "denied"
+    details: Dict[str, Any]
+    prev_hash: str                   # SHA-256 of the previous entry's canonical form
+    entry_hash: str = ""             # SHA-256 of this entry (set after construction)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    prev_hash: str = ""          # hash of the previous entry
-    entry_hash: str = ""         # hash of this entry including prev_hash
 
-    def compute_hash(self) -> str:
-        payload = {
-            "entry_id": self.entry_id,
-            "sequence_number": self.sequence_number,
+    def canonical_form(self) -> bytes:
+        """Deterministic serialization for hashing — excludes entry_hash itself."""
+        import json
+        obj = {
+            "sequence": self.sequence,
             "timestamp": self.timestamp,
             "event_type": self.event_type,
             "actor": self.actor,
-            "action": self.action,
             "resource": self.resource,
+            "action": self.action,
             "outcome": self.outcome,
-            "metadata": self.metadata,
+            "details": self.details,
             "prev_hash": self.prev_hash,
         }
-        serialized = json.dumps(payload, sort_keys=True, default=str)
-        return hashlib.sha256(serialized.encode()).hexdigest()
+        return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()
 
-    def finalize(self, prev_hash: str, sequence_number: int) -> None:
-        self.prev_hash = prev_hash
-        self.sequence_number = sequence_number
-        self.entry_hash = self.compute_hash()
+    def compute_hash(self) -> str:
+        return hashlib.sha256(self.canonical_form()).hexdigest()
 ```
 
-## Solution 2: Tamper-Evident Audit Logger
+## Solution 2: Hash-Chained Audit Log Writer
 
 ```python
 import json
 import threading
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
-CHAIN_GENESIS_HASH = "0" * 64  # sentinel for the first entry
+GENESIS_HASH = "0" * 64   # well-known hash for the first entry
 
 
-class TamperEvidentAuditLogger:
+class HashChainedAuditLogWriter:
     """
-    Appends chained log entries to a JSONL file. Each entry includes
-    the hash of the previous entry, forming a verifiable chain.
-    Writing is serialized so sequence numbers and prev_hashes are consistent.
+    Appends audit log entries to a file with each entry containing
+    the SHA-256 hash of the previous entry, forming a tamper-evident chain.
+    Any modification to a prior entry invalidates all subsequent entries.
     """
 
-    def __init__(self, log_path: str = "/tmp/agent_audit.jsonl"):
+    def __init__(self, log_path: str):
         self._path = Path(log_path)
         self._lock = threading.Lock()
         self._sequence = 0
-        self._last_hash = CHAIN_GENESIS_HASH
-        self._load_chain_tip()
+        self._prev_hash = GENESIS_HASH
+        self._restore_tail()
 
-    def _load_chain_tip(self) -> None:
+    def _restore_tail(self) -> None:
+        """Resume the chain from the last written entry on startup."""
         if not self._path.exists():
             return
         last_line = None
-        with open(self._path, "r") as f:
+        with self._path.open("rb") as f:
             for line in f:
-                line = line.strip()
-                if line:
-                    last_line = line
+                stripped = line.strip()
+                if stripped:
+                    last_line = stripped
         if last_line:
             try:
-                entry = json.loads(last_line)
-                self._sequence = entry.get("sequence_number", 0)
-                self._last_hash = entry.get("entry_hash", CHAIN_GENESIS_HASH)
+                data = json.loads(last_line)
+                self._sequence = data["sequence"] + 1
+                self._prev_hash = data["entry_hash"]
             except (json.JSONDecodeError, KeyError):
                 pass
 
-    def log(self, entry: ChainedAuditLogEntry) -> str:
+    def append(
+        self,
+        event_type: str,
+        actor: str,
+        resource: str,
+        action: str,
+        outcome: str,
+        details: Dict[str, Any] = None,
+    ) -> AuditLogEntry:
         with self._lock:
-            self._sequence += 1
-            entry.finalize(self._last_hash, self._sequence)
-            self._last_hash = entry.entry_hash
-            line = json.dumps({
-                "entry_id": entry.entry_id,
-                "sequence_number": entry.sequence_number,
+            entry = AuditLogEntry(
+                sequence=self._sequence,
+                timestamp=time.time(),
+                event_type=event_type,
+                actor=actor,
+                resource=resource,
+                action=action,
+                outcome=outcome,
+                details=details or {},
+                prev_hash=self._prev_hash,
+            )
+            entry.entry_hash = entry.compute_hash()
+
+            record = {
+                "sequence": entry.sequence,
                 "timestamp": entry.timestamp,
                 "event_type": entry.event_type,
                 "actor": entry.actor,
-                "action": entry.action,
                 "resource": entry.resource,
+                "action": entry.action,
                 "outcome": entry.outcome,
-                "metadata": entry.metadata,
+                "details": entry.details,
                 "prev_hash": entry.prev_hash,
                 "entry_hash": entry.entry_hash,
-            }, default=str)
-            with open(self._path, "a") as f:
-                f.write(line + "\n")
-            return entry.entry_hash
+            }
+            with self._path.open("a") as f:
+                f.write(json.dumps(record) + "\n")
 
-    def current_chain_tip(self) -> str:
-        return self._last_hash
+            self._prev_hash = entry.entry_hash
+            self._sequence += 1
+            return entry
 ```
 
 ## Solution 3: Audit Log Chain Verifier
 
 ```python
-import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -148,32 +162,35 @@ from typing import List, Optional
 class ChainVerificationResult:
     valid: bool
     entries_checked: int
-    first_violation_sequence: Optional[int]
-    violation_type: Optional[str]
-    details: str
+    first_broken_sequence: Optional[int]
+    break_reason: Optional[str]
+    warnings: List[str]
 
 
 class AuditLogChainVerifier:
     """
-    Reads a JSONL audit log and verifies the hash chain from
-    beginning to end. Detects deletions, insertions, and modifications.
+    Reads the audit log file and verifies the hash chain from start to end.
+    Reports the first entry where the chain breaks and the reason.
     """
 
     def verify(self, log_path: str) -> ChainVerificationResult:
         path = Path(log_path)
         if not path.exists():
             return ChainVerificationResult(
-                valid=False, entries_checked=0,
-                first_violation_sequence=None,
-                violation_type="file_not_found",
-                details=f"Log file not found: {log_path}",
+                valid=False,
+                entries_checked=0,
+                first_broken_sequence=None,
+                break_reason="log file not found",
+                warnings=[],
             )
 
-        prev_hash = CHAIN_GENESIS_HASH
+        warnings = []
+        prev_hash = GENESIS_HASH
+        expected_sequence = 0
         entries_checked = 0
 
-        with open(path, "r") as f:
-            for line in f:
+        with path.open() as f:
+            for lineno, line in enumerate(f, start=1):
                 line = line.strip()
                 if not line:
                     continue
@@ -183,226 +200,269 @@ class AuditLogChainVerifier:
                     return ChainVerificationResult(
                         valid=False,
                         entries_checked=entries_checked,
-                        first_violation_sequence=entries_checked + 1,
-                        violation_type="parse_error",
-                        details=f"Invalid JSON at entry ~{entries_checked + 1}",
+                        first_broken_sequence=None,
+                        break_reason=f"JSON parse error at line {lineno}",
+                        warnings=warnings,
                     )
 
-                seq = data.get("sequence_number", entries_checked + 1)
+                seq = data.get("sequence", -1)
 
-                # Verify prev_hash linkage
+                # Sequence gap check
+                if seq != expected_sequence:
+                    return ChainVerificationResult(
+                        valid=False,
+                        entries_checked=entries_checked,
+                        first_broken_sequence=seq,
+                        break_reason=f"sequence gap: expected {expected_sequence}, got {seq}",
+                        warnings=warnings,
+                    )
+
+                # Previous hash check
                 if data.get("prev_hash") != prev_hash:
                     return ChainVerificationResult(
                         valid=False,
                         entries_checked=entries_checked,
-                        first_violation_sequence=seq,
-                        violation_type="chain_break",
-                        details=f"Chain break at sequence {seq}: prev_hash mismatch",
+                        first_broken_sequence=seq,
+                        break_reason=f"prev_hash mismatch at sequence {seq}",
+                        warnings=warnings,
                     )
 
-                # Recompute entry hash
-                entry = ChainedAuditLogEntry(
-                    entry_id=data["entry_id"],
-                    sequence_number=seq,
+                # Self-hash check
+                entry = AuditLogEntry(
+                    sequence=data["sequence"],
                     timestamp=data["timestamp"],
-                    event_type=data.get("event_type", ""),
-                    actor=data.get("actor", ""),
-                    action=data.get("action", ""),
-                    resource=data.get("resource", ""),
-                    outcome=data.get("outcome", ""),
-                    metadata=data.get("metadata", {}),
+                    event_type=data["event_type"],
+                    actor=data["actor"],
+                    resource=data["resource"],
+                    action=data["action"],
+                    outcome=data["outcome"],
+                    details=data["details"],
                     prev_hash=data["prev_hash"],
                 )
-                expected_hash = entry.compute_hash()
-                if expected_hash != data.get("entry_hash"):
+                computed = entry.compute_hash()
+                if computed != data.get("entry_hash"):
                     return ChainVerificationResult(
                         valid=False,
                         entries_checked=entries_checked,
-                        first_violation_sequence=seq,
-                        violation_type="hash_mismatch",
-                        details=f"Hash mismatch at sequence {seq}: entry was modified",
+                        first_broken_sequence=seq,
+                        break_reason=f"entry_hash mismatch at sequence {seq}: content was modified",
+                        warnings=warnings,
                     )
 
                 prev_hash = data["entry_hash"]
+                expected_sequence += 1
                 entries_checked += 1
 
         return ChainVerificationResult(
             valid=True,
             entries_checked=entries_checked,
-            first_violation_sequence=None,
-            violation_type=None,
-            details=f"Chain verified: {entries_checked} entries intact",
+            first_broken_sequence=None,
+            break_reason=None,
+            warnings=warnings,
         )
 ```
 
-## Solution 4: Audit Event Builder
+## Solution 4: HMAC Checkpoint Signer
 
 ```python
-from typing import Any, Dict, Optional
-
-
-class AuditEventBuilder:
-    """
-    Constructs ChainedAuditLogEntry objects from structured event data.
-    Provides a fluent interface for logging common agent events.
-    """
-
-    def tool_call(
-        self,
-        actor: str,
-        tool_name: str,
-        arguments: Dict[str, Any],
-        outcome: str,
-        session_id: str = "",
-    ) -> ChainedAuditLogEntry:
-        return ChainedAuditLogEntry(
-            event_type="tool_call",
-            actor=actor,
-            action=f"invoke:{tool_name}",
-            resource=tool_name,
-            outcome=outcome,
-            metadata={"session_id": session_id, "arg_keys": list(arguments.keys())},
-        )
-
-    def auth_event(
-        self,
-        actor: str,
-        event: str,
-        resource: str,
-        outcome: str,
-        ip_address: str = "",
-    ) -> ChainedAuditLogEntry:
-        return ChainedAuditLogEntry(
-            event_type="auth",
-            actor=actor,
-            action=event,
-            resource=resource,
-            outcome=outcome,
-            metadata={"ip_address": ip_address},
-        )
-
-    def destructive_action(
-        self,
-        actor: str,
-        action: str,
-        resource: str,
-        scope: str,
-        authorized: bool,
-        session_id: str = "",
-    ) -> ChainedAuditLogEntry:
-        return ChainedAuditLogEntry(
-            event_type="destructive_action",
-            actor=actor,
-            action=action,
-            resource=resource,
-            outcome="authorized" if authorized else "denied",
-            metadata={"scope": scope, "session_id": session_id},
-        )
-```
-
-## Solution 5: Periodic Chain Integrity Monitor
-
-```python
-import asyncio
+import hashlib
+import hmac
+import json
 import time
-from typing import Optional
+from dataclasses import dataclass
+from typing import List, Optional
 
 
-class PeriodicChainIntegrityMonitor:
+@dataclass
+class LogCheckpoint:
+    sequence_at: int
+    entry_hash_at: str
+    checkpoint_timestamp: float
+    hmac_signature: str              # HMAC-SHA256 of (sequence_at || entry_hash_at || timestamp)
+
+
+class HMACCheckpointSigner:
     """
-    Runs AuditLogChainVerifier on a schedule and alerts when the
-    chain is broken — indicating log tampering since the last check.
+    Periodically signs the current chain head with an HMAC key stored
+    outside the log. Checkpoints prove the chain existed in its current
+    state at a specific time, surviving even a complete log truncation.
+    """
+
+    def __init__(self, secret_key: bytes):
+        self._key = secret_key
+        self._checkpoints: List[LogCheckpoint] = []
+
+    def _sign(self, sequence: int, entry_hash: str, timestamp: float) -> str:
+        message = f"{sequence}|{entry_hash}|{timestamp:.6f}".encode()
+        return hmac.new(self._key, message, hashlib.sha256).hexdigest()
+
+    def create_checkpoint(self, sequence: int, entry_hash: str) -> LogCheckpoint:
+        ts = time.time()
+        sig = self._sign(sequence, entry_hash, ts)
+        cp = LogCheckpoint(
+            sequence_at=sequence,
+            entry_hash_at=entry_hash,
+            checkpoint_timestamp=ts,
+            hmac_signature=sig,
+        )
+        self._checkpoints.append(cp)
+        return cp
+
+    def verify_checkpoint(self, checkpoint: LogCheckpoint) -> bool:
+        expected = self._sign(
+            checkpoint.sequence_at,
+            checkpoint.entry_hash_at,
+            checkpoint.checkpoint_timestamp,
+        )
+        return hmac.compare_digest(expected, checkpoint.hmac_signature)
+
+    def latest_checkpoint(self) -> Optional[LogCheckpoint]:
+        return self._checkpoints[-1] if self._checkpoints else None
+```
+
+## Solution 5: Tamper Detection Report Generator
+
+```python
+import time
+from typing import List, Optional
+
+
+@dataclass
+class TamperDetectionReport:
+    generated_at: float
+    chain_valid: bool
+    entries_verified: int
+    first_broken_sequence: Optional[int]
+    break_reason: Optional[str]
+    checkpoint_valid: Optional[bool]
+    checkpoint_sequence: Optional[int]
+    tail_hash: Optional[str]
+    verdict: str   # "INTACT" | "TAMPERED" | "TRUNCATED" | "UNVERIFIABLE"
+
+
+class TamperDetectionReportGenerator:
+    """
+    Combines chain verification and checkpoint validation into
+    a single tamper detection verdict for compliance reporting.
     """
 
     def __init__(
         self,
         verifier: AuditLogChainVerifier,
-        log_path: str,
-        check_interval_seconds: float = 300.0,
-        alert_fn=None,
+        signer: HMACCheckpointSigner,
     ):
         self._verifier = verifier
-        self._log_path = log_path
-        self._interval = check_interval_seconds
-        self._alert_fn = alert_fn
-        self._last_result: Optional[ChainVerificationResult] = None
-        self._running = False
+        self._signer = signer
 
-    async def start(self) -> None:
-        self._running = True
-        asyncio.create_task(self._run())
+    def generate(self, log_path: str) -> TamperDetectionReport:
+        chain_result = self._verifier.verify(log_path)
+        latest_cp = self._signer.latest_checkpoint()
 
-    async def stop(self) -> None:
-        self._running = False
+        checkpoint_valid = None
+        checkpoint_sequence = None
+        if latest_cp:
+            checkpoint_valid = self._signer.verify_checkpoint(latest_cp)
+            checkpoint_sequence = latest_cp.sequence_at
 
-    async def _run(self) -> None:
-        while self._running:
-            result = self._verifier.verify(self._log_path)
-            self._last_result = result
-            if not result.valid and self._alert_fn:
-                self._alert_fn({
-                    "alert": "audit_log_tamper_detected",
-                    "violation_type": result.violation_type,
-                    "sequence": result.first_violation_sequence,
-                    "details": result.details,
-                    "detected_at": time.time(),
-                })
-            await asyncio.sleep(self._interval)
+        # Determine verdict
+        if not chain_result.valid:
+            verdict = "TAMPERED"
+            if "sequence gap" in (chain_result.break_reason or ""):
+                verdict = "TRUNCATED"
+        elif latest_cp and not checkpoint_valid:
+            verdict = "TAMPERED"
+        elif chain_result.entries_checked == 0:
+            verdict = "UNVERIFIABLE"
+        else:
+            verdict = "INTACT"
 
-    def last_status(self) -> dict:
-        if self._last_result is None:
-            return {"status": "not_checked"}
-        return {
-            "valid": self._last_result.valid,
-            "entries_checked": self._last_result.entries_checked,
-            "violation_type": self._last_result.violation_type,
-            "details": self._last_result.details,
-        }
+        return TamperDetectionReport(
+            generated_at=time.time(),
+            chain_valid=chain_result.valid,
+            entries_verified=chain_result.entries_checked,
+            first_broken_sequence=chain_result.first_broken_sequence,
+            break_reason=chain_result.break_reason,
+            checkpoint_valid=checkpoint_valid,
+            checkpoint_sequence=checkpoint_sequence,
+            tail_hash=chain_result.warnings[0] if chain_result.warnings else None,
+            verdict=verdict,
+        )
 ```
 
-## Solution 6: Audit Log Integrity Dashboard
+## Solution 6: Continuous Tamper Monitor
 
 ```python
+import threading
 import time
+from typing import Callable, List, Optional
 
 
-class AuditLogIntegrityDashboard:
+class ContinuousTamperMonitor:
     """
-    Surfaces chain verification status, entry counts, and
-    tamper alert history in a single operational view.
+    Runs chain verification and checkpoint creation on a schedule.
+    Emits alerts when tampering is detected. Checkpoints the chain
+    head after each successful verification pass.
     """
 
     def __init__(
         self,
-        logger: TamperEvidentAuditLogger,
-        monitor: PeriodicChainIntegrityMonitor,
+        log_path: str,
+        report_generator: TamperDetectionReportGenerator,
+        signer: HMACCheckpointSigner,
+        alert_fn: Optional[Callable[[TamperDetectionReport], None]] = None,
+        interval_seconds: float = 300.0,
     ):
-        self._logger = logger
-        self._monitor = monitor
-        self._tamper_alerts: list = []
+        self._log_path = log_path
+        self._generator = report_generator
+        self._signer = signer
+        self._alert_fn = alert_fn or self._default_alert
+        self._interval = interval_seconds
+        self._reports: List[TamperDetectionReport] = []
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
 
-    def record_alert(self, alert: dict) -> None:
-        self._tamper_alerts.append(alert)
+    @staticmethod
+    def _default_alert(report: TamperDetectionReport) -> None:
+        import json
+        print(json.dumps({
+            "TAMPER_ALERT": True,
+            "verdict": report.verdict,
+            "first_broken_sequence": report.first_broken_sequence,
+            "break_reason": report.break_reason,
+            "generated_at": report.generated_at,
+        }))
 
-    def render(self) -> dict:
-        return {
-            "generated_at": time.time(),
-            "chain_tip_hash": self._logger.current_chain_tip()[:16] + "...",
-            "total_entries_logged": self._logger._sequence,
-            "integrity_status": self._monitor.last_status(),
-            "tamper_alerts": len(self._tamper_alerts),
-            "recent_alerts": self._tamper_alerts[-5:],
-        }
+    def _run_loop(self) -> None:
+        while self._running:
+            report = self._generator.generate(self._log_path)
+            self._reports.append(report)
+            if report.verdict != "INTACT":
+                self._alert_fn(report)
+            time.sleep(self._interval)
+
+    def start(self) -> None:
+        self._running = True
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._running = False
+
+    def latest_report(self) -> Optional[TamperDetectionReport]:
+        return self._reports[-1] if self._reports else None
+
+    def tamper_event_count(self) -> int:
+        return sum(1 for r in self._reports if r.verdict != "INTACT")
 ```
 
 ## Comparison
 
-| Approach | Hash Chaining | Chain Verification | Tamper Alerts | Event Builder | Dashboard |
+| Approach | Hash Chain | Sequence Check | HMAC Checkpoint | Continuous Monitor | Compliance Report |
 |---|---|---|---|---|---|
-| TamperEvidentAuditLogger | Yes (prev_hash) | No | No | No | No |
-| AuditLogChainVerifier | No | Yes (full scan) | No | No | No |
-| AuditEventBuilder | No | No | No | Yes | No |
-| PeriodicChainIntegrityMonitor | No | Via verifier | Yes (async) | No | No |
-| AuditLogIntegrityDashboard | No | No | Via monitor | No | Yes |
+| HashChainedAuditLogWriter | Yes (per entry) | Yes | No | No | No |
+| AuditLogChainVerifier | Yes (verify) | Yes | No | No | No |
+| HMACCheckpointSigner | No | No | Yes (external key) | No | No |
+| TamperDetectionReportGenerator | Via verifier | Via verifier | Via signer | No | Yes |
+| ContinuousTamperMonitor | Via generator | Via generator | Via signer | Yes | Via generator |
 
-**Best for production**: Run `AuditLogChainVerifier.verify()` on startup to detect tampering that occurred while the agent was offline. Store the `CHAIN_GENESIS_HASH` sentinel and the hash of the first N entries in a separate, read-only location (e.g., a separate S3 bucket with Object Lock) so that even if the log file is replaced entirely, the genesis anchor can be used to detect the replacement. Run `PeriodicChainIntegrityMonitor` every 5 minutes during normal operation — a tamper detection lag of 5 minutes limits the window within which an attacker can act before the breach is discovered. Never truncate or rotate the chain log in place; instead, create a new log file with a genesis entry that includes the final hash of the rotated file as its metadata.
+**Best for production**: Store the HMAC signing key in a secrets manager or HSM — never on the same host as the log file. Run `ContinuousTamperMonitor` with `interval_seconds=300` so any modification is detected within five minutes. Ship checkpoints to an immutable append-only store (e.g., AWS S3 with Object Lock or a write-once database column) separately from the log file: even if the log is fully replaced, the checkpoint proves what the tail hash was at a previous point in time. For compliance audits, the `TamperDetectionReport.verdict == "INTACT"` plus a valid checkpoint signature is evidence that the log was not modified between the checkpoint timestamp and the audit.
