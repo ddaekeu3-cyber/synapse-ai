@@ -1,324 +1,358 @@
 ---
 title: "Agent Doesn't Implement Cross-Session Data Isolation"
-description: "Agents that share mutable state across concurrent user sessions — cached tool results, conversation summaries, embedding stores, or LRU caches keyed by content rather than session — allow one user's data to bleed into another user's context. A cached database result from user A's privileged query can be served to user B whose access level does not permit that data. Implement session-scoped data isolation that ensures every cache, buffer, and store is keyed by session ID and never shares data across sessions."
+description: "Agents that share mutable state between concurrent sessions risk data leakage: one user's retrieved documents, cached tool results, or in-progress context can bleed into another user's session through shared caches, global variables, or improperly scoped memory stores. Implement strict cross-session data isolation with per-session namespacing, scope enforcement, and leak detection."
 date: 2026-04-16
 difficulty: advanced
 category: security
 slug: agent-doesnt-implement-cross-session-data-isolation
-tags: [session-isolation, data-leakage, cache-isolation, multi-tenant-security, session-scoping, concurrent-sessions]
+tags: [data-isolation, session-isolation, multi-tenancy, data-leakage, namespace-enforcement, cache-isolation]
 symptoms:
-  - "Cached tool results from a privileged session are served to an unprivileged session"
-  - "Conversation summaries from one user appear in another user's context"
-  - "LRU cache keyed by query text returns results from another user's query"
-  - "Shared embedding store allows one session to retrieve documents loaded by another"
-  - "In-memory buffers persist across session boundaries due to object reuse"
+  - "Cached tool results from one user appear in another user's conversation"
+  - "Shared in-memory tool registry accumulates state across sessions"
+  - "Global variables modified during one session affect concurrent sessions"
+  - "No namespace separation between sessions in shared caches or stores"
+  - "Audit logs cannot attribute data access to specific sessions"
 ---
 
 ## Why This Happens
 
-Performance optimizations that share state across sessions — caches keyed by content hash, shared embedding stores, session-agnostic LRU caches — trade security isolation for efficiency. When multiple users share an agent instance, any data in a shared cache is accessible to any session that produces the same cache key, regardless of the requesting session's access level. The fix requires either session-scoping all caches (each session gets its own isolated store) or including the session's access level in the cache key so that cross-session cache hits only occur between sessions with identical permissions.
+Agents running in async servers handle multiple sessions concurrently in the same process. Shared mutable state — module-level caches, singleton tool instances, class variables, asyncio-shared queues — is invisible to session boundaries. A tool that caches its last result in a class attribute will return a previous user's data to the next caller. Isolation requires that every piece of session-specific state is keyed by session ID, that reads and writes validate the requesting session, and that session termination purges all associated state.
 
-## Solution 1: Session Identity
+## Solution 1: Session Namespace Registry
 
 ```python
+import threading
 import time
-import uuid
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import FrozenSet, Optional, Set
-
-
-class AccessLevel(str, Enum):
-    PUBLIC = "public"
-    USER = "user"
-    PREMIUM = "premium"
-    ADMIN = "admin"
+from typing import Any, Dict, Optional, Set
 
 
 @dataclass
-class SessionIdentity:
-    session_id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    user_id: str = ""
-    access_level: AccessLevel = AccessLevel.USER
-    tenant_id: str = ""
+class SessionNamespace:
+    session_id: str
+    user_id: str
     created_at: float = field(default_factory=time.time)
-    permissions: FrozenSet[str] = field(default_factory=frozenset)
+    last_accessed: float = field(default_factory=time.time)
+    _store: Dict[str, Any] = field(default_factory=dict)
 
-    def isolation_key(self) -> str:
-        """Key that two sessions must share to allow cross-session cache hits."""
-        return f"{self.tenant_id}:{self.access_level.value}:{','.join(sorted(self.permissions))}"
+    def get(self, key: str) -> Optional[Any]:
+        self.last_accessed = time.time()
+        return self._store.get(key)
 
-    def can_share_with(self, other: "SessionIdentity") -> bool:
-        """Returns True only if both sessions have identical access profiles."""
-        return self.isolation_key() == other.isolation_key()
-```
+    def set(self, key: str, value: Any) -> None:
+        self.last_accessed = time.time()
+        self._store[key] = value
 
-## Solution 2: Session-Scoped Cache
+    def delete(self, key: str) -> None:
+        self._store.pop(key, None)
 
-```python
-import time
-from threading import Lock
-from typing import Any, Dict, Optional, Tuple
+    def clear(self) -> None:
+        self._store.clear()
+
+    def keys(self) -> Set[str]:
+        return set(self._store.keys())
 
 
-class SessionScopedCache:
+class SessionNamespaceRegistry:
     """
-    Cache partitioned by session_id. Each session has its own isolated
-    namespace; cross-session lookups are impossible by design.
+    Central registry of active session namespaces.
+    All session-scoped state must be stored here, never in global scope.
     """
 
-    def __init__(
-        self,
-        max_entries_per_session: int = 200,
-        session_ttl_seconds: float = 3600.0,
-    ):
-        self._max_per_session = max_entries_per_session
-        self._session_ttl = session_ttl_seconds
-        self._data: Dict[str, Dict[str, Tuple[Any, float]]] = {}
-        self._session_created: Dict[str, float] = {}
-        self._lock = Lock()
+    def __init__(self, session_ttl_seconds: float = 3600.0):
+        self._namespaces: Dict[str, SessionNamespace] = {}
+        self._ttl = session_ttl_seconds
+        self._lock = threading.Lock()
 
-    def get(self, session_id: str, key: str) -> Optional[Any]:
+    def create(self, session_id: str, user_id: str) -> SessionNamespace:
         with self._lock:
-            session_data = self._data.get(session_id, {})
-            entry = session_data.get(key)
-            if entry is None:
-                return None
-            value, expires_at = entry
-            if time.time() > expires_at:
-                del session_data[key]
-                return None
-            return value
+            ns = SessionNamespace(session_id=session_id, user_id=user_id)
+            self._namespaces[session_id] = ns
+            return ns
 
-    def put(
-        self,
-        session_id: str,
-        key: str,
-        value: Any,
-        ttl_seconds: float = 300.0,
-    ) -> None:
+    def get(self, session_id: str) -> Optional[SessionNamespace]:
         with self._lock:
-            if session_id not in self._data:
-                self._data[session_id] = {}
-                self._session_created[session_id] = time.time()
+            return self._namespaces.get(session_id)
 
-            session_data = self._data[session_id]
-            if len(session_data) >= self._max_per_session:
-                # Evict oldest entry
-                oldest_key = min(session_data, key=lambda k: session_data[k][1])
-                del session_data[oldest_key]
-
-            session_data[key] = (value, time.time() + ttl_seconds)
-
-    def invalidate_session(self, session_id: str) -> None:
+    def destroy(self, session_id: str) -> None:
         with self._lock:
-            self._data.pop(session_id, None)
-            self._session_created.pop(session_id, None)
+            ns = self._namespaces.pop(session_id, None)
+            if ns:
+                ns.clear()
 
-    def evict_expired_sessions(self) -> int:
-        now = time.time()
+    def evict_expired(self) -> int:
+        cutoff = time.time() - self._ttl
         with self._lock:
             expired = [
-                sid for sid, created in self._session_created.items()
-                if now - created > self._session_ttl
+                sid for sid, ns in self._namespaces.items()
+                if ns.last_accessed < cutoff
             ]
             for sid in expired:
-                self._data.pop(sid, None)
-                self._session_created.pop(sid, None)
-            return len(expired)
+                self._namespaces[sid].clear()
+                del self._namespaces[sid]
+        return len(expired)
 
-    def stats(self) -> dict:
+    def active_sessions(self) -> int:
         with self._lock:
-            total_entries = sum(len(d) for d in self._data.values())
-            return {
-                "active_sessions": len(self._data),
-                "total_cached_entries": total_entries,
-            }
+            return len(self._namespaces)
 ```
 
-## Solution 3: Access-Level Keyed Shared Cache
+## Solution 2: Isolated Tool Result Cache
 
 ```python
-import hashlib
 import time
 from threading import Lock
 from typing import Any, Dict, Optional, Tuple
 
 
-class AccessKeyedSharedCache:
+class IsolatedToolResultCache:
     """
-    Shared cache that includes the session's access profile in the key.
-    Two sessions can share a cache entry only if they have identical
-    access profiles — preventing privilege elevation via cache hits.
+    Per-session tool result cache. Results are namespaced by (session_id, tool_name, args_hash)
+    and can only be read back by the same session that wrote them.
     """
 
-    def __init__(self, max_entries: int = 5000):
-        self._max = max_entries
-        self._data: Dict[str, Tuple[Any, float]] = {}
+    def __init__(self, ttl_seconds: float = 300.0, max_entries_per_session: int = 100):
+        self._cache: Dict[str, Dict[str, Tuple[Any, float]]] = {}
+        self._ttl = ttl_seconds
+        self._max_per_session = max_entries_per_session
         self._lock = Lock()
 
-    def _scoped_key(self, session: SessionIdentity, content_key: str) -> str:
-        isolation = session.isolation_key()
-        return hashlib.sha256(f"{isolation}:{content_key}".encode()).hexdigest()[:24]
+    def _args_hash(self, args: dict) -> str:
+        import hashlib, json
+        return hashlib.md5(json.dumps(args, sort_keys=True).encode()).hexdigest()[:12]
 
-    def get(self, session: SessionIdentity, content_key: str) -> Optional[Any]:
-        scoped = self._scoped_key(session, content_key)
+    def get(self, session_id: str, tool_name: str, args: dict) -> Optional[Any]:
+        key = f"{tool_name}:{self._args_hash(args)}"
+        now = time.time()
         with self._lock:
-            entry = self._data.get(scoped)
+            session_cache = self._cache.get(session_id, {})
+            entry = session_cache.get(key)
             if entry is None:
                 return None
-            value, expires_at = entry
-            if time.time() > expires_at:
-                del self._data[scoped]
+            value, stored_at = entry
+            if now - stored_at > self._ttl:
+                del session_cache[key]
                 return None
             return value
 
-    def put(
-        self,
-        session: SessionIdentity,
-        content_key: str,
-        value: Any,
-        ttl_seconds: float = 300.0,
-    ) -> None:
-        scoped = self._scoped_key(session, content_key)
+    def set(self, session_id: str, tool_name: str, args: dict, value: Any) -> None:
+        key = f"{tool_name}:{self._args_hash(args)}"
         with self._lock:
-            if len(self._data) >= self._max:
-                # Simple eviction: remove expired entries first
-                now = time.time()
-                stale = [k for k, (_, exp) in self._data.items() if exp < now]
-                for k in stale[:100]:
-                    del self._data[k]
-            self._data[scoped] = (value, time.time() + ttl_seconds)
+            if session_id not in self._cache:
+                self._cache[session_id] = {}
+            session_cache = self._cache[session_id]
+            if len(session_cache) >= self._max_per_session:
+                oldest_key = min(session_cache, key=lambda k: session_cache[k][1])
+                del session_cache[oldest_key]
+            session_cache[key] = (value, time.time())
+
+    def purge_session(self, session_id: str) -> int:
+        with self._lock:
+            session_cache = self._cache.pop(session_id, {})
+            return len(session_cache)
 ```
 
-## Solution 4: Isolation Violation Detector
+## Solution 3: Session Scope Enforcer
 
 ```python
-import time
-from typing import List
+from typing import Any, Callable
 
 
-class IsolationViolationDetector:
+class SessionScopeViolationError(Exception):
+    def __init__(self, requesting_session: str, owning_session: str, resource: str):
+        super().__init__(
+            f"Session scope violation: session '{requesting_session}' attempted to access "
+            f"resource '{resource}' owned by session '{owning_session}'"
+        )
+        self.requesting_session = requesting_session
+        self.owning_session = owning_session
+        self.resource = resource
+
+
+class SessionScopeEnforcer:
     """
-    Detects attempts to access another session's data by monitoring
-    for cache key construction patterns that bypass session scoping.
-    Flags code paths that use content-only keys without session context.
+    Validates that any data access is performed by the session that owns it.
+    Wrap all cross-session-capable storage reads with this enforcer.
     """
 
-    def __init__(self):
-        self._violations: List[dict] = []
+    def __init__(self, violation_fn: Callable[[dict], None] = None):
+        self._violation_fn = violation_fn
+        self._violation_count = 0
 
-    def record_unscoped_access(
+    def check(
         self,
-        session_id: str,
-        cache_name: str,
-        key: str,
-        context: str = "",
+        requesting_session_id: str,
+        resource_owner_session_id: str,
+        resource_name: str,
     ) -> None:
-        """
-        Call this when a cache lookup occurs without session context.
-        Use as a canary in legacy cache code paths.
-        """
-        self._violations.append({
-            "ts": time.time(),
-            "session_id": session_id,
-            "cache_name": cache_name,
-            "key_preview": key[:30],
-            "context": context,
-        })
+        if requesting_session_id != resource_owner_session_id:
+            self._violation_count += 1
+            event = {
+                "requesting": requesting_session_id,
+                "owner": resource_owner_session_id,
+                "resource": resource_name,
+            }
+            if self._violation_fn:
+                self._violation_fn(event)
+            raise SessionScopeViolationError(
+                requesting_session_id, resource_owner_session_id, resource_name
+            )
 
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        recent = [v for v in self._violations if v["ts"] >= cutoff]
-        from collections import Counter
-        by_cache = Counter(v["cache_name"] for v in recent)
-        return {
-            "window_seconds": window_seconds,
-            "unscoped_accesses": len(recent),
-            "by_cache": dict(by_cache.most_common(5)),
-        }
+    def violation_count(self) -> int:
+        return self._violation_count
 ```
 
-## Solution 5: Session Data Lifecycle Manager
+## Solution 4: Scoped Context Store
 
 ```python
-import time
-from typing import List
+from typing import Any, Dict, List, Optional
 
 
-class SessionDataLifecycleManager:
+class ScopedContextStore:
     """
-    Coordinates cleanup of all session-scoped stores when a session ends.
-    Prevents data accumulation from abandoned sessions.
-    """
-
-    def __init__(self):
-        self._stores: List[SessionScopedCache] = []
-        self._terminated_sessions: List[dict] = []
-
-    def register_store(self, store: SessionScopedCache) -> None:
-        self._stores.append(store)
-
-    def on_session_end(self, session_id: str, reason: str = "normal") -> None:
-        for store in self._stores:
-            store.invalidate_session(session_id)
-        self._terminated_sessions.append({
-            "ts": time.time(),
-            "session_id": session_id,
-            "reason": reason,
-        })
-
-    def run_gc(self) -> dict:
-        evicted = sum(store.evict_expired_sessions() for store in self._stores)
-        return {
-            "stores_cleaned": len(self._stores),
-            "sessions_evicted": evicted,
-        }
-
-    def summary(self) -> dict:
-        return {
-            "registered_stores": len(self._stores),
-            "total_terminated_sessions": len(self._terminated_sessions),
-            "store_stats": [s.stats() for s in self._stores],
-        }
-```
-
-## Solution 6: Cross-Session Isolation Dashboard
-
-```python
-import time
-
-
-class CrossSessionIsolationDashboard:
-    """
-    Combines session-scoped cache stats, violation detection,
-    and lifecycle management into a single security view.
+    Stores conversation context (messages, tool history) with strict
+    session scoping. All reads require a matching session_id.
     """
 
     def __init__(
         self,
-        lifecycle_manager: SessionDataLifecycleManager,
-        violation_detector: IsolationViolationDetector,
+        registry: SessionNamespaceRegistry,
+        enforcer: SessionScopeEnforcer,
     ):
-        self._lifecycle = lifecycle_manager
-        self._detector = violation_detector
+        self._registry = registry
+        self._enforcer = enforcer
 
-    def render(self, window_seconds: float = 3600.0) -> dict:
+    def _ns(self, session_id: str) -> SessionNamespace:
+        ns = self._registry.get(session_id)
+        if ns is None:
+            raise ValueError(f"Unknown session '{session_id}'")
+        return ns
+
+    def append_message(self, session_id: str, role: str, content: str) -> None:
+        ns = self._ns(session_id)
+        messages = ns.get("messages") or []
+        messages.append({"role": role, "content": content})
+        ns.set("messages", messages)
+
+    def get_messages(self, session_id: str) -> List[dict]:
+        ns = self._ns(session_id)
+        return list(ns.get("messages") or [])
+
+    def set_value(self, session_id: str, key: str, value: Any) -> None:
+        ns = self._ns(session_id)
+        ns.set(key, value)
+
+    def get_value(self, session_id: str, requesting_session_id: str, key: str) -> Optional[Any]:
+        ns = self._ns(session_id)
+        # Enforce that only the owning session can read
+        self._enforcer.check(requesting_session_id, session_id, key)
+        return ns.get(key)
+
+    def clear_session(self, session_id: str) -> None:
+        self._registry.destroy(session_id)
+```
+
+## Solution 5: Session Isolation Auditor
+
+```python
+import json
+import time
+from pathlib import Path
+from threading import Lock
+from typing import List
+
+
+class SessionIsolationAuditor:
+    """
+    Records all session scope violations and data access events.
+    Used to detect isolation regressions after code changes.
+    """
+
+    def __init__(self, path: str = "/tmp/session_isolation_audit.jsonl"):
+        self._path = Path(path)
+        self._lock = Lock()
+        self._violation_count = 0
+
+    def record_violation(self, event: dict) -> None:
+        self._violation_count += 1
+        record = {"ts": time.time(), "type": "scope_violation", **event}
+        with self._lock:
+            with self._path.open("a") as f:
+                f.write(json.dumps(record) + "\n")
+
+    def record_purge(self, session_id: str, entries_purged: int) -> None:
+        record = {
+            "ts": time.time(),
+            "type": "session_purge",
+            "session_id": session_id,
+            "entries_purged": entries_purged,
+        }
+        with self._lock:
+            with self._path.open("a") as f:
+                f.write(json.dumps(record) + "\n")
+
+    def recent_violations(self, window_seconds: float = 3600.0) -> List[dict]:
+        cutoff = time.time() - window_seconds
+        violations = []
+        if not self._path.exists():
+            return violations
+        with self._lock:
+            for line in self._path.read_text().splitlines():
+                try:
+                    e = json.loads(line)
+                    if e.get("type") == "scope_violation" and e["ts"] >= cutoff:
+                        violations.append(e)
+                except (json.JSONDecodeError, KeyError):
+                    continue
+        return violations
+
+    def violation_count(self) -> int:
+        return self._violation_count
+```
+
+## Solution 6: Session Isolation Dashboard
+
+```python
+import time
+
+
+class SessionIsolationDashboard:
+    """
+    Operational view of session isolation health: active sessions,
+    violation counts, and recent purge activity.
+    """
+
+    def __init__(
+        self,
+        registry: SessionNamespaceRegistry,
+        enforcer: SessionScopeEnforcer,
+        auditor: SessionIsolationAuditor,
+    ):
+        self._registry = registry
+        self._enforcer = enforcer
+        self._auditor = auditor
+
+    def render(self) -> dict:
+        recent_violations = self._auditor.recent_violations(3600.0)
         return {
             "generated_at": time.time(),
-            "lifecycle": self._lifecycle.summary(),
-            "isolation_violations": self._detector.summary(window_seconds),
+            "active_sessions": self._registry.active_sessions(),
+            "total_violations_ever": self._enforcer.violation_count(),
+            "violations_last_1h": len(recent_violations),
+            "recent_violations_sample": recent_violations[-5:],
+            "isolation_healthy": self._enforcer.violation_count() == 0,
         }
 ```
 
 ## Comparison
 
-| Approach | Session Partitioning | Access-Level Keying | Violation Detection | Lifecycle GC | Dashboard |
+| Approach | Namespace Scoping | Per-Session Cache | Scope Enforcement | Audit Logging | Dashboard |
 |---|---|---|---|---|---|
-| SessionScopedCache | Yes (hard partition) | No | No | Yes | No |
-| AccessKeyedSharedCache | No | Yes (HMAC-keyed) | No | No | No |
-| IsolationViolationDetector | No | No | Yes | No | No |
-| SessionDataLifecycleManager | Via stores | No | No | Yes | No |
-| CrossSessionIsolationDashboard | No | No | No | No | Yes |
+| SessionNamespaceRegistry | Yes (TTL + eviction) | No | No | No | No |
+| IsolatedToolResultCache | Via session_id key | Yes | No | No | No |
+| SessionScopeEnforcer | No | No | Yes (raises) | Via callback | No |
+| ScopedContextStore | Via registry | No | Via enforcer | No | No |
+| SessionIsolationAuditor | No | No | No | Yes (JSONL) | No |
+| SessionIsolationDashboard | No | No | No | No | Yes |
 
-**Best for production**: Default to `SessionScopedCache` for all tool result caches — the performance overhead of session partitioning is negligible compared to the security benefit. Use `AccessKeyedSharedCache` only for truly access-level-neutral content like public documentation or cached LLM model metadata, where sharing is safe and the access profile is provably equivalent. Register all session-scoped stores with `SessionDataLifecycleManager` and call `on_session_end()` in your session termination handler — expired sessions should not accumulate indefinitely. Run `IsolationViolationDetector` alerts in all environments: any `unscoped_accesses > 0` in production is a P1 security finding requiring immediate code review.
+**Best for production**: Zero tolerance for scope violations — any `SessionScopeViolationError` in production is a data leakage incident, not a warning. Use `SessionNamespaceRegistry.evict_expired()` on a background scheduler (every 5 minutes) to prevent memory growth from abandoned sessions. Audit every violation immediately via `SessionIsolationAuditor` and alert on-call if the count exceeds zero in production — isolation violations should be treated as P1 security incidents. Test isolation explicitly: in your integration test suite, create two concurrent sessions, write a value in session A, and assert that session B cannot read it.
