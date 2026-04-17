@@ -1,22 +1,22 @@
 ---
 title: "Agent Doesn't Implement Embedding Cache with TTL Eviction"
-description: "Agents that call the embedding API on every retrieval request pay per-call latency and cost for identical or near-identical strings that were embedded moments ago. Implement an embedding cache with TTL eviction and LRU overflow policy that returns cached vectors for repeated strings, reducing embedding API calls by 60–90% in typical conversational workloads."
+description: "Agents that recompute embeddings for the same text on every request pay embedding API costs repeatedly: a user query phrase that appears in hundreds of conversations triggers a new embedding API call each time. Implement an embedding cache with TTL-based eviction that stores computed embeddings keyed by text hash, reducing redundant API calls and latency for frequently-embedded content."
 date: 2026-04-16
 difficulty: intermediate
 category: performance
 slug: agent-doesnt-implement-embedding-cache-with-ttl-eviction
-tags: [embedding-cache, ttl-eviction, lru-cache, vector-cache, api-cost-reduction, retrieval-performance]
+tags: [embedding-cache, ttl-eviction, api-cost-reduction, vector-reuse, cache-efficiency, semantic-search]
 symptoms:
-  - "Embedding API is called for the same query string multiple times within a session"
-  - "Retrieval latency dominated by embedding call even though query text hasn't changed"
-  - "No reuse of embeddings across turns for repeated sub-queries or shared filter terms"
-  - "Embedding API cost scales linearly with turns even for repetitive conversations"
-  - "Cache hit rate is never measured — every embedding call is treated as a cold call"
+  - "Same text is embedded multiple times across different conversations"
+  - "Embedding API costs grow linearly with request volume despite repeated queries"
+  - "Embedding latency adds 100–500ms to every request even for cached-eligible content"
+  - "No distinction between stable content (documents) and ephemeral content (queries)"
+  - "Cache memory grows unboundedly — no eviction policy"
 ---
 
 ## Why This Happens
 
-Embedding a string is deterministic: the same model and input always produce the same vector. Yet most RAG implementations call the embedding API unconditionally on every retrieval request, including when the same query string appears in the same session, across repeated tool calls, or when shared filter terms are embedded separately by each tool. A TTL cache prevents stale vectors from persisting after a model version change, while LRU overflow bounding prevents unbounded memory growth.
+Embedding computation is treated as a pure function — same input always produces same output — but without caching, it pays the API cost on every call. Caching is skipped because text content appears to vary per request. In practice, a large fraction of embedded text is repeated: system prompts, document chunks, and common query phrasings recur across conversations. A cache keyed by SHA-256 of normalized text, with LRU eviction and TTL expiry, eliminates the majority of redundant embedding calls.
 
 ## Solution 1: Embedding Cache Entry
 
@@ -29,246 +29,335 @@ from typing import List, Optional
 
 @dataclass
 class EmbeddingCacheEntry:
-    cache_key: str
-    vector: List[float]
-    model: str
-    input_text: str
+    text_hash: str
+    embedding: List[float]
+    model_id: str
+    text_length: int
     created_at: float = field(default_factory=time.time)
     last_accessed_at: float = field(default_factory=time.time)
     access_count: int = 0
+    ttl_seconds: float = 86400.0   # default 24h TTL
 
-    def is_expired(self, ttl_seconds: float) -> bool:
-        return time.time() - self.created_at > ttl_seconds
+    def is_expired(self) -> bool:
+        return time.time() - self.created_at > self.ttl_seconds
 
     def touch(self) -> None:
         self.last_accessed_at = time.time()
         self.access_count += 1
 
     @staticmethod
-    def make_key(text: str, model: str) -> str:
-        payload = f"{model}:{text}"
-        return hashlib.sha256(payload.encode()).hexdigest()
+    def make_key(text: str, model_id: str) -> str:
+        normalized = " ".join(text.lower().split())
+        content = f"{model_id}:{normalized}"
+        return hashlib.sha256(content.encode()).hexdigest()
 ```
 
-## Solution 2: TTL + LRU Embedding Cache
+## Solution 2: LRU Embedding Cache
 
 ```python
 import time
 from collections import OrderedDict
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 
-class TTLLRUEmbeddingCache:
+class LRUEmbeddingCache:
     """
-    Embedding vector cache with TTL expiry and LRU eviction.
-    Thread-safe for use across concurrent retrieval calls.
+    LRU cache for embeddings with TTL eviction.
+    Entries are evicted by LRU order when capacity is exceeded,
+    and by TTL when they expire.
     """
 
     def __init__(
         self,
-        max_entries: int = 2000,
-        ttl_seconds: float = 3600.0,
+        max_entries: int = 50000,
+        default_ttl_seconds: float = 86400.0,
+        cleanup_interval_seconds: float = 300.0,
     ):
         self._max = max_entries
-        self._ttl = ttl_seconds
-        self._store: OrderedDict[str, EmbeddingCacheEntry] = OrderedDict()
+        self._default_ttl = default_ttl_seconds
+        self._cleanup_interval = cleanup_interval_seconds
+        self._cache: OrderedDict = OrderedDict()
         self._lock = Lock()
         self._hits = 0
         self._misses = 0
+        self._evictions = 0
+        self._last_cleanup = time.time()
 
-    def get(self, text: str, model: str) -> Optional[List[float]]:
-        key = EmbeddingCacheEntry.make_key(text, model)
+    def get(self, key: str) -> Optional[List[float]]:
         with self._lock:
-            entry = self._store.get(key)
-            if entry is None:
+            if key not in self._cache:
                 self._misses += 1
                 return None
-            if entry.is_expired(self._ttl):
-                del self._store[key]
+            entry: EmbeddingCacheEntry = self._cache[key]
+            if entry.is_expired():
+                del self._cache[key]
+                self._evictions += 1
                 self._misses += 1
                 return None
-            # LRU: move to end (most recently used)
-            self._store.move_to_end(key)
+            # Move to end (most recently used)
+            self._cache.move_to_end(key)
             entry.touch()
             self._hits += 1
-            return entry.vector
+            return entry.embedding
 
-    def put(self, text: str, model: str, vector: List[float]) -> None:
-        key = EmbeddingCacheEntry.make_key(text, model)
+    def put(
+        self,
+        key: str,
+        entry: EmbeddingCacheEntry,
+    ) -> None:
         with self._lock:
-            if key in self._store:
-                self._store.move_to_end(key)
-                self._store[key].vector = vector
-                self._store[key].created_at = time.time()
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                self._cache[key] = entry
                 return
-            # Evict LRU entries if at capacity
-            while len(self._store) >= self._max:
-                self._store.popitem(last=False)
-            self._store[key] = EmbeddingCacheEntry(
-                cache_key=key,
-                vector=vector,
-                model=model,
-                input_text=text[:200],
-            )
 
-    def invalidate_model(self, model: str) -> int:
-        """Remove all entries for a specific model (e.g., after model version upgrade)."""
-        with self._lock:
-            to_remove = [k for k, v in self._store.items() if v.model == model]
-            for k in to_remove:
-                del self._store[k]
-            return len(to_remove)
+            if len(self._cache) >= self._max:
+                # Evict least recently used
+                self._cache.popitem(last=False)
+                self._evictions += 1
+
+            self._cache[key] = entry
+            self._maybe_cleanup()
+
+    def _maybe_cleanup(self) -> None:
+        now = time.time()
+        if now - self._last_cleanup < self._cleanup_interval:
+            return
+        self._last_cleanup = now
+        expired = [k for k, e in self._cache.items() if e.is_expired()]
+        for k in expired:
+            del self._cache[k]
+            self._evictions += 1
+
+    def hit_rate(self) -> float:
+        total = self._hits + self._misses
+        return self._hits / total if total > 0 else 0.0
 
     def stats(self) -> dict:
         with self._lock:
-            total = self._hits + self._misses
             return {
-                "entries": len(self._store),
-                "max_entries": self._max,
-                "ttl_seconds": self._ttl,
+                "size": len(self._cache),
+                "max_size": self._max,
                 "hits": self._hits,
                 "misses": self._misses,
-                "hit_rate": round(self._hits / total, 4) if total else 0.0,
+                "evictions": self._evictions,
+                "hit_rate": round(self.hit_rate(), 4),
             }
 ```
 
-## Solution 3: Batch Embedding Cache Client
+## Solution 3: Cached Embedding Client
 
 ```python
-from typing import Any, Callable, Dict, List, Tuple
+import time
+from typing import Callable, List, Optional
 
 
-class BatchEmbeddingCacheClient:
+class CachedEmbeddingClient:
     """
-    Accepts a batch of strings for embedding.
-    Returns cached vectors for strings already in the cache,
-    calls the embed_fn only for cache misses, then stores new vectors.
+    Wraps an embedding API client with transparent caching.
+    Cache hits skip the API call entirely; misses populate the cache.
+    Supports per-content-type TTL overrides.
     """
+
+    CONTENT_TYPE_TTLS = {
+        "document": 604800.0,   # 7 days — stable content
+        "query": 3600.0,        # 1 hour — user queries change more
+        "system_prompt": 2592000.0,  # 30 days — very stable
+    }
 
     def __init__(
         self,
-        cache: TTLLRUEmbeddingCache,
-        model: str,
+        cache: LRUEmbeddingCache,
+        embed_fn: Callable[[str], List[float]],
+        model_id: str = "text-embedding-ada-002",
     ):
         self._cache = cache
-        self._model = model
+        self._embed_fn = embed_fn
+        self._model_id = model_id
+        self._api_calls = 0
+        self._total_calls = 0
 
-    async def embed_many(
+    async def embed(
         self,
-        texts: List[str],
-        embed_fn: Callable[[List[str], str], List[List[float]]],
+        text: str,
+        content_type: str = "query",
+        force_refresh: bool = False,
+    ) -> List[float]:
+        self._total_calls += 1
+        key = EmbeddingCacheEntry.make_key(text, self._model_id)
+
+        if not force_refresh:
+            cached = self._cache.get(key)
+            if cached is not None:
+                return cached
+
+        # Cache miss — call the API
+        self._api_calls += 1
+        start = time.time()
+        embedding = await self._embed_fn(text)
+        latency_ms = round((time.time() - start) * 1000, 2)
+
+        ttl = self.CONTENT_TYPE_TTLS.get(content_type, 86400.0)
+        entry = EmbeddingCacheEntry(
+            text_hash=key,
+            embedding=embedding,
+            model_id=self._model_id,
+            text_length=len(text),
+            ttl_seconds=ttl,
+        )
+        self._cache.put(key, entry)
+        return embedding
+
+    async def embed_batch(
+        self,
+        texts: list,
+        content_type: str = "document",
     ) -> List[List[float]]:
-        results: Dict[int, List[float]] = {}
-        miss_indices: List[int] = []
-        miss_texts: List[str] = []
+        results = [None] * len(texts)
+        uncached_indices = []
+        uncached_texts = []
 
         for i, text in enumerate(texts):
-            cached = self._cache.get(text, self._model)
+            key = EmbeddingCacheEntry.make_key(text, self._model_id)
+            cached = self._cache.get(key)
             if cached is not None:
                 results[i] = cached
             else:
-                miss_indices.append(i)
-                miss_texts.append(text)
+                uncached_indices.append(i)
+                uncached_texts.append(text)
 
-        if miss_texts:
-            new_vectors = await embed_fn(miss_texts, self._model)
-            for i, (idx, text) in enumerate(zip(miss_indices, miss_texts)):
-                self._cache.put(text, self._model, new_vectors[i])
-                results[idx] = new_vectors[i]
+        if uncached_texts:
+            self._api_calls += len(uncached_texts)
+            embeddings = await self._batch_embed_fn(uncached_texts)
+            ttl = self.CONTENT_TYPE_TTLS.get(content_type, 86400.0)
+            for idx, (text, emb) in zip(uncached_indices, zip(uncached_texts, embeddings)):
+                key = EmbeddingCacheEntry.make_key(text, self._model_id)
+                entry = EmbeddingCacheEntry(
+                    text_hash=key, embedding=emb,
+                    model_id=self._model_id, text_length=len(text), ttl_seconds=ttl,
+                )
+                self._cache.put(key, entry)
+                results[idx] = emb
 
-        return [results[i] for i in range(len(texts))]
+        return results
 
-    async def embed_one(
-        self,
-        text: str,
-        embed_fn: Callable[[List[str], str], List[List[float]]],
-    ) -> List[float]:
-        vectors = await self.embed_many([text], embed_fn)
-        return vectors[0]
+    async def _batch_embed_fn(self, texts: list) -> List[List[float]]:
+        import asyncio
+        return await asyncio.gather(*[self._embed_fn(t) for t in texts])
+
+    def api_call_rate(self) -> float:
+        return self._api_calls / max(self._total_calls, 1)
+
+    def stats(self) -> dict:
+        return {
+            "total_calls": self._total_calls,
+            "api_calls": self._api_calls,
+            "api_call_rate": round(self.api_call_rate(), 4),
+            "cache_stats": self._cache.stats(),
+        }
 ```
 
-## Solution 4: Session-Scoped Embedding Warmer
+## Solution 4: Cache Persistence Manager
 
 ```python
-from typing import Any, Callable, List
+import json
+import time
+from pathlib import Path
+from typing import List
 
 
-class SessionEmbeddingWarmer:
+class EmbeddingCachePersistenceManager:
     """
-    Pre-warms the embedding cache at session start with common
-    query prefixes, filter terms, and tool parameter strings
-    that are likely to be embedded repeatedly during the session.
+    Saves and loads the embedding cache to disk so warm-up
+    state survives agent restarts.
     """
 
-    def __init__(self, cache_client: BatchEmbeddingCacheClient):
-        self._client = cache_client
-        self._warmed_sessions: set = set()
+    def __init__(self, cache: LRUEmbeddingCache, path: str = "/tmp/embedding_cache.json"):
+        self._cache = cache
+        self._path = Path(path)
 
-    async def warm(
-        self,
-        session_id: str,
-        seed_texts: List[str],
-        embed_fn: Callable,
-    ) -> dict:
-        if session_id in self._warmed_sessions:
-            return {"status": "already_warmed", "session_id": session_id}
+    def save(self, max_entries: int = 10000) -> int:
+        entries = []
+        with self._cache._lock:
+            items = list(self._cache._cache.items())[-max_entries:]
+            for key, entry in items:
+                if not entry.is_expired():
+                    entries.append({
+                        "key": key,
+                        "embedding": entry.embedding[:100],  # save partial for space
+                        "model_id": entry.model_id,
+                        "text_length": entry.text_length,
+                        "created_at": entry.created_at,
+                        "ttl_seconds": entry.ttl_seconds,
+                        "access_count": entry.access_count,
+                    })
 
-        vectors = await self._client.embed_many(seed_texts, embed_fn)
-        self._warmed_sessions.add(session_id)
+        self._path.write_text(json.dumps(entries))
+        return len(entries)
 
-        return {
-            "status": "warmed",
-            "session_id": session_id,
-            "texts_embedded": len(seed_texts),
-            "cache_stats": self._client._cache.stats(),
-        }
+    def load(self) -> int:
+        if not self._path.exists():
+            return 0
+        try:
+            entries = json.loads(self._path.read_text())
+        except Exception:
+            return 0
 
-    def evict_session(self, session_id: str) -> None:
-        self._warmed_sessions.discard(session_id)
+        loaded = 0
+        for data in entries:
+            entry = EmbeddingCacheEntry(
+                text_hash=data["key"],
+                embedding=data["embedding"],
+                model_id=data["model_id"],
+                text_length=data["text_length"],
+                created_at=data["created_at"],
+                ttl_seconds=data["ttl_seconds"],
+                access_count=data.get("access_count", 0),
+            )
+            if not entry.is_expired():
+                self._cache.put(data["key"], entry)
+                loaded += 1
+        return loaded
 ```
 
-## Solution 5: Embedding Cache Cost Estimator
+## Solution 5: Cache Efficiency Analyzer
 
 ```python
 import time
 from typing import List
 
 
-class EmbeddingCacheCostEstimator:
+class EmbeddingCacheEfficiencyAnalyzer:
     """
-    Estimates API cost savings from embedding cache hits.
-    Tracks tokens saved and estimated dollar savings.
+    Analyzes cache usage patterns to recommend optimal TTL and max_entries settings.
     """
 
-    def __init__(
-        self,
-        cost_per_million_tokens: float = 0.02,
-        avg_tokens_per_text: float = 20.0,
-    ):
-        self._cost_per_million = cost_per_million_tokens
-        self._avg_tokens = avg_tokens_per_text
-        self._saved_calls: List[float] = []
-        self._recorded_at: List[float] = []
+    def __init__(self, cache: LRUEmbeddingCache, client: CachedEmbeddingClient):
+        self._cache = cache
+        self._client = client
 
-    def record_cache_hit(self, text_length_chars: int = 0) -> None:
-        tokens = max(text_length_chars / 4, self._avg_tokens)
-        self._saved_calls.append(tokens)
-        self._recorded_at.append(time.time())
+    def analyze(self) -> dict:
+        cache_stats = self._cache.stats()
+        client_stats = self._client.stats()
+        hit_rate = cache_stats["hit_rate"]
+        api_rate = client_stats["api_call_rate"]
 
-    def summary(self, window_seconds: float = 3600.0) -> dict:
-        cutoff = time.time() - window_seconds
-        recent_tokens = [
-            t for t, ts in zip(self._saved_calls, self._recorded_at)
-            if ts >= cutoff
-        ]
-        total_tokens = sum(recent_tokens)
-        cost_saved = total_tokens / 1_000_000 * self._cost_per_million
+        recommendations = []
+        if hit_rate < 0.3:
+            recommendations.append("Low hit rate (<30%) — consider increasing max_entries or TTL")
+        if cache_stats["size"] >= cache_stats["max_size"] * 0.95:
+            recommendations.append("Cache near capacity — increase max_entries to reduce evictions")
+        if cache_stats["evictions"] > cache_stats["hits"] * 0.1:
+            recommendations.append("High eviction rate — max_entries may be too small")
+
+        api_cost_saved = client_stats["total_calls"] - client_stats["api_calls"]
         return {
-            "window_seconds": window_seconds,
-            "cache_hits": len(recent_tokens),
-            "tokens_saved_est": round(total_tokens, 0),
-            "cost_saved_usd_est": round(cost_saved, 6),
+            "hit_rate": hit_rate,
+            "api_call_rate": api_rate,
+            "estimated_api_calls_saved": api_cost_saved,
+            "cache_size": cache_stats["size"],
+            "recommendations": recommendations,
         }
 ```
 
@@ -280,40 +369,37 @@ import time
 
 class EmbeddingCacheDashboard:
     """
-    Combines cache statistics, cost savings, and health indicators
-    into a single operational snapshot.
+    Combines cache stats, client stats, and efficiency analysis
+    into a single cost optimization health view.
     """
 
     def __init__(
         self,
-        cache: TTLLRUEmbeddingCache,
-        cost_estimator: EmbeddingCacheCostEstimator,
+        cache: LRUEmbeddingCache,
+        client: CachedEmbeddingClient,
+        analyzer: EmbeddingCacheEfficiencyAnalyzer,
     ):
         self._cache = cache
-        self._cost = cost_estimator
+        self._client = client
+        self._analyzer = analyzer
 
     def render(self) -> dict:
-        stats = self._cache.stats()
-        fill_pct = round(stats["entries"] / max(stats["max_entries"], 1) * 100, 1)
         return {
             "generated_at": time.time(),
-            "cache": {
-                **stats,
-                "fill_pct": fill_pct,
-                "health": "healthy" if stats["hit_rate"] > 0.5 else "low_hit_rate",
-            },
-            "cost_savings": self._cost.summary(window_seconds=3600.0),
+            "cache_stats": self._cache.stats(),
+            "client_stats": self._client.stats(),
+            "efficiency": self._analyzer.analyze(),
         }
 ```
 
 ## Comparison
 
-| Approach | TTL Expiry | LRU Eviction | Batch Miss Fill | Session Warm | Cost Tracking |
+| Approach | LRU Eviction | TTL Expiry | Batch Support | Persistence | Efficiency Analysis |
 |---|---|---|---|---|---|
-| TTLLRUEmbeddingCache | Yes | Yes | No | No | No |
-| BatchEmbeddingCacheClient | Via cache | Via cache | Yes | No | No |
-| SessionEmbeddingWarmer | No | No | Via client | Yes | No |
-| EmbeddingCacheCostEstimator | No | No | No | No | Yes |
-| EmbeddingCacheDashboard | No | No | No | No | Yes (aggregate) |
+| LRUEmbeddingCache | Yes | Yes | No | No | No |
+| CachedEmbeddingClient | Via cache | Via cache | Yes | No | No |
+| EmbeddingCachePersistenceManager | No | Via entries | No | Yes | No |
+| EmbeddingCacheEfficiencyAnalyzer | No | No | No | No | Yes |
+| EmbeddingCacheDashboard | No | No | No | No | Yes (combined) |
 
-**Best for production**: Set `ttl_seconds=3600` (1 hour) and call `invalidate_model()` as part of your model version rollout automation — stale vectors from an old embedding model silently degrade retrieval quality. Use `BatchEmbeddingCacheClient.embed_many()` for all retrieval calls: batching miss fills reduces API round trips. Call `SessionEmbeddingWarmer.warm()` at session start with a corpus of common domain terms (product names, frequent query prefixes) — a 50-string warm-up typically raises session hit rates above 70% within the first 5 turns. Alert when `hit_rate < 0.30` in production: it indicates query diversity is too high for the current cache size and `max_entries` should be increased.
+**Best for production**: Set TTL by content type — `system_prompt` embeddings can be cached for 30 days, document chunk embeddings for 7 days, and user query embeddings for 1 hour. Use SHA-256 of normalized (lowercased, whitespace-collapsed) text as the cache key — this collapses near-identical queries like "What is X?" and "what is x?" into a single entry. Set `max_entries=50,000` as a starting point: at 1536 dimensions × 4 bytes × 50,000 entries = 307MB, which is manageable for most deployments. Load the cache from disk at startup using `EmbeddingCachePersistenceManager.load()` to avoid cold-start latency on commonly-embedded content.
