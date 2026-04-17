@@ -1,322 +1,350 @@
 ---
-title: "Agent Doesn't Implement SSRF Prevention for URL-Fetching Tools"
-description: "Agents that expose URL-fetching tools without server-side request forgery (SSRF) prevention allow attackers to pivot the agent into an internal network scanner: passing 'http://169.254.169.254/latest/meta-data/' to a fetch tool retrieves cloud instance metadata, and 'http://10.0.0.1/' probes internal services. Implement SSRF prevention that validates URLs against an allowlist of safe destinations, blocks private address ranges, and validates DNS resolution results before connecting."
+title: "Agent Doesn't Implement SSRF Prevention for URL Fetching Tools"
+description: "Agents with URL fetching tools that accept user-supplied URLs without validation are vulnerable to Server-Side Request Forgery: an attacker submits a URL pointing to internal services (169.254.169.254, 10.0.0.0/8, localhost) and the agent fetches it on their behalf, exposing cloud metadata, internal APIs, and private network resources. Implement SSRF prevention that resolves hostnames, validates resolved IPs against allowlists and blocklists, and rejects private/link-local/loopback addresses before making any network request."
 date: 2026-04-16
 difficulty: advanced
 category: security
 slug: agent-doesnt-implement-ssrf-prevention-for-url-fetching-tools
-tags: [ssrf, url-validation, request-forgery, network-security, dns-rebinding, allowlist]
+tags: [ssrf, url-validation, request-forgery, network-security, ip-allowlist, internal-service-protection]
 symptoms:
-  - "Agent fetch tool accepts arbitrary URLs including internal IP ranges"
-  - "Cloud metadata endpoint reachable through agent fetch — credentials exposed"
-  - "No validation of whether resolved IP falls in private/loopback/link-local ranges"
-  - "DNS rebinding bypasses hostname-based allowlist checks"
-  - "Fetch tool makes requests to localhost or 127.0.0.1 when prompted"
+  - "Agent fetches http://169.254.169.254/latest/meta-data/ when submitted as a 'website to summarize'"
+  - "No validation of whether a submitted URL resolves to a private IP range"
+  - "Internal APIs accessible via http://10.0.0.1/admin returned when user provides that URL"
+  - "localhost and 127.0.0.1 URLs accepted and fetched without restriction"
+  - "DNS rebinding attack possible: domain resolves to public IP at validation, private IP at fetch time"
 ---
 
 ## Why This Happens
 
-URL-fetching tools expose a raw HTTP client to LLM-controlled inputs. Without SSRF prevention, any URL the LLM constructs — whether from user-supplied data or a prompt injection in a retrieved document — is passed to an HTTP library that resolves DNS and connects. Private IP ranges (RFC 1918: 10.x, 172.16-31.x, 192.168.x), loopback (127.x), and link-local (169.254.x — cloud metadata) are reachable from any server. The defense requires two layers: pre-resolution checks on the hostname/URL structure, and post-resolution checks on the actual IP address returned by DNS, since DNS rebinding can return a private IP for an allowlisted hostname after the hostname check passes.
+URL fetching tools receive user-supplied URLs and make HTTP requests on the agent's behalf. Without SSRF prevention, the agent's network access becomes the attacker's network access. The most dangerous targets are cloud metadata services (169.254.169.254 on AWS/GCP/Azure), internal APIs on RFC 1918 ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), and the loopback interface (127.0.0.1). SSRF prevention requires URL parsing (scheme and hostname extraction), DNS resolution (to catch hostnames that resolve to private IPs), and IP range validation before any network socket is opened.
 
-## Solution 1: URL Structure Validator
-
-```python
-import re
-from dataclasses import dataclass, field
-from typing import List, Optional
-from urllib.parse import urlparse
-
-
-@dataclass
-class URLValidationPolicy:
-    allowed_schemes: List[str] = field(default_factory=lambda: ["https"])
-    blocked_hostnames: List[str] = field(default_factory=lambda: [
-        "localhost", "metadata.google.internal",
-    ])
-    require_public_tld: bool = True
-    max_url_length: int = 2048
-    allow_ip_literals: bool = False   # block direct IP URLs like http://1.2.3.4/
-
-
-class URLStructureValidator:
-    """
-    Validates URL structure before DNS resolution.
-    Rejects obvious SSRF vectors: private IP literals, localhost,
-    non-https schemes, and URLs that exceed maximum length.
-    """
-
-    _PRIVATE_IP_LITERAL = re.compile(
-        r"^("
-        r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
-        r"172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|"
-        r"192\.168\.\d{1,3}\.\d{1,3}|"
-        r"127\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
-        r"169\.254\.\d{1,3}\.\d{1,3}|"
-        r"::1|"
-        r"fc[0-9a-f][0-9a-f]:|"
-        r"fd[0-9a-f][0-9a-f]:"
-        r")$",
-        re.IGNORECASE,
-    )
-
-    def __init__(self, policy: URLValidationPolicy):
-        self._policy = policy
-
-    def validate(self, url: str) -> tuple[bool, str]:
-        """Returns (is_valid, reason_if_invalid)."""
-        if len(url) > self._policy.max_url_length:
-            return False, f"URL exceeds max length ({len(url)} > {self._policy.max_url_length})"
-
-        try:
-            parsed = urlparse(url)
-        except Exception as exc:
-            return False, f"URL parse error: {exc}"
-
-        if parsed.scheme not in self._policy.allowed_schemes:
-            return False, f"Scheme '{parsed.scheme}' not in allowed list"
-
-        hostname = parsed.hostname or ""
-        if not hostname:
-            return False, "No hostname in URL"
-
-        if hostname.lower() in [h.lower() for h in self._policy.blocked_hostnames]:
-            return False, f"Hostname '{hostname}' is explicitly blocked"
-
-        if not self._policy.allow_ip_literals and self._PRIVATE_IP_LITERAL.match(hostname):
-            return False, f"Private/loopback IP literal '{hostname}' is blocked"
-
-        return True, ""
-```
-
-## Solution 2: Post-Resolution IP Validator
+## Solution 1: IP Range Blocklist
 
 ```python
 import ipaddress
-import socket
-from typing import List, Optional, Tuple
+from typing import List
 
 
-class PostResolutionIPValidator:
-    """
-    Resolves the URL hostname and validates that none of the returned
-    IP addresses fall in private, loopback, link-local, or multicast ranges.
-    Defends against DNS rebinding: the actual connect IP is always checked.
-    """
+# IANA special-purpose address ranges that must never be fetched
+BLOCKED_NETWORKS: List[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
+    # IPv4
+    ipaddress.IPv4Network("0.0.0.0/8"),           # "This" network
+    ipaddress.IPv4Network("10.0.0.0/8"),           # RFC 1918 private
+    ipaddress.IPv4Network("100.64.0.0/10"),        # Shared address space
+    ipaddress.IPv4Network("127.0.0.0/8"),          # Loopback
+    ipaddress.IPv4Network("169.254.0.0/16"),       # Link-local (metadata services)
+    ipaddress.IPv4Network("172.16.0.0/12"),        # RFC 1918 private
+    ipaddress.IPv4Network("192.0.0.0/24"),         # IETF Protocol Assignments
+    ipaddress.IPv4Network("192.168.0.0/16"),       # RFC 1918 private
+    ipaddress.IPv4Network("198.18.0.0/15"),        # Benchmarking
+    ipaddress.IPv4Network("198.51.100.0/24"),      # TEST-NET-2
+    ipaddress.IPv4Network("203.0.113.0/24"),       # TEST-NET-3
+    ipaddress.IPv4Network("224.0.0.0/4"),          # Multicast
+    ipaddress.IPv4Network("240.0.0.0/4"),          # Reserved
+    ipaddress.IPv4Network("255.255.255.255/32"),   # Broadcast
+    # IPv6
+    ipaddress.IPv6Network("::1/128"),              # Loopback
+    ipaddress.IPv6Network("fc00::/7"),             # Unique local
+    ipaddress.IPv6Network("fe80::/10"),            # Link-local
+    ipaddress.IPv6Network("ff00::/8"),             # Multicast
+]
 
-    _BLOCKED_NETWORKS = [
-        ipaddress.ip_network("10.0.0.0/8"),
-        ipaddress.ip_network("172.16.0.0/12"),
-        ipaddress.ip_network("192.168.0.0/16"),
-        ipaddress.ip_network("127.0.0.0/8"),
-        ipaddress.ip_network("169.254.0.0/16"),   # link-local / cloud metadata
-        ipaddress.ip_network("::1/128"),
-        ipaddress.ip_network("fc00::/7"),          # ULA
-        ipaddress.ip_network("fe80::/10"),         # link-local IPv6
-        ipaddress.ip_network("100.64.0.0/10"),     # CGNAT
-        ipaddress.ip_network("0.0.0.0/8"),
-        ipaddress.ip_network("255.255.255.255/32"),
-    ]
 
-    def resolve_and_validate(self, hostname: str, port: int = 443) -> Tuple[bool, str, List[str]]:
-        """
-        Returns (is_safe, reason_if_blocked, resolved_ips).
-        Raises socket.gaierror if DNS resolution fails.
-        """
-        try:
-            addrs = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
-        except socket.gaierror as exc:
-            return False, f"DNS resolution failed: {exc}", []
-
-        resolved_ips = list({addr[4][0] for addr in addrs})
-
-        for ip_str in resolved_ips:
-            try:
-                ip = ipaddress.ip_address(ip_str)
-            except ValueError:
-                return False, f"Could not parse resolved IP '{ip_str}'", resolved_ips
-
-            for network in self._BLOCKED_NETWORKS:
-                if ip in network:
-                    return False, f"Resolved IP {ip_str} is in blocked network {network}", resolved_ips
-
-        return True, "", resolved_ips
+def is_blocked_ip(ip_str: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip_str)
+        for network in BLOCKED_NETWORKS:
+            if addr in network:
+                return True
+        return False
+    except ValueError:
+        return True  # unparseable IP is blocked by default
 ```
 
-## Solution 3: Hostname Allowlist Matcher
+## Solution 2: URL Validator
 
 ```python
-import fnmatch
-from typing import List, Optional
-
-
-class HostnameAllowlistMatcher:
-    """
-    Matches a resolved hostname against an explicit allowlist of trusted domains.
-    Supports wildcard patterns (*.example.com) for subdomain allowlisting.
-    When an allowlist is configured, any hostname not on it is blocked.
-    """
-
-    def __init__(self, patterns: Optional[List[str]] = None):
-        # None means no allowlist (block nothing via this check).
-        # Empty list means block everything.
-        self._patterns = [p.lower() for p in patterns] if patterns is not None else None
-
-    def is_allowed(self, hostname: str) -> tuple[bool, str]:
-        if self._patterns is None:
-            return True, ""   # no allowlist configured
-
-        hostname = hostname.lower()
-        for pattern in self._patterns:
-            if fnmatch.fnmatch(hostname, pattern):
-                return True, ""
-
-        return False, f"Hostname '{hostname}' not in allowlist ({len(self._patterns)} patterns)"
-
-    def add_pattern(self, pattern: str) -> None:
-        if self._patterns is None:
-            self._patterns = []
-        self._patterns.append(pattern.lower())
-```
-
-## Solution 4: SSRF-Safe URL Fetcher
-
-```python
-import asyncio
+import re
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import List, Optional
 from urllib.parse import urlparse
 
 
+ALLOWED_SCHEMES = {"http", "https"}
+BLOCKED_HOSTNAME_PATTERNS = [
+    re.compile(r"^localhost$", re.IGNORECASE),
+    re.compile(r"^.*\.local$", re.IGNORECASE),
+    re.compile(r"^.*\.internal$", re.IGNORECASE),
+    re.compile(r"^0\.0\.0\.0$"),
+]
+
+
 @dataclass
-class FetchResult:
+class URLValidationResult:
     url: str
-    status_code: Optional[int]
-    body: Optional[bytes]
-    resolved_ips: list
-    blocked: bool = False
-    block_reason: str = ""
-    error: Optional[str] = None
+    valid: bool
+    reason: str = ""
+    scheme: str = ""
+    hostname: str = ""
+    port: Optional[int] = None
 
 
-class SSRFSafeURLFetcher:
+class SSRFURLValidator:
     """
-    Wraps an async HTTP client with SSRF prevention.
-    Validates URL structure, checks hostname allowlist, resolves DNS,
-    validates resolved IPs, then connects only if all checks pass.
+    Validates a URL for SSRF risk before any network operation.
+    Checks scheme, hostname patterns, and explicit IP address ranges.
+    DNS resolution is handled separately by SSRFDNSResolver.
     """
 
     def __init__(
         self,
-        structure_validator: URLStructureValidator,
-        ip_validator: PostResolutionIPValidator,
-        allowlist_matcher: HostnameAllowlistMatcher,
-        connect_timeout_seconds: float = 5.0,
-        read_timeout_seconds: float = 15.0,
-        max_response_bytes: int = 5 * 1024 * 1024,  # 5 MB
+        allowed_schemes: set = None,
+        allowed_hostname_suffix: List[str] = None,
+        max_url_length: int = 2048,
     ):
-        self._structure = structure_validator
-        self._ip_validator = ip_validator
-        self._allowlist = allowlist_matcher
-        self._connect_timeout = connect_timeout_seconds
-        self._read_timeout = read_timeout_seconds
-        self._max_bytes = max_response_bytes
+        self._schemes = allowed_schemes or ALLOWED_SCHEMES
+        self._allowed_suffixes = allowed_hostname_suffix or []
+        self._max_len = max_url_length
 
-    async def fetch(self, url: str) -> FetchResult:
-        # Step 1: Structure check
-        valid, reason = self._structure.validate(url)
-        if not valid:
-            return FetchResult(url=url, status_code=None, body=None,
-                               resolved_ips=[], blocked=True, block_reason=reason)
+    def validate(self, url: str) -> URLValidationResult:
+        if len(url) > self._max_len:
+            return URLValidationResult(url=url, valid=False, reason="url_too_long")
 
-        hostname = urlparse(url).hostname or ""
-
-        # Step 2: Allowlist check
-        allowed, reason = self._allowlist.is_allowed(hostname)
-        if not allowed:
-            return FetchResult(url=url, status_code=None, body=None,
-                               resolved_ips=[], blocked=True, block_reason=reason)
-
-        # Step 3: DNS + IP validation
         try:
-            safe, reason, resolved_ips = self._ip_validator.resolve_and_validate(hostname)
-        except Exception as exc:
-            return FetchResult(url=url, status_code=None, body=None,
-                               resolved_ips=[], blocked=True,
-                               block_reason=f"DNS error: {exc}")
+            parsed = urlparse(url)
+        except Exception:
+            return URLValidationResult(url=url, valid=False, reason="url_parse_error")
 
-        if not safe:
-            return FetchResult(url=url, status_code=None, body=None,
-                               resolved_ips=resolved_ips, blocked=True, block_reason=reason)
-
-        # Step 4: Actual fetch (inject your preferred async HTTP client here)
-        try:
-            import aiohttp
-            timeout = aiohttp.ClientTimeout(
-                connect=self._connect_timeout, total=self._read_timeout
+        if parsed.scheme not in self._schemes:
+            return URLValidationResult(
+                url=url, valid=False, reason=f"scheme_not_allowed:{parsed.scheme}"
             )
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url) as resp:
-                    body = await resp.content.read(self._max_bytes)
-                    return FetchResult(
-                        url=url,
-                        status_code=resp.status,
-                        body=body,
-                        resolved_ips=resolved_ips,
-                    )
-        except Exception as exc:
-            return FetchResult(url=url, status_code=None, body=None,
-                               resolved_ips=resolved_ips, error=str(exc))
+
+        hostname = parsed.hostname or ""
+        if not hostname:
+            return URLValidationResult(url=url, valid=False, reason="missing_hostname")
+
+        # Block explicit IP addresses in blocked ranges
+        try:
+            import ipaddress
+            ipaddress.ip_address(hostname)
+            if is_blocked_ip(hostname):
+                return URLValidationResult(
+                    url=url, valid=False, reason=f"blocked_ip:{hostname}"
+                )
+        except ValueError:
+            pass  # Not a bare IP — will be resolved later
+
+        # Block known internal hostnames
+        for pattern in BLOCKED_HOSTNAME_PATTERNS:
+            if pattern.match(hostname):
+                return URLValidationResult(
+                    url=url, valid=False, reason=f"blocked_hostname:{hostname}"
+                )
+
+        # Allowlist check (if configured)
+        if self._allowed_suffixes:
+            allowed = any(hostname.endswith(suffix) for suffix in self._allowed_suffixes)
+            if not allowed:
+                return URLValidationResult(
+                    url=url, valid=False, reason=f"hostname_not_in_allowlist:{hostname}"
+                )
+
+        return URLValidationResult(
+            url=url, valid=True, scheme=parsed.scheme,
+            hostname=hostname, port=parsed.port
+        )
 ```
 
-## Solution 5: SSRF Attempt Audit Logger
+## Solution 3: DNS Resolver with SSRF Check
+
+```python
+import socket
+from dataclasses import dataclass
+from typing import List, Optional
+
+
+@dataclass
+class DNSResolutionResult:
+    hostname: str
+    resolved_ips: List[str]
+    blocked_ips: List[str]
+    safe: bool
+    reason: str = ""
+
+
+class SSRFDNSResolver:
+    """
+    Resolves a hostname to its IP addresses and validates each
+    resolved IP against the blocked network list.
+    Catches DNS rebinding by resolving immediately before each fetch.
+    """
+
+    def resolve_and_validate(self, hostname: str) -> DNSResolutionResult:
+        try:
+            addr_infos = socket.getaddrinfo(hostname, None)
+        except socket.gaierror as exc:
+            return DNSResolutionResult(
+                hostname=hostname,
+                resolved_ips=[],
+                blocked_ips=[],
+                safe=False,
+                reason=f"dns_resolution_failed:{exc}",
+            )
+
+        resolved_ips = list({info[4][0] for info in addr_infos})
+        blocked_ips = [ip for ip in resolved_ips if is_blocked_ip(ip)]
+
+        if blocked_ips:
+            return DNSResolutionResult(
+                hostname=hostname,
+                resolved_ips=resolved_ips,
+                blocked_ips=blocked_ips,
+                safe=False,
+                reason=f"resolves_to_blocked_ip:{','.join(blocked_ips)}",
+            )
+
+        return DNSResolutionResult(
+            hostname=hostname,
+            resolved_ips=resolved_ips,
+            blocked_ips=[],
+            safe=True,
+        )
+```
+
+## Solution 4: SSRF-Safe HTTP Client
 
 ```python
 import time
-from typing import List
+from typing import Any, Callable, Optional
 
 
-class SSRFAttemptAuditLogger:
+class SSRFSafeHTTPClient:
     """
-    Records every blocked fetch attempt with the URL, block reason,
-    and resolved IPs. Surfaces attack patterns by session and domain.
+    Wraps an HTTP client with SSRF prevention applied before every request.
+    Validates the URL, resolves DNS, and re-validates the resolved IP
+    immediately before opening a socket connection.
     """
 
-    def __init__(self, max_records: int = 10000):
-        self._max = max_records
-        self._records: List[dict] = []
+    def __init__(
+        self,
+        url_validator: SSRFURLValidator,
+        dns_resolver: SSRFDNSResolver,
+        http_fn: Callable[[str], Any],   # underlying fetch function
+        max_response_bytes: int = 5 * 1024 * 1024,
+    ):
+        self._validator = url_validator
+        self._resolver = dns_resolver
+        self._http = http_fn
+        self._max_bytes = max_response_bytes
+        self._blocked_requests = 0
+        self._allowed_requests = 0
 
-    def record_block(
+    async def fetch(self, url: str) -> dict:
+        # Step 1: URL structural validation
+        url_result = self._validator.validate(url)
+        if not url_result.valid:
+            self._blocked_requests += 1
+            return {
+                "success": False,
+                "blocked": True,
+                "reason": url_result.reason,
+                "url": url,
+            }
+
+        # Step 2: DNS resolution and IP validation
+        if url_result.hostname:
+            dns_result = self._resolver.resolve_and_validate(url_result.hostname)
+            if not dns_result.safe:
+                self._blocked_requests += 1
+                return {
+                    "success": False,
+                    "blocked": True,
+                    "reason": dns_result.reason,
+                    "url": url,
+                    "resolved_ips": dns_result.resolved_ips,
+                }
+
+        # Step 3: Fetch with size limit
+        self._allowed_requests += 1
+        try:
+            response = await self._http(url)
+            return {"success": True, "blocked": False, "response": response}
+        except Exception as exc:
+            return {"success": False, "blocked": False, "error": str(exc)}
+
+    def stats(self) -> dict:
+        total = self._blocked_requests + self._allowed_requests
+        return {
+            "total_requests": total,
+            "blocked": self._blocked_requests,
+            "allowed": self._allowed_requests,
+            "block_rate": round(self._blocked_requests / max(total, 1), 4),
+        }
+```
+
+## Solution 5: SSRF Attempt Logger
+
+```python
+import json
+import time
+from pathlib import Path
+from threading import Lock
+
+
+class SSRFAttemptLogger:
+    """
+    Logs SSRF-blocked requests for security audit and attacker pattern analysis.
+    """
+
+    def __init__(self, log_path: str = "/tmp/ssrf_attempts.jsonl"):
+        self._path = Path(log_path)
+        self._lock = Lock()
+        self._total = 0
+
+    def log(
         self,
         url: str,
-        block_reason: str,
-        resolved_ips: List[str],
+        reason: str,
         session_id: str = "",
+        user_id: str = "",
+        resolved_ips: list = None,
     ) -> None:
-        from urllib.parse import urlparse
-        hostname = urlparse(url).hostname or ""
-        if len(self._records) >= self._max:
-            self._records.pop(0)
-        self._records.append({
+        record = {
             "ts": time.time(),
-            "url": url,
-            "hostname": hostname,
-            "block_reason": block_reason,
-            "resolved_ips": resolved_ips,
+            "url": url[:512],
+            "reason": reason,
             "session_id": session_id,
-        })
+            "user_id": user_id,
+            "resolved_ips": resolved_ips or [],
+        }
+        with self._lock:
+            with self._path.open("a") as f:
+                f.write(json.dumps(record) + "\n")
+            self._total += 1
 
     def summary(self, window_seconds: float = 3600.0) -> dict:
         cutoff = time.time() - window_seconds
-        recent = [r for r in self._records if r["ts"] >= cutoff]
-        hostname_counts: dict = {}
-        for r in recent:
-            hostname_counts[r["hostname"]] = hostname_counts.get(r["hostname"], 0) + 1
+        records = []
+        if not self._path.exists():
+            return {"window_seconds": window_seconds, "attempts": 0}
+        with self._lock:
+            for line in self._path.read_text().splitlines():
+                try:
+                    r = json.loads(line)
+                    if r.get("ts", 0) >= cutoff:
+                        records.append(r)
+                except json.JSONDecodeError:
+                    continue
+        by_reason: dict = {}
+        for r in records:
+            reason = r.get("reason", "unknown").split(":")[0]
+            by_reason[reason] = by_reason.get(reason, 0) + 1
         return {
             "window_seconds": window_seconds,
-            "blocked_requests": len(recent),
-            "top_hostnames": sorted(
-                hostname_counts.items(), key=lambda x: x[1], reverse=True
-            )[:10],
+            "attempts": len(records),
+            "by_reason": by_reason,
+            "unique_sessions": len({r.get("session_id") for r in records}),
         }
 ```
 
@@ -328,48 +356,34 @@ import time
 
 class SSRFPreventionDashboard:
     """
-    Combines structural validation stats, allowlist config, and
-    blocked-attempt audit into a single operational snapshot.
+    Combines HTTP client stats and audit log summary into a
+    single operational view for security monitoring.
     """
 
     def __init__(
         self,
-        structure_validator: URLStructureValidator,
-        allowlist_matcher: HostnameAllowlistMatcher,
-        audit_logger: SSRFAttemptAuditLogger,
+        client: SSRFSafeHTTPClient,
+        logger: SSRFAttemptLogger,
     ):
-        self._structure = structure_validator
-        self._allowlist = allowlist_matcher
-        self._audit = audit_logger
+        self._client = client
+        self._logger = logger
 
     def render(self) -> dict:
-        policy = self._structure._policy
         return {
             "generated_at": time.time(),
-            "policy": {
-                "allowed_schemes": policy.allowed_schemes,
-                "allow_ip_literals": policy.allow_ip_literals,
-                "blocked_hostnames": policy.blocked_hostnames,
-                "allowlist_pattern_count": (
-                    len(self._allowlist._patterns)
-                    if self._allowlist._patterns is not None
-                    else "disabled"
-                ),
-            },
-            "blocked_attempts_1h": self._audit.summary(3600.0),
-            "blocked_attempts_24h": self._audit.summary(86400.0),
+            "request_stats": self._client.stats(),
+            "ssrf_attempts_1h": self._logger.summary(3600.0),
         }
 ```
 
 ## Comparison
 
-| Approach | Structure Check | IP Range Block | DNS Rebinding Defense | Allowlist | Audit |
+| Approach | Scheme Validation | IP Blocklist | DNS Resolution Check | Request Blocking | Audit Logging |
 |---|---|---|---|---|---|
-| URLStructureValidator | Yes (scheme, literal IP) | Literal only | No | No | No |
-| PostResolutionIPValidator | No | Yes (post-DNS) | Yes | No | No |
-| HostnameAllowlistMatcher | No | No | Partial | Yes | No |
-| SSRFSafeURLFetcher | Via validator | Via IP validator | Via IP validator | Via allowlist | No |
-| SSRFAttemptAuditLogger | No | No | No | No | Yes |
-| SSRFPreventionDashboard | No | No | No | No | Yes (aggregate) |
+| SSRFURLValidator | Yes | Yes (explicit IPs) | No | Signal only | No |
+| SSRFDNSResolver | No | Yes (resolved IPs) | Yes | Signal only | No |
+| SSRFSafeHTTPClient | Via validator | Via resolver | Via resolver | Yes | No |
+| SSRFAttemptLogger | No | No | No | No | Yes (JSONL) |
+| SSRFPreventionDashboard | No | No | No | No | Yes |
 
-**Best for production**: Always perform both pre-resolution and post-resolution checks — pre-resolution catches obvious cases (IP literals, localhost), but post-resolution is the only defense against DNS rebinding where an allowlisted hostname resolves to a private IP after the hostname check. Set `allow_ip_literals=False` globally — no legitimate external URL should be a raw IP in an agent context. Use `HostnameAllowlistMatcher` with an explicit `["*.example.com", "api.partner.com"]` list rather than relying solely on blocklists, as blocklists can never enumerate all internal hostnames. Monitor `SSRFAttemptAuditLogger.summary()`: repeated blocks from the same session targeting cloud metadata ranges (169.254.x) indicate an active prompt injection attack attempting infrastructure reconnaissance.
+**Best for production**: Always resolve DNS immediately before opening the socket — not at validation time — to defeat DNS rebinding attacks where a domain resolves to a public IP during validation but a private IP during the actual fetch. Block the entire `169.254.0.0/16` range unconditionally; this covers AWS instance metadata (169.254.169.254), Azure IMDS (169.254.169.254), GCP metadata (169.254.169.254), and link-local addresses used by container orchestration. If you need to allow fetching from a curated set of domains, use `allowed_hostname_suffix` to enforce an explicit allowlist rather than relying solely on the blocklist. Log every blocked request with the resolved IPs — a sequence of requests to `*.attacker.com` domains that all resolve to 10.x.x.x addresses is a DNS rebinding campaign in progress.

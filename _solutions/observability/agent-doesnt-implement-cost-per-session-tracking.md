@@ -1,353 +1,393 @@
 ---
-title: "Agent Doesn't Implement Cost per Session Tracking"
-description: "Agents that track total LLM token usage globally cannot identify which sessions, user tiers, or task types are responsible for the majority of API spend. A single expensive session consuming 500k tokens looks identical to 50 normal sessions in aggregate metrics. Implement per-session cost tracking that attributes token usage and estimated dollar spend to individual sessions, enabling cost anomaly detection and per-user billing."
+title: "Agent Doesn't Implement Cost Per Session Tracking"
+description: "Agents that aggregate LLM costs at the account level cannot determine which sessions, users, or task types are responsible for cost spikes — making cost optimization blind and unit economics impossible to compute. Implement cost per session tracking that maps every LLM API response to its session, accumulates token costs using provider price tables, and surfaces per-user and per-task-type cost breakdowns."
 date: 2026-04-16
 difficulty: intermediate
 category: observability
 slug: agent-doesnt-implement-cost-per-session-tracking
-tags: [cost-tracking, token-usage, per-session, billing, spend-attribution, llm-cost]
+tags: [cost-tracking, token-cost, session-economics, llm-cost, unit-economics, billing-observability]
 symptoms:
-  - "Total API spend is known but no breakdown by session, user, or task type"
-  - "A runaway session consuming 10× normal tokens is invisible in aggregate metrics"
-  - "Cannot charge back costs to individual users or departments"
-  - "No alerts when a single session exceeds a spend threshold"
-  - "Cost optimization is impossible because high-cost usage patterns are unidentifiable"
+  - "Monthly LLM bill doubled but no visibility into which feature or user drove the increase"
+  - "Cannot compute cost per conversation or cost per task completion"
+  - "High-token sessions from a single power user inflate average costs invisibly"
+  - "No alerting when a session exceeds a cost budget — discovered only on the monthly invoice"
+  - "Unit economics (cost per successful task) cannot be calculated without per-session attribution"
 ---
 
 ## Why This Happens
 
-LLM API billing is per-token globally. Without session-scoped counters, every token call increments the same global counter regardless of which session, user, or task generated it. Per-session cost tracking requires attaching a session identifier to every LLM call, accumulating token counts per session, and applying per-model pricing to convert token counts to dollar estimates. The session granularity also enables anomaly detection: a session that spends 10× the P99 session cost is a signal worth investigating.
+LLM providers bill at the account level. Every API response includes token usage but the session context is not passed to the provider — it exists only in the agent. Without an interception layer that captures token counts per response and attributes them to a session, all cost data is lost at the call boundary. Cost per session requires three components: a price table keyed on model and token type (input/output/cached), a session cost accumulator that sums charges across all LLM calls within a session, and a reporting layer that computes aggregates by user, task type, and time window.
 
-## Solution 1: Model Pricing Registry
+## Solution 1: Provider Price Table
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 
 @dataclass
 class ModelPricing:
     model_id: str
-    input_cost_per_million: float    # USD per 1M input tokens
-    output_cost_per_million: float   # USD per 1M output tokens
-    cached_input_discount: float = 0.50   # fraction of input cost for cache hits
+    input_cost_per_1k_tokens: float       # USD
+    output_cost_per_1k_tokens: float      # USD
+    cache_write_cost_per_1k_tokens: float = 0.0
+    cache_read_cost_per_1k_tokens: float = 0.0
 
 
-DEFAULT_PRICING: Dict[str, ModelPricing] = {
+# Approximate pricing — update from provider docs
+DEFAULT_PRICE_TABLE: Dict[str, ModelPricing] = {
     "claude-opus-4-6": ModelPricing(
         model_id="claude-opus-4-6",
-        input_cost_per_million=15.00,
-        output_cost_per_million=75.00,
+        input_cost_per_1k_tokens=0.015,
+        output_cost_per_1k_tokens=0.075,
+        cache_write_cost_per_1k_tokens=0.01875,
+        cache_read_cost_per_1k_tokens=0.0015,
     ),
     "claude-sonnet-4-6": ModelPricing(
         model_id="claude-sonnet-4-6",
-        input_cost_per_million=3.00,
-        output_cost_per_million=15.00,
+        input_cost_per_1k_tokens=0.003,
+        output_cost_per_1k_tokens=0.015,
+        cache_write_cost_per_1k_tokens=0.00375,
+        cache_read_cost_per_1k_tokens=0.0003,
     ),
     "claude-haiku-4-5-20251001": ModelPricing(
         model_id="claude-haiku-4-5-20251001",
-        input_cost_per_million=0.80,
-        output_cost_per_million=4.00,
+        input_cost_per_1k_tokens=0.0008,
+        output_cost_per_1k_tokens=0.004,
+        cache_write_cost_per_1k_tokens=0.001,
+        cache_read_cost_per_1k_tokens=0.00008,
     ),
 }
 
 
-class ModelPricingRegistry:
-    def __init__(self, pricing: Dict[str, ModelPricing]):
-        self._pricing = pricing
+class ProviderPriceTable:
+    def __init__(self, pricing: Dict[str, ModelPricing] = None):
+        self._table = pricing or DEFAULT_PRICE_TABLE
 
-    def cost_usd(
+    def compute_cost(
         self,
         model_id: str,
         input_tokens: int,
         output_tokens: int,
-        cached_input_tokens: int = 0,
+        cache_write_tokens: int = 0,
+        cache_read_tokens: int = 0,
     ) -> float:
-        p = self._pricing.get(model_id)
-        if p is None:
-            # Unknown model — use a conservative estimate
-            p = ModelPricing(model_id=model_id,
-                             input_cost_per_million=5.0,
-                             output_cost_per_million=20.0)
-        input_cost = (input_tokens - cached_input_tokens) / 1_000_000 * p.input_cost_per_million
-        cached_cost = cached_input_tokens / 1_000_000 * p.input_cost_per_million * (1 - p.cached_input_discount)
-        output_cost = output_tokens / 1_000_000 * p.output_cost_per_million
-        return input_cost + cached_cost + output_cost
+        pricing = self._table.get(model_id)
+        if not pricing:
+            # Unknown model — use a conservative default
+            pricing = ModelPricing(
+                model_id=model_id,
+                input_cost_per_1k_tokens=0.01,
+                output_cost_per_1k_tokens=0.03,
+            )
+        cost = (
+            input_tokens * pricing.input_cost_per_1k_tokens / 1000
+            + output_tokens * pricing.output_cost_per_1k_tokens / 1000
+            + cache_write_tokens * pricing.cache_write_cost_per_1k_tokens / 1000
+            + cache_read_tokens * pricing.cache_read_cost_per_1k_tokens / 1000
+        )
+        return round(cost, 8)
 ```
 
-## Solution 2: Per-Session Cost Accumulator
+## Solution 2: LLM Call Cost Record
 
 ```python
 import time
 from dataclasses import dataclass, field
-from threading import Lock
-from typing import Dict, Optional
-
-
-@dataclass
-class SessionCostRecord:
-    session_id: str
-    user_id: str = ""
-    task_type: str = ""
-    total_input_tokens: int = 0
-    total_output_tokens: int = 0
-    total_cached_tokens: int = 0
-    total_cost_usd: float = 0.0
-    llm_call_count: int = 0
-    started_at: float = field(default_factory=time.time)
-    last_updated_at: float = field(default_factory=time.time)
-
-    def cost_per_call(self) -> float:
-        if self.llm_call_count == 0:
-            return 0.0
-        return round(self.total_cost_usd / self.llm_call_count, 6)
-
-
-class PerSessionCostAccumulator:
-    """
-    Accumulates token usage and cost per session.
-    Thread-safe — designed for concurrent LLM calls within a session.
-    """
-
-    def __init__(self, pricing_registry: ModelPricingRegistry):
-        self._pricing = pricing_registry
-        self._sessions: Dict[str, SessionCostRecord] = {}
-        self._lock = Lock()
-
-    def record_call(
-        self,
-        session_id: str,
-        model_id: str,
-        input_tokens: int,
-        output_tokens: int,
-        cached_input_tokens: int = 0,
-        user_id: str = "",
-        task_type: str = "",
-    ) -> float:
-        cost = self._pricing.cost_usd(model_id, input_tokens, output_tokens, cached_input_tokens)
-        with self._lock:
-            if session_id not in self._sessions:
-                self._sessions[session_id] = SessionCostRecord(
-                    session_id=session_id,
-                    user_id=user_id,
-                    task_type=task_type,
-                )
-            rec = self._sessions[session_id]
-            rec.total_input_tokens += input_tokens
-            rec.total_output_tokens += output_tokens
-            rec.total_cached_tokens += cached_input_tokens
-            rec.total_cost_usd += cost
-            rec.llm_call_count += 1
-            rec.last_updated_at = time.time()
-        return cost
-
-    def get(self, session_id: str) -> Optional[SessionCostRecord]:
-        with self._lock:
-            return self._sessions.get(session_id)
-
-    def all_sessions(self) -> list:
-        with self._lock:
-            return list(self._sessions.values())
-
-    def evict_old(self, max_age_seconds: float = 86400.0) -> int:
-        cutoff = time.time() - max_age_seconds
-        with self._lock:
-            stale = [sid for sid, r in self._sessions.items()
-                     if r.last_updated_at < cutoff]
-            for sid in stale:
-                del self._sessions[sid]
-            return len(stale)
-```
-
-## Solution 3: Session Cost Anomaly Detector
-
-```python
-import time
-from typing import List, Optional
-
-
-class SessionCostAnomalyDetector:
-    """
-    Detects sessions with anomalously high costs using a rolling
-    baseline of recent session costs. Flags sessions exceeding
-    the baseline by a configurable multiple.
-    """
-
-    def __init__(
-        self,
-        accumulator: PerSessionCostAccumulator,
-        anomaly_multiplier: float = 5.0,
-        min_baseline_sessions: int = 20,
-    ):
-        self._acc = accumulator
-        self._multiplier = anomaly_multiplier
-        self._min_baseline = min_baseline_sessions
-
-    def _baseline_p95(self, sessions: List[SessionCostRecord]) -> Optional[float]:
-        if len(sessions) < self._min_baseline:
-            return None
-        costs = sorted(s.total_cost_usd for s in sessions)
-        idx = min(int(len(costs) * 0.95), len(costs) - 1)
-        return costs[idx]
-
-    def scan(self, window_seconds: float = 3600.0) -> List[dict]:
-        cutoff = time.time() - window_seconds
-        sessions = [s for s in self._acc.all_sessions()
-                    if s.last_updated_at >= cutoff]
-        p95 = self._baseline_p95(sessions)
-        if p95 is None or p95 == 0:
-            return []
-
-        threshold = p95 * self._multiplier
-        anomalies = []
-        for s in sessions:
-            if s.total_cost_usd > threshold:
-                anomalies.append({
-                    "session_id": s.session_id,
-                    "user_id": s.user_id,
-                    "cost_usd": round(s.total_cost_usd, 6),
-                    "threshold_usd": round(threshold, 6),
-                    "multiple": round(s.total_cost_usd / p95, 2),
-                    "llm_calls": s.llm_call_count,
-                })
-        return sorted(anomalies, key=lambda a: -a["cost_usd"])
-```
-
-## Solution 4: Cost Budget Enforcer
-
-```python
 from typing import Optional
 
 
-class SessionCostBudgetEnforcer:
+@dataclass
+class LLMCallCostRecord:
+    session_id: str
+    user_id: str
+    model_id: str
+    task_type: str           # e.g. "chat", "tool_use", "summarization"
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    cost_usd: float
+    call_id: str = ""
+    recorded_at: float = field(default_factory=time.time)
+
+    def __post_init__(self) -> None:
+        if not self.call_id:
+            import hashlib
+            self.call_id = hashlib.sha256(
+                f"{self.session_id}:{self.recorded_at}".encode()
+            ).hexdigest()[:12]
+```
+
+## Solution 3: Session Cost Accumulator
+
+```python
+import time
+from collections import defaultdict
+from dataclasses import dataclass, field
+from threading import Lock
+from typing import Dict, List, Optional
+
+
+@dataclass
+class SessionCostSummary:
+    session_id: str
+    user_id: str
+    total_cost_usd: float
+    total_input_tokens: int
+    total_output_tokens: int
+    call_count: int
+    started_at: float
+    last_call_at: float
+    task_types: Dict[str, float]   # task_type -> cost
+
+
+class SessionCostAccumulator:
     """
-    Enforces a per-session cost budget. Rejects LLM calls once
-    a session has exceeded its budget, preventing runaway spend.
+    Accumulates LLM call costs per session.
+    Supports per-session, per-user, and per-task-type queries.
+    """
+
+    def __init__(self, max_sessions: int = 10000):
+        self._max = max_sessions
+        self._records: Dict[str, List[LLMCallCostRecord]] = defaultdict(list)
+        self._lock = Lock()
+
+    def record(self, cost_record: LLMCallCostRecord) -> None:
+        with self._lock:
+            if (
+                len(self._records) >= self._max
+                and cost_record.session_id not in self._records
+            ):
+                # Evict oldest session
+                oldest = min(
+                    self._records,
+                    key=lambda sid: self._records[sid][-1].recorded_at
+                )
+                del self._records[oldest]
+            self._records[cost_record.session_id].append(cost_record)
+
+    def session_summary(self, session_id: str) -> Optional[SessionCostSummary]:
+        with self._lock:
+            records = self._records.get(session_id, [])
+        if not records:
+            return None
+        task_costs: Dict[str, float] = defaultdict(float)
+        for r in records:
+            task_costs[r.task_type] += r.cost_usd
+        return SessionCostSummary(
+            session_id=session_id,
+            user_id=records[0].user_id,
+            total_cost_usd=round(sum(r.cost_usd for r in records), 8),
+            total_input_tokens=sum(r.input_tokens for r in records),
+            total_output_tokens=sum(r.output_tokens for r in records),
+            call_count=len(records),
+            started_at=records[0].recorded_at,
+            last_call_at=records[-1].recorded_at,
+            task_types=dict(task_costs),
+        )
+
+    def user_total(self, user_id: str, window_seconds: float = 86400.0) -> float:
+        cutoff = time.time() - window_seconds
+        with self._lock:
+            total = 0.0
+            for records in self._records.values():
+                for r in records:
+                    if r.user_id == user_id and r.recorded_at >= cutoff:
+                        total += r.cost_usd
+        return round(total, 6)
+
+    def top_sessions_by_cost(self, n: int = 10) -> List[SessionCostSummary]:
+        with self._lock:
+            session_ids = list(self._records.keys())
+        summaries = [self.session_summary(sid) for sid in session_ids]
+        summaries = [s for s in summaries if s is not None]
+        summaries.sort(key=lambda s: s.total_cost_usd, reverse=True)
+        return summaries[:n]
+```
+
+## Solution 4: Cost Budget Alert Manager
+
+```python
+import time
+from typing import Callable, Dict, Optional
+
+
+class SessionCostBudgetAlertManager:
+    """
+    Monitors session costs against per-session and per-user budgets.
+    Fires an alert callback when a budget is exceeded.
     """
 
     def __init__(
         self,
-        accumulator: PerSessionCostAccumulator,
-        default_budget_usd: float = 1.00,
-        tier_budgets: Optional[dict] = None,
+        session_budget_usd: Optional[float] = None,
+        user_daily_budget_usd: Optional[float] = None,
+        alert_fn: Optional[Callable[[dict], None]] = None,
     ):
-        self._acc = accumulator
-        self._default = default_budget_usd
-        self._tiers = tier_budgets or {}
+        self._session_budget = session_budget_usd
+        self._user_daily_budget = user_daily_budget_usd
+        self._alert = alert_fn or self._default_alert
+        self._alerted_sessions: Dict[str, float] = {}
+        self._alerted_users: Dict[str, float] = {}
 
-    def _budget_for(self, user_id: str) -> float:
-        return self._tiers.get(user_id, self._default)
+    @staticmethod
+    def _default_alert(event: dict) -> None:
+        import json
+        print(json.dumps({"event": "cost_budget_exceeded", **event}))
 
-    def check(self, session_id: str, user_id: str = "") -> dict:
-        rec = self._acc.get(session_id)
-        budget = self._budget_for(user_id)
-        spent = rec.total_cost_usd if rec else 0.0
-        remaining = max(0.0, budget - spent)
-        return {
-            "allowed": spent < budget,
-            "spent_usd": round(spent, 6),
-            "budget_usd": budget,
-            "remaining_usd": round(remaining, 6),
-            "pct_used": round(spent / budget * 100, 1) if budget else 0.0,
-        }
+    def check_session(
+        self,
+        session_summary: SessionCostSummary,
+    ) -> bool:
+        if self._session_budget is None:
+            return False
+        if session_summary.total_cost_usd < self._session_budget:
+            return False
+        sid = session_summary.session_id
+        if sid in self._alerted_sessions:
+            return False
+        self._alerted_sessions[sid] = time.time()
+        self._alert({
+            "type": "session_budget",
+            "session_id": sid,
+            "user_id": session_summary.user_id,
+            "cost_usd": session_summary.total_cost_usd,
+            "budget_usd": self._session_budget,
+        })
+        return True
+
+    def check_user(self, user_id: str, total_cost_usd: float) -> bool:
+        if self._user_daily_budget is None:
+            return False
+        if total_cost_usd < self._user_daily_budget:
+            return False
+        key = f"{user_id}:{time.strftime('%Y-%m-%d')}"
+        if key in self._alerted_users:
+            return False
+        self._alerted_users[key] = time.time()
+        self._alert({
+            "type": "user_daily_budget",
+            "user_id": user_id,
+            "cost_usd": total_cost_usd,
+            "budget_usd": self._user_daily_budget,
+        })
+        return True
 ```
 
-## Solution 5: Cost Attribution Reporter
+## Solution 5: Cost Interceptor
 
 ```python
 import time
-from typing import List
+from typing import Any, Callable, Optional
 
 
-class CostAttributionReporter:
+class LLMCostInterceptor:
     """
-    Groups session costs by user_id and task_type for chargebacks
-    and cost allocation reports.
+    Wraps LLM API calls to extract token usage and compute cost
+    for every response, attributing it to the current session.
     """
 
-    def __init__(self, accumulator: PerSessionCostAccumulator):
-        self._acc = accumulator
+    def __init__(
+        self,
+        price_table: ProviderPriceTable,
+        accumulator: SessionCostAccumulator,
+        alert_manager: Optional[SessionCostBudgetAlertManager] = None,
+    ):
+        self._prices = price_table
+        self._accumulator = accumulator
+        self._alerts = alert_manager
 
-    def by_user(self, window_seconds: float = 86400.0) -> List[dict]:
-        cutoff = time.time() - window_seconds
-        sessions = [s for s in self._acc.all_sessions()
-                    if s.last_updated_at >= cutoff]
-        user_costs: dict = {}
-        for s in sessions:
-            uid = s.user_id or "anonymous"
-            if uid not in user_costs:
-                user_costs[uid] = {"user_id": uid, "sessions": 0,
-                                   "cost_usd": 0.0, "total_tokens": 0}
-            user_costs[uid]["sessions"] += 1
-            user_costs[uid]["cost_usd"] += s.total_cost_usd
-            user_costs[uid]["total_tokens"] += s.total_input_tokens + s.total_output_tokens
-        result = list(user_costs.values())
-        for r in result:
-            r["cost_usd"] = round(r["cost_usd"], 6)
-        return sorted(result, key=lambda r: -r["cost_usd"])
+    async def call(
+        self,
+        llm_fn: Callable,
+        session_id: str,
+        user_id: str,
+        model_id: str,
+        task_type: str = "chat",
+        **kwargs: Any,
+    ) -> Any:
+        response = await llm_fn(**kwargs)
 
-    def by_task_type(self, window_seconds: float = 86400.0) -> List[dict]:
-        cutoff = time.time() - window_seconds
-        sessions = [s for s in self._acc.all_sessions()
-                    if s.last_updated_at >= cutoff]
-        task_costs: dict = {}
-        for s in sessions:
-            tt = s.task_type or "unknown"
-            if tt not in task_costs:
-                task_costs[tt] = {"task_type": tt, "sessions": 0, "cost_usd": 0.0}
-            task_costs[tt]["sessions"] += 1
-            task_costs[tt]["cost_usd"] += s.total_cost_usd
-        result = list(task_costs.values())
-        for r in result:
-            r["cost_usd"] = round(r["cost_usd"], 6)
-        return sorted(result, key=lambda r: -r["cost_usd"])
+        # Extract usage — works for Anthropic SDK response format
+        usage = getattr(response, "usage", None)
+        if usage:
+            input_tokens = getattr(usage, "input_tokens", 0)
+            output_tokens = getattr(usage, "output_tokens", 0)
+            cache_write = getattr(usage, "cache_creation_input_tokens", 0)
+            cache_read = getattr(usage, "cache_read_input_tokens", 0)
+            cost = self._prices.compute_cost(
+                model_id, input_tokens, output_tokens, cache_write, cache_read
+            )
+            record = LLMCallCostRecord(
+                session_id=session_id,
+                user_id=user_id,
+                model_id=model_id,
+                task_type=task_type,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cache_write_tokens=cache_write,
+                cache_read_tokens=cache_read,
+                cost_usd=cost,
+            )
+            self._accumulator.record(record)
+
+            if self._alerts:
+                summary = self._accumulator.session_summary(session_id)
+                if summary:
+                    self._alerts.check_session(summary)
+                user_total = self._accumulator.user_total(user_id)
+                self._alerts.check_user(user_id, user_total)
+
+        return response
 ```
 
-## Solution 6: Cost per Session Dashboard
+## Solution 6: Cost Per Session Dashboard
 
 ```python
 import time
 
 
 class CostPerSessionDashboard:
-    """Combines spend summary, anomalies, and attribution into one report."""
+    """
+    Renders a cost breakdown report for operational and finance visibility.
+    """
 
     def __init__(
         self,
-        accumulator: PerSessionCostAccumulator,
-        anomaly_detector: SessionCostAnomalyDetector,
-        reporter: CostAttributionReporter,
+        accumulator: SessionCostAccumulator,
+        price_table: ProviderPriceTable,
     ):
-        self._acc = accumulator
-        self._anomaly = anomaly_detector
-        self._reporter = reporter
+        self._accumulator = accumulator
+        self._prices = price_table
 
-    def render(self, window_seconds: float = 86400.0) -> dict:
-        sessions = self._acc.all_sessions()
-        total_cost = sum(s.total_cost_usd for s in sessions)
-        avg_cost = total_cost / max(len(sessions), 1)
-        anomalies = self._anomaly.scan(window_seconds)
-
+    def render(self) -> dict:
+        top_sessions = self._accumulator.top_sessions_by_cost(10)
         return {
             "generated_at": time.time(),
-            "window_seconds": window_seconds,
-            "total_sessions": len(sessions),
-            "total_cost_usd": round(total_cost, 4),
-            "avg_cost_per_session_usd": round(avg_cost, 6),
-            "anomalies": anomalies,
-            "top_users": self._reporter.by_user(window_seconds)[:10],
-            "by_task_type": self._reporter.by_task_type(window_seconds),
+            "top_sessions_by_cost": [
+                {
+                    "session_id": s.session_id,
+                    "user_id": s.user_id,
+                    "total_cost_usd": s.total_cost_usd,
+                    "call_count": s.call_count,
+                    "input_tokens": s.total_input_tokens,
+                    "output_tokens": s.total_output_tokens,
+                    "task_types": s.task_types,
+                }
+                for s in top_sessions
+            ],
         }
 ```
 
 ## Comparison
 
-| Approach | Per-Session Accumulation | Dollar Estimation | Anomaly Detection | Budget Enforcement | Attribution |
+| Approach | Price Computation | Session Attribution | Budget Alerting | Usage Interception | Dashboard |
 |---|---|---|---|---|---|
-| ModelPricingRegistry | No | Yes (token→USD) | No | No | No |
-| PerSessionCostAccumulator | Yes | Via pricing | No | No | No |
-| SessionCostAnomalyDetector | Via accumulator | No | Yes (P95 baseline) | No | No |
-| SessionCostBudgetEnforcer | Via accumulator | No | No | Yes | No |
-| CostAttributionReporter | Via accumulator | No | No | No | Yes (user+task) |
+| ProviderPriceTable | Yes (multi-model) | No | No | No | No |
+| SessionCostAccumulator | No | Yes (per-session) | No | No | No |
+| SessionCostBudgetAlertManager | No | No | Yes (session+user) | No | No |
+| LLMCostInterceptor | Via price table | Via accumulator | Via alert manager | Yes | No |
+| CostPerSessionDashboard | No | No | No | No | Yes |
 
-**Best for production**: Attach `session_id` and `user_id` to every LLM call at the middleware layer — retrofitting this later requires touching every call site. Keep pricing in `ModelPricingRegistry` as a configurable dict rather than hardcoded constants; model prices change frequently. Set session budget thresholds by user tier (`tier_budgets={"free": 0.10, "pro": 2.00}`) and enforce at the LLM client layer before the call — rejecting after the fact is too late. Alert when `anomalies` is non-empty: a session at 5× P95 cost almost always indicates a prompt loop, an unintended long-context call, or an abuse pattern.
+**Best for production**: Update the price table from provider documentation on every model release — costs change frequently and stale prices produce misleading unit economics. Set `session_budget_usd` to 10x the expected average session cost as an anomaly alert threshold rather than a hard cap — you want to investigate outlier sessions, not block legitimate heavy users. Track `task_type` per call so that `top_sessions_by_cost` can show whether a high-cost session was caused by many tool calls, long summaries, or a single runaway agentic loop. Export `CostPerSessionDashboard.render()` to a finance dashboard weekly — the `task_types` breakdown reveals which agent capabilities drive the most cost and where optimization effort is best spent.
