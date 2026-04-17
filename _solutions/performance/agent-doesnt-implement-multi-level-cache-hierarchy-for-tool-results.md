@@ -1,22 +1,22 @@
 ---
 title: "Agent Doesn't Implement Multi-Level Cache Hierarchy for Tool Results"
-description: "Agents that use a single flat cache for all tool results apply the same eviction policy and TTL to both hot frequent queries and cold rare ones. A frequently-used database lookup should live in a fast in-process L1 cache; a rarely-used external API result should live in a slower shared L2 cache. Implement a multi-level cache hierarchy with separate policies per level that maximizes hit rate for hot data while managing memory and network costs for cold data."
+description: "Agents that use a single flat cache for tool results miss optimization opportunities: an in-process memory cache handles microsecond-latency hits, a shared Redis layer handles multi-instance deduplication, and a persistent tier handles expensive results that survive restarts. Implement a multi-level cache hierarchy that checks L1 (in-process), then L2 (shared), then L3 (persistent) before executing the tool, promotes hits to higher levels, and provides per-level metrics."
 date: 2026-04-16
-difficulty: intermediate
+difficulty: advanced
 category: performance
 slug: agent-doesnt-implement-multi-level-cache-hierarchy-for-tool-results
-tags: [cache-hierarchy, l1-l2-cache, cache-tiering, eviction-policy, cache-hit-rate, tool-result-caching]
+tags: [cache-hierarchy, multi-level-cache, l1-l2-l3, tool-result-caching, cache-promotion, redis-cache]
 symptoms:
-  - "Frequently-accessed tool results evicted by single large LRU cache"
-  - "Rarely-used results take the same fast cache slots as hot data"
-  - "No differentiation between in-process and shared/remote cache layers"
-  - "Cache TTL is the same for stable data and volatile data"
-  - "Cache hit rate is low because eviction policy is not tuned to access patterns"
+  - "Each agent instance maintains its own independent cache — identical tool calls across instances are not deduplicated"
+  - "Expensive tool results are lost on restart because the cache is only in memory"
+  - "A single flat cache has one TTL policy applied to all results regardless of cost or volatility"
+  - "No per-level cache hit metrics — impossible to know how effective each cache tier is"
+  - "Cache misses always go directly to the tool — no intermediate shared layer reduces tool load"
 ---
 
 ## Why This Happens
 
-A single-level LRU cache treats all entries equally — a result accessed once an hour competes for slots with a result accessed a thousand times per minute. Multi-level caching resolves this by separating concerns: L1 (in-process, bounded memory, LRU) holds the hottest data with the fastest access; L2 (process-local with larger capacity or shared Redis) holds warm data at slightly higher access cost; L3 (distributed or persistent) holds cold data that shouldn't be recomputed but doesn't need to be fast. Promotions and demotions between levels happen automatically based on access frequency.
+Single-level caches are the simplest implementation: store results in a dict, return on hit, call the tool on miss. This works for a single instance with moderate traffic but breaks down in three scenarios: multi-instance deployments (each instance has its own cold cache), restarts (in-memory cache is lost), and expensive tool calls (the result should survive far longer than standard TTL). A cache hierarchy solves all three: L1 (in-process LRU) handles hot keys with zero network latency; L2 (shared Redis or Memcached) deduplicates across instances; L3 (persistent storage) preserves expensive results across restarts. Results flow down on miss and up on hit (promotion).
 
 ## Solution 1: Cache Entry
 
@@ -28,62 +28,57 @@ from typing import Any, Optional
 
 
 class CacheLevel(str, Enum):
-    L1 = "l1"   # in-process, very small, very fast
-    L2 = "l2"   # in-process, medium, LRU
-    L3 = "l3"   # shared or persistent, large, slower
+    L1 = "l1"    # in-process memory
+    L2 = "l2"    # shared in-memory (Redis/Memcached)
+    L3 = "l3"    # persistent (disk/database)
+    MISS = "miss"
 
 
 @dataclass
 class CacheEntry:
     key: str
     value: Any
-    level: CacheLevel
+    tool_name: str
     created_at: float = field(default_factory=time.time)
-    last_accessed_at: float = field(default_factory=time.time)
+    ttl_seconds: float = 300.0
     access_count: int = 0
-    ttl_seconds: Optional[float] = None
+    source_level: CacheLevel = CacheLevel.MISS
 
     def is_expired(self) -> bool:
-        if self.ttl_seconds is None:
-            return False
         return time.time() - self.created_at > self.ttl_seconds
 
     def touch(self) -> None:
-        self.last_accessed_at = time.time()
         self.access_count += 1
 
+    @property
     def age_seconds(self) -> float:
         return round(time.time() - self.created_at, 1)
+
+    @property
+    def remaining_ttl(self) -> float:
+        return max(0.0, self.ttl_seconds - (time.time() - self.created_at))
 ```
 
-## Solution 2: LRU Cache Layer
+## Solution 2: L1 In-Process Cache
 
 ```python
 from collections import OrderedDict
 from threading import Lock
-from typing import Any, Optional
+from typing import Optional
 
 
-class LRUCacheLayer:
+class L1InProcessCache:
     """
-    Thread-safe LRU cache for a single cache level.
-    Evicts least-recently-used entries when capacity is reached.
+    LRU in-process cache with per-entry TTL.
+    Microsecond latency; lost on process restart.
     """
 
-    def __init__(
-        self,
-        level: CacheLevel,
-        max_entries: int,
-        default_ttl_seconds: Optional[float] = None,
-    ):
-        self._level = level
+    def __init__(self, max_entries: int = 500):
         self._max = max_entries
-        self._default_ttl = default_ttl_seconds
         self._store: OrderedDict[str, CacheEntry] = OrderedDict()
         self._lock = Lock()
         self._hits = 0
         self._misses = 0
-        self._evictions = 0
 
     def get(self, key: str) -> Optional[CacheEntry]:
         with self._lock:
@@ -95,225 +90,287 @@ class LRUCacheLayer:
                 del self._store[key]
                 self._misses += 1
                 return None
-            # Move to end (most recently used)
             self._store.move_to_end(key)
             entry.touch()
             self._hits += 1
             return entry
 
-    def put(
-        self,
-        key: str,
-        value: Any,
-        ttl_seconds: Optional[float] = None,
-    ) -> CacheEntry:
+    def put(self, entry: CacheEntry) -> None:
         with self._lock:
-            if key in self._store:
-                self._store.move_to_end(key)
-                entry = self._store[key]
-                entry.value = value
-                entry.created_at = time.time()
-                entry.ttl_seconds = ttl_seconds or self._default_ttl
-                return entry
-
-            while len(self._store) >= self._max:
-                # Evict least recently used (first item)
+            if len(self._store) >= self._max and entry.key not in self._store:
                 self._store.popitem(last=False)
-                self._evictions += 1
-
-            entry = CacheEntry(
-                key=key,
-                value=value,
-                level=self._level,
-                ttl_seconds=ttl_seconds or self._default_ttl,
-            )
-            self._store[key] = entry
-            return entry
-
-    def invalidate(self, key: str) -> None:
-        with self._lock:
-            self._store.pop(key, None)
+            self._store[entry.key] = entry
+            self._store.move_to_end(entry.key)
 
     def stats(self) -> dict:
         with self._lock:
-            size = len(self._store)
-        total = self._hits + self._misses
-        return {
-            "level": self._level.value,
-            "size": size,
-            "max": self._max,
-            "hits": self._hits,
-            "misses": self._misses,
-            "evictions": self._evictions,
-            "hit_rate": round(self._hits / max(total, 1), 4),
-        }
+            total = self._hits + self._misses
+            return {
+                "level": "l1",
+                "entries": len(self._store),
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_rate": round(self._hits / max(total, 1), 4),
+            }
 ```
 
-## Solution 3: Multi-Level Cache
+## Solution 3: L2 Shared Cache (Redis Adapter)
 
 ```python
-from typing import Any, Optional
+import json
+import time
+from typing import Any, Callable, Optional
 
 
-class MultiLevelCache:
+class L2SharedCache:
     """
-    Three-level cache hierarchy. Gets check L1 first, then L2, then L3.
-    On a miss at Lk but hit at Lk+1, promotes the entry to Lk.
+    Shared cache using Redis (or any key-value store with TTL support).
+    Provides cross-instance deduplication. Serializes values as JSON.
+    Pass a no-op client for single-instance deployments.
     """
 
     def __init__(
         self,
-        l1: LRUCacheLayer,
-        l2: LRUCacheLayer,
-        l3: Optional[LRUCacheLayer] = None,
-        l1_promotion_threshold: int = 3,  # access count before L2 -> L1 promotion
+        redis_client: Any,              # redis.Redis or compatible
+        key_prefix: str = "agent:tool:",
+    ):
+        self._redis = redis_client
+        self._prefix = key_prefix
+        self._hits = 0
+        self._misses = 0
+
+    def _full_key(self, key: str) -> str:
+        return f"{self._prefix}{key}"
+
+    def get(self, key: str) -> Optional[CacheEntry]:
+        try:
+            raw = self._redis.get(self._full_key(key))
+            if raw is None:
+                self._misses += 1
+                return None
+            data = json.loads(raw)
+            entry = CacheEntry(
+                key=key,
+                value=data["value"],
+                tool_name=data["tool_name"],
+                created_at=data["created_at"],
+                ttl_seconds=data["ttl_seconds"],
+                access_count=data.get("access_count", 0),
+                source_level=CacheLevel.L2,
+            )
+            if entry.is_expired():
+                self._redis.delete(self._full_key(key))
+                self._misses += 1
+                return None
+            entry.touch()
+            self._hits += 1
+            return entry
+        except Exception:
+            self._misses += 1
+            return None
+
+    def put(self, entry: CacheEntry) -> None:
+        try:
+            data = {
+                "value": entry.value,
+                "tool_name": entry.tool_name,
+                "created_at": entry.created_at,
+                "ttl_seconds": entry.ttl_seconds,
+                "access_count": entry.access_count,
+            }
+            ttl_int = max(1, int(entry.remaining_ttl))
+            self._redis.setex(self._full_key(entry.key), ttl_int, json.dumps(data))
+        except Exception:
+            pass  # L2 failure is non-fatal; L1 still serves
+
+    def stats(self) -> dict:
+        total = self._hits + self._misses
+        return {
+            "level": "l2",
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": round(self._hits / max(total, 1), 4),
+        }
+```
+
+## Solution 4: L3 Persistent Cache
+
+```python
+import json
+import time
+from pathlib import Path
+from threading import Lock
+from typing import Any, Optional
+
+
+class L3PersistentCache:
+    """
+    Persistent file-based cache for expensive tool results that must
+    survive restarts. Each entry is a separate JSON file.
+    """
+
+    def __init__(self, cache_dir: str = "/tmp/agent_l3_cache", max_files: int = 200):
+        self._dir = Path(cache_dir)
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._max = max_files
+        self._lock = Lock()
+        self._hits = 0
+        self._misses = 0
+
+    def _path(self, key: str) -> Path:
+        import hashlib
+        safe_key = hashlib.sha256(key.encode()).hexdigest()
+        return self._dir / f"{safe_key}.json"
+
+    def get(self, key: str) -> Optional[CacheEntry]:
+        path = self._path(key)
+        try:
+            with self._lock:
+                if not path.exists():
+                    self._misses += 1
+                    return None
+                data = json.loads(path.read_text())
+            entry = CacheEntry(
+                key=key,
+                value=data["value"],
+                tool_name=data["tool_name"],
+                created_at=data["created_at"],
+                ttl_seconds=data["ttl_seconds"],
+                source_level=CacheLevel.L3,
+            )
+            if entry.is_expired():
+                path.unlink(missing_ok=True)
+                self._misses += 1
+                return None
+            self._hits += 1
+            return entry
+        except Exception:
+            self._misses += 1
+            return None
+
+    def put(self, entry: CacheEntry) -> None:
+        with self._lock:
+            self._evict()
+            path = self._path(entry.key)
+            path.write_text(json.dumps({
+                "value": entry.value,
+                "tool_name": entry.tool_name,
+                "created_at": entry.created_at,
+                "ttl_seconds": entry.ttl_seconds,
+            }))
+
+    def _evict(self) -> None:
+        files = sorted(self._dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+        while len(files) >= self._max:
+            files.pop(0).unlink(missing_ok=True)
+
+    def stats(self) -> dict:
+        total = self._hits + self._misses
+        return {
+            "level": "l3",
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": round(self._hits / max(total, 1), 4),
+            "stored_files": len(list(self._dir.glob("*.json"))),
+        }
+```
+
+## Solution 5: Multi-Level Cache
+
+```python
+import time
+from typing import Any, Callable, Optional
+
+
+class MultiLevelCache:
+    """
+    Checks L1 → L2 → L3 on miss. Promotes entries to higher levels on hit.
+    Falls through to the tool on complete miss and populates all levels.
+    """
+
+    def __init__(
+        self,
+        l1: L1InProcessCache,
+        l2: Optional[L2SharedCache] = None,
+        l3: Optional[L3PersistentCache] = None,
     ):
         self._l1 = l1
         self._l2 = l2
         self._l3 = l3
-        self._promo_threshold = l1_promotion_threshold
-        self._l2_to_l1_promotions = 0
-        self._l3_to_l2_promotions = 0
 
-    def get(self, key: str) -> Optional[Any]:
-        # L1 check
+    def get(self, key: str) -> Optional[CacheEntry]:
+        # L1
         entry = self._l1.get(key)
-        if entry is not None:
-            return entry.value
+        if entry:
+            return entry
 
-        # L2 check
-        entry = self._l2.get(key)
-        if entry is not None:
-            # Promote to L1 if accessed frequently enough
-            if entry.access_count >= self._promo_threshold:
-                self._l1.put(key, entry.value, ttl_seconds=entry.ttl_seconds)
-                self._l2_to_l1_promotions += 1
-            return entry.value
+        # L2
+        if self._l2:
+            entry = self._l2.get(key)
+            if entry:
+                self._l1.put(entry)    # promote to L1
+                return entry
 
-        # L3 check
-        if self._l3 is not None:
+        # L3
+        if self._l3:
             entry = self._l3.get(key)
-            if entry is not None:
-                # Promote to L2
-                self._l2.put(key, entry.value, ttl_seconds=entry.ttl_seconds)
-                self._l3_to_l2_promotions += 1
-                return entry.value
+            if entry:
+                self._l1.put(entry)    # promote to L1
+                if self._l2:
+                    self._l2.put(entry)  # promote to L2
+                return entry
 
         return None
 
-    def put(
+    def put(self, entry: CacheEntry, persist: bool = False) -> None:
+        self._l1.put(entry)
+        if self._l2:
+            self._l2.put(entry)
+        if persist and self._l3:
+            self._l3.put(entry)
+
+    async def get_or_execute(
         self,
         key: str,
-        value: Any,
-        level: CacheLevel = CacheLevel.L2,
-        ttl_seconds: Optional[float] = None,
-    ) -> None:
-        """Writes to the specified level and below."""
-        if level == CacheLevel.L1:
-            self._l1.put(key, value, ttl_seconds)
-        elif level == CacheLevel.L2:
-            self._l2.put(key, value, ttl_seconds)
-        elif level == CacheLevel.L3 and self._l3:
-            self._l3.put(key, value, ttl_seconds)
-
-    def invalidate(self, key: str) -> None:
-        self._l1.invalidate(key)
-        self._l2.invalidate(key)
-        if self._l3:
-            self._l3.invalidate(key)
-
-    def stats(self) -> dict:
-        s = {
-            "l1": self._l1.stats(),
-            "l2": self._l2.stats(),
-            "l2_to_l1_promotions": self._l2_to_l1_promotions,
-        }
-        if self._l3:
-            s["l3"] = self._l3.stats()
-            s["l3_to_l2_promotions"] = self._l3_to_l2_promotions
-        return s
-```
-
-## Solution 4: Tool Result Cache Advisor
-
-```python
-from typing import Optional
-
-
-class ToolResultCacheAdvisor:
-    """
-    Recommends which cache level to write a tool result to based on
-    the tool's characteristics and the result's estimated stability.
-    """
-
-    # (tool_name_pattern, ttl_seconds, write_level)
-    TOOL_POLICIES = [
-        ("*_config*", 3600.0, CacheLevel.L1),       # config reads: hot, stable
-        ("*_search*", 300.0, CacheLevel.L2),          # search: warm, semi-volatile
-        ("*_external*", 600.0, CacheLevel.L2),        # external APIs: warm
-        ("*_analytics*", 1800.0, CacheLevel.L3),      # analytics: cold, stable
-        ("*_realtime*", 30.0, CacheLevel.L1),         # real-time: hot, volatile
-    ]
-
-    def advise(
-        self,
         tool_name: str,
-        result_size_chars: int,
-    ) -> tuple:
-        """Returns (write_level, ttl_seconds)."""
-        import fnmatch
-        for pattern, ttl, level in self.TOOL_POLICIES:
-            if fnmatch.fnmatch(tool_name.lower(), pattern):
-                # Large results go to L2 or L3 regardless of pattern
-                if result_size_chars > 10000 and level == CacheLevel.L1:
-                    return CacheLevel.L2, ttl
-                return level, ttl
-        # Default: L2, 5 minutes
-        return CacheLevel.L2, 300.0
-```
-
-## Solution 5: Cache Warming Strategy
-
-```python
-import asyncio
-from typing import Any, Callable, List
-
-
-class CacheWarmingStrategy:
-    """
-    Pre-populates L1 and L2 caches with known-frequent keys at startup.
-    Prevents cold-start cache misses for high-traffic tool calls.
-    """
-
-    def __init__(self, cache: MultiLevelCache):
-        self._cache = cache
-        self._warmed_keys: List[str] = []
-
-    async def warm(
-        self,
-        warm_fn: Callable[[str], Any],  # async fn(key) -> value
-        keys: List[str],
-        level: CacheLevel = CacheLevel.L2,
-        ttl_seconds: float = 3600.0,
-        concurrency: int = 5,
+        tool_fn: Callable,
+        ttl_seconds: float = 300.0,
+        persist: bool = False,
+        *args: Any,
+        **kwargs: Any,
     ) -> dict:
-        semaphore = asyncio.Semaphore(concurrency)
-        successes = 0
-        failures = 0
+        entry = self.get(key)
+        if entry:
+            return {
+                "value": entry.value,
+                "cache_hit": True,
+                "source_level": entry.source_level.value,
+                "age_seconds": entry.age_seconds,
+            }
 
-        async def _warm_one(key: str) -> None:
-            nonlocal successes, failures
-            async with semaphore:
-                try:
-                    value = await warm_fn(key)
-                    self._cache.put(key, value, level=level, ttl_seconds=ttl_seconds)
-                    self._warmed_keys.append(key)
-                    successes += 1
-                except Exception:
-                    failures += 1
+        result = await tool_fn(*args, **kwargs)
+        new_entry = CacheEntry(
+            key=key,
+            value=result,
+            tool_name=tool_name,
+            ttl_seconds=ttl_seconds,
+            source_level=CacheLevel.MISS,
+        )
+        self.put(new_entry, persist=persist)
+        return {
+            "value": result,
+            "cache_hit": False,
+            "source_level": "miss",
+            "age_seconds": 0.0,
+        }
 
-        await asyncio.gather(*[_warm_one(k) for k in keys])
-        return {"warmed": successes, "failed": failures, "total": len(keys)}
+    def all_stats(self) -> dict:
+        stats = {"l1": self._l1.stats()}
+        if self._l2:
+            stats["l2"] = self._l2.stats()
+        if self._l3:
+            stats["l3"] = self._l3.stats()
+        return stats
 ```
 
 ## Solution 6: Cache Hierarchy Dashboard
@@ -323,36 +380,38 @@ import time
 
 
 class CacheHierarchyDashboard:
-    """
-    Renders multi-level cache stats, promotion rates, and advisor coverage.
-    """
+    """Renders a snapshot of all cache level statistics."""
 
     def __init__(self, cache: MultiLevelCache):
         self._cache = cache
 
     def render(self) -> dict:
-        stats = self._cache.stats()
-        # Compute aggregate hit rate across levels
-        total_hits = sum(stats[level].get("hits", 0) for level in ("l1", "l2", "l3") if level in stats)
-        total_requests = sum(
-            stats[level].get("hits", 0) + stats[level].get("misses", 0)
-            for level in ("l1", "l2", "l3") if level in stats
-        )
+        stats = self._cache.all_stats()
+        total_hits = sum(s.get("hits", 0) for s in stats.values())
+        total_requests = sum(s.get("hits", 0) + s.get("misses", 0) for s in stats.values() if "l1" in s or True)
+        l1_stats = stats.get("l1", {})
+        total_reqs = l1_stats.get("hits", 0) + l1_stats.get("misses", 0)
+
         return {
             "generated_at": time.time(),
-            "level_stats": stats,
-            "aggregate_hit_rate": round(total_hits / max(total_requests, 1), 4),
+            "levels": stats,
+            "overall_hit_rate": round(
+                l1_stats.get("hits", 0) / max(total_reqs, 1), 4
+            ),
+            "l1_hit_rate": l1_stats.get("hit_rate", 0),
+            "l2_hit_rate": stats.get("l2", {}).get("hit_rate", 0),
+            "l3_hit_rate": stats.get("l3", {}).get("hit_rate", 0),
         }
 ```
 
 ## Comparison
 
-| Approach | LRU Eviction | Level Promotion | TTL Per Level | Advisor | Warming |
+| Approach | Latency | Scope | Survives Restart | TTL Support | Promotion |
 |---|---|---|---|---|---|
-| LRUCacheLayer | Yes | No | Yes | No | No |
-| MultiLevelCache | Via layers | Yes (access count) | Via layers | No | No |
-| ToolResultCacheAdvisor | No | No | Yes (per pattern) | Yes | No |
-| CacheWarmingStrategy | No | No | No | No | Yes |
+| L1InProcessCache | Microseconds | Single instance | No | Yes | No |
+| L2SharedCache | Milliseconds | Multi-instance | No (Redis restarts) | Yes (Redis TTL) | No |
+| L3PersistentCache | Milliseconds | Single instance | Yes | Yes (checked on read) | No |
+| MultiLevelCache | L1 speed on hit | All tiers | Via L3 | Per-entry | Yes (L3→L2→L1) |
 | CacheHierarchyDashboard | No | No | No | No | No |
 
-**Best for production**: Size L1 to hold the top 1% of queries by access frequency — for most agent workloads this is 50-200 entries. Size L2 at 5-10× L1 to hold the warm tier without competing with application heap. Use `ToolResultCacheAdvisor` to avoid hard-coding tool-to-level mappings — the pattern matching keeps the policy in one place and testable. Monitor `aggregate_hit_rate` via the dashboard: below 0.60 means the cache is undersized or TTLs are too short; above 0.95 means the workload is highly repetitive and you may be caching stale data for too long. Run `CacheWarmingStrategy.warm()` at startup for the 20-30 most common queries — a warm cache eliminates cold-start latency spikes after deployments.
+**Best for production**: Use `persist=True` only for tool results with high compute cost (vector search, external API aggregations) and long stable TTLs (≥1 hour) — persisting every result negates the L1 speed advantage and fills disk. Set L1 size to fit within the JVM/Python process heap budget (500 entries × avg entry size); L2 size is bounded by Redis memory. Tune TTLs per tool category: read-only database queries (5 minutes), external API calls (15 minutes), expensive computation (1 hour), static reference data (24 hours). Monitor per-level hit rates: if L2 hit rate is near zero in a multi-instance deployment, the key space is too fragmented (too many unique tool call signatures) and near-duplicate detection or argument normalization is needed before caching.
