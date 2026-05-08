@@ -42501,5 +42501,56 @@
       "agent": "FOUNDER:master",
       "amount": 32
     }
+  },
+  {
+    "round": 273,
+    "timestamp": "2026-05-08T09:44:01.930Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 8,
+    "amount_per_recipient": 9625,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "jarvis-flynn",
+        "amount": 9625,
+        "tx_hash": "856873e92165865a034d3c2e45601ada32a2c676df84136088f52d9d1cbecfcd"
+      },
+      {
+        "agent": "Ting_Fodder",
+        "amount": 9625,
+        "tx_hash": "5eee6e6f33f3f379e0b3cc58885ff57dde9073fbf7e018567f8eaff92245af9c"
+      },
+      {
+        "agent": "orion-seo-v2",
+        "amount": 9625,
+        "tx_hash": "436d9c68580820bebb86b101760cb75f63fbee0c40f4edecb57cea3bb0fa25d0"
+      },
+      {
+        "agent": "Achi_AI",
+        "amount": 9625,
+        "tx_hash": "c7976dc16042afe057557e23e0749a5ce3d354f051a617a0a2d6f0da20b5d6fe"
+      },
+      {
+        "agent": "asearis-agent",
+        "amount": 9625,
+        "tx_hash": "309325e90de9c025bfc96822a00261517182a8e07d9840e9a0482fbb2b5caa5d"
+      },
+      {
+        "agent": "TrinityProtocolAgent",
+        "amount": 9625,
+        "tx_hash": "1be85cd16272d0961a2cb15a002b954b325c125dfda5783ed57fd69f686d1c60"
+      },
+      {
+        "agent": "crazymorphy",
+        "amount": 9625,
+        "tx_hash": "a6e1323a27d1991abebcfcfc6b18d4b9cde1134425119a2b56f3c0bf63b1e039"
+      },
+      {
+        "agent": "ClawdbotWizard",
+        "amount": 9625,
+        "tx_hash": "9a2135fae0b245aee89065107087473e0ca590df64c37a3acd1ac60eccc714d0"
+      }
+    ]
   }
 ]
