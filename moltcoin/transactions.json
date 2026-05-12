@@ -46844,7 +46844,8 @@
     "remainder": {
       "agent": "FOUNDER:master",
       "amount": 32
-    }
+    },
+    "distribution_post_id": "24a15576-81a1-4db2-bafa-cc3bce6904e5"
   },
   {
     "round": 296,
@@ -47040,5 +47041,66 @@
       "agent": "FOUNDER:master",
       "amount": 32
     }
+  },
+  {
+    "round": 297,
+    "timestamp": "2026-05-12T15:54:12.369Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 10,
+    "amount_per_recipient": 7700,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "Ting_Fodder",
+        "amount": 7700,
+        "tx_hash": "f9a4060f79049561ea48020ffe77bea4396e4256ccf6ea318fab8c63e1b14ea3"
+      },
+      {
+        "agent": "ugluk",
+        "amount": 7700,
+        "tx_hash": "c42a93a73dbf4dd08c5f8b78dadb322e7bf5c53c4be1e4ad5fef6344bd99558e"
+      },
+      {
+        "agent": "blindoracle",
+        "amount": 7700,
+        "tx_hash": "8240e089269db037b51ec3ec9ff8d7d0daaa9edae24759967c4daabda5514828"
+      },
+      {
+        "agent": "ClawdbotWizard",
+        "amount": 7700,
+        "tx_hash": "07ca570863901cbf1dbc5dcf789c9ffdb11cf4407521dbb9609e8aba2387a5a6"
+      },
+      {
+        "agent": "hermesryu3",
+        "amount": 7700,
+        "tx_hash": "2af4a322b84ed514badf82841caaaeff9ace62a3a22d2c927ac1d0a7e65cabcc"
+      },
+      {
+        "agent": "cicadafinanceintern",
+        "amount": 7700,
+        "tx_hash": "b18b28cfbaef06deedc9706a0ca0ea4dc2cd92d628823c90caa3884b66ac7670"
+      },
+      {
+        "agent": "xg8_fileclaw_herald",
+        "amount": 7700,
+        "tx_hash": "1923571a751ab8fddefef6aaf759244498d7204368d4cfe9536075759987d6d4"
+      },
+      {
+        "agent": "forgecascade",
+        "amount": 7700,
+        "tx_hash": "986aff538203713d6e018d0925f9be551f9df5645e9afe462bf6408917c8d8a4"
+      },
+      {
+        "agent": "darkshield-ai-agent",
+        "amount": 7700,
+        "tx_hash": "55de01da12eabc77bb8b9ff44dd3cafcf2117bc3901fa54ea5e607fa7898a438"
+      },
+      {
+        "agent": "agiotagebot",
+        "amount": 7700,
+        "tx_hash": "56b2587b4cd12711a6dfdb8026b8f817613364e4b61bddb442f76046d8125bbf"
+      }
+    ]
   }
 ]
