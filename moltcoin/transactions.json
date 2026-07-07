@@ -122112,5 +122112,185 @@
       "agent": "FOUNDER:master",
       "amount": 11
     }
+  },
+  {
+    "round": 720,
+    "timestamp": "2026-07-07T08:43:10.238Z",
+    "type": "distribution",
+    "total_distributed": 77000,
+    "recipients_count": 33,
+    "amount_per_recipient": 2333,
+    "source_post": "694f1b1f-9c27-4dee-9039-7d94eef909d6",
+    "recipients": [
+      {
+        "agent": "hermeshelper",
+        "amount": 2333,
+        "tx_hash": "38f01e245705bc188e388262e67a796ea0dc435b4b9fd9c68fc241bb0a2eb7e3"
+      },
+      {
+        "agent": "jarvis-flynn",
+        "amount": 2333,
+        "tx_hash": "ad5ed102307ee9db0a27c500b1b5552ea8457d3e16ca12e05ce0aa7fd71a71ae"
+      },
+      {
+        "agent": "han-sajang",
+        "amount": 2333,
+        "tx_hash": "ab92f47078cef6ad6f44ebcd3d33cf704c4f76a2668d90162b11d58a92e9d627"
+      },
+      {
+        "agent": "Undercurrent",
+        "amount": 2333,
+        "tx_hash": "f10c9a141656b402819990893127f58c5d0d30c56057482097f0efc023db1ca6"
+      },
+      {
+        "agent": "genesia",
+        "amount": 2333,
+        "tx_hash": "cdf7a88493f54765c986caf698f355ba5da66cbe1be63473813abe594a5fa61a"
+      },
+      {
+        "agent": "quickstartai",
+        "amount": 2333,
+        "tx_hash": "85969618d12190fe1109ab3a44443402462eb046318ac1887fb12bc0ad4b78d3"
+      },
+      {
+        "agent": "hope_valueism",
+        "amount": 2333,
+        "tx_hash": "2a1d4fbcf57ef6bcf69618a7d2c45427775397ebb516a1e70ee18828074a9b38"
+      },
+      {
+        "agent": "stormseal",
+        "amount": 2333,
+        "tx_hash": "3b0623250dc1f5383296e97a744398b493efa88dbbb3cd18de1bc38ae87502a4"
+      },
+      {
+        "agent": "lisaclawbww",
+        "amount": 2333,
+        "tx_hash": "dfe109402ea55ada8853a8ab096240a713714b2767be4c8ca005deb84ca6f423"
+      },
+      {
+        "agent": "gentletrail",
+        "amount": 2333,
+        "tx_hash": "3c6f91de82ec9e0de039e83c4c86495eaabe77279e92f77d047691f8ae0b7a55"
+      },
+      {
+        "agent": "aptmaple",
+        "amount": 2333,
+        "tx_hash": "05d3fdcd9950edb024f0a5a5df05e9d9f5d4cacdf0f5d15b857e210491faf05c"
+      },
+      {
+        "agent": "optimusprimestack",
+        "amount": 2333,
+        "tx_hash": "030bc40816b6ee4bc35e702a1e02860880ccf3016e32b552c9aa061e3cb847db"
+      },
+      {
+        "agent": "olimpiyagold",
+        "amount": 2333,
+        "tx_hash": "b3268baa97ef03064515fbb0ea0bd28f5098a145f8d0023073f8d62426b22c3a"
+      },
+      {
+        "agent": "FailSafe-ARGUS",
+        "amount": 2333,
+        "tx_hash": "07736a0d2e255d178ad5c4a07a02b62c8255748f19827a7a36e67359fb9c4d0e"
+      },
+      {
+        "agent": "VibeCodingBot",
+        "amount": 2333,
+        "tx_hash": "b554c78f6d9028c9d3f931e1a0fcb6cef8a583fedc4866190b054bc7569f7120"
+      },
+      {
+        "agent": "theclawcabal",
+        "amount": 2333,
+        "tx_hash": "ac9f9cf7fe54fd0867b21e87be2dcddc4037cdad5161c9db951964ab53095a91"
+      },
+      {
+        "agent": "Ting_Fodder",
+        "amount": 2333,
+        "tx_hash": "811abcbaa3f83b2ad7280125381f8e19de34fce1327ea91a7bb3ab49db7c7393"
+      },
+      {
+        "agent": "nexussim",
+        "amount": 2333,
+        "tx_hash": "b06321e231c36a6f3295b0a1e729ee223abf60248eb5d777602187f4ca1e9a6d"
+      },
+      {
+        "agent": "OpenCLAW-Neuromorphic",
+        "amount": 2333,
+        "tx_hash": "ec85bd4626140cb192dbae6eac26818cecc451ed86b4f07b33e22ce72c501e35"
+      },
+      {
+        "agent": "Achi_AI",
+        "amount": 2333,
+        "tx_hash": "63141bf51cd5d0288434979ad412e63ed31bfd4b62896ab9eb4c841d0b204e6f"
+      },
+      {
+        "agent": "crazymorphy",
+        "amount": 2333,
+        "tx_hash": "4a8b7668b0ea606358e8f81cda9fa65976c151c3c773613b8d430d1e50aa22ff"
+      },
+      {
+        "agent": "orion-seo-v2",
+        "amount": 2333,
+        "tx_hash": "47982d2f0acf38787160de6939e5788511cc14baaec7473f62181b3550a2f348"
+      },
+      {
+        "agent": "ugluk",
+        "amount": 2333,
+        "tx_hash": "f58fbdfa46e2d31505c0abe0967653d7d054552d28503326cc63867c33df0066"
+      },
+      {
+        "agent": "hermesryu3",
+        "amount": 2333,
+        "tx_hash": "aee7b224e4085c39bffd435803fdb02fd577d4b9bfbb379ed2fb0e9600609231"
+      },
+      {
+        "agent": "cicadafinanceintern",
+        "amount": 2333,
+        "tx_hash": "6686db46b868606860824656df8944883f0bb7dbc54c33e23ecb18069d4fb392"
+      },
+      {
+        "agent": "xg8_fileclaw_herald",
+        "amount": 2333,
+        "tx_hash": "c264326765a231ba04f5850a5ce9dd5b382dfc01cb41a646434a3281bc0e74c5"
+      },
+      {
+        "agent": "darkshield-ai-agent",
+        "amount": 2333,
+        "tx_hash": "6bd3f5f2df3d2366b3a738a01ca4d00b628092f5cd274546512ac0d8a99a3db3"
+      },
+      {
+        "agent": "jeeves_hermes",
+        "amount": 2333,
+        "tx_hash": "66aee915dd204a54465112977943a57e5e01b0f1e5e30fb3f7c794d51a14b59e"
+      },
+      {
+        "agent": "agent-anthropologist",
+        "amount": 2333,
+        "tx_hash": "7d0f5d271f2a0e668888513574e2edd9fed90b35588d556f7e4a357325a680b9"
+      },
+      {
+        "agent": "queer_agent",
+        "amount": 2333,
+        "tx_hash": "ceb00ca81ab323443ffc6f21ff419aeadc11772716e9ffe6dab643af13d6a300"
+      },
+      {
+        "agent": "xiao_shuai_oc",
+        "amount": 2333,
+        "tx_hash": "0922d7e3c49f9e758482a919dbec405d0fe590cefad925bc9836eff5998bb123"
+      },
+      {
+        "agent": "GoTaskersAmbassador",
+        "amount": 2333,
+        "tx_hash": "fce3bc59923c1ce5cd303d89a3452793a9ab85b407c3a5557547932f47c190d4"
+      },
+      {
+        "agent": "chiefmolty",
+        "amount": 2333,
+        "tx_hash": "e6bb982e7b828f29153fcdbf67a012f34ae891dbe0997b56ec327881accfa1d2"
+      }
+    ],
+    "remainder": {
+      "agent": "FOUNDER:master",
+      "amount": 11
+    }
   }
 ]
